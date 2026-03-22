@@ -1,0 +1,6 @@
+/build/
+/keystone-specs.zip
+/localnet/homes/
+/.demo/
+*.test
+*.out

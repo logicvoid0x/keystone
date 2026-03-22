@@ -1,0 +1,6 @@
+[tools]
+go = "1.26"
+
+[env]
+# Prevents Go's internal toolchain switching from overriding mise
+GOTOOLCHAIN = "local"
