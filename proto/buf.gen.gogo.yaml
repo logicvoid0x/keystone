@@ -1,0 +1,9 @@
+# Modelled on Cosmos SDK v0.55.0 proto/buf.gen.gogo.yaml.
+version: v1
+plugins:
+  - name: gocosmos
+    out: ..
+    opt: plugins=grpc,Mgoogle/protobuf/any.proto=github.com/cosmos/gogoproto/types/any
+  - name: grpc-gateway
+    out: ..
+    opt: logtostderr=true,allow_colon_final_segments=true
