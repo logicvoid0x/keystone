@@ -2,7 +2,11 @@ module github.com/OWNER/keystone
 
 go 1.26.10
 
-require github.com/cosmos/cosmos-sdk v0.55.0
+require (
+	github.com/cosmos/cosmos-sdk v0.55.0
+	github.com/stretchr/testify v1.11.1
+	golang.org/x/tools v0.47.0
+)
 
 require (
 	cosmossdk.io/api v1.1.0 // indirect
@@ -191,7 +195,6 @@ require (
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spf13/viper v1.21.0 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/supranational/blst v0.3.16 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
@@ -252,7 +255,6 @@ require (
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.47.0 // indirect
 	google.golang.org/genproto v0.0.0-20260511170946-3700d4141b60 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect

@@ -20,7 +20,7 @@ test: check-go
 
 lint: check-go
 	$(GO) vet ./...
-	@if [ -d tools/detlint ]; then $(GO) run ./tools/detlint/cmd/detlint ./...; fi
+	$(GO) run ./tools/detlint/cmd/detlint ./...
 	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run ./...; \
 		else echo "golangci-lint not installed; skipped"; fi
 
