@@ -1,7 +1,8 @@
 // Package detlint reports non-deterministic constructs in Keystone state-machine code.
 //
 // Scope: packages whose import path contains /x/, /app/protocol or /crypto/frost,
-// excluding /crypto/frost/secret and /sidecar/. _test.go files are skipped.
+// excluding /crypto/frost/secret and /sidecar/. _test.go files and generated files
+// (`// Code generated ... DO NOT EDIT.`) are skipped.
 //
 // Rules:
 //  1. float32 / float64 types and values;
@@ -67,7 +68,8 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 	for _, f := range pass.Files {
 		tf := pass.Fset.File(f.Pos())
-		if tf == nil || strings.HasSuffix(tf.Name(), "_test.go") {
+		// Generated code (protobuf, grpc-gateway) carries no state-machine logic.
+		if tf == nil || strings.HasSuffix(tf.Name(), "_test.go") || ast.IsGenerated(f) {
 			continue
 		}
 		c := &checker{pass: pass, file: tf, allowed: map[int]bool{}, seen: map[string]bool{}}
