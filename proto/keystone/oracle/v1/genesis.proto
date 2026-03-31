@@ -1,0 +1,13 @@
+syntax = "proto3";
+package keystone.oracle.v1;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+import "keystone/oracle/v1/params.proto";
+
+option go_package = "github.com/OWNER/keystone/x/oracle/types";
+
+// GenesisState is the x/oracle genesis state.
+message GenesisState {
+  Params params = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}

@@ -1,0 +1,15 @@
+syntax = "proto3";
+package keystone.stablecoin.v1;
+
+import "amino/amino.proto";
+
+option go_package = "github.com/OWNER/keystone/x/stablecoin/types";
+
+// Params are the x/stablecoin parameters (design §10.3; bounds §17).
+message Params {
+  option (amino.name) = "keystone/x/stablecoin/Params";
+  // sin_pause_bps is the bad debt, as a share of supply, that pauses minting.
+  uint32 sin_pause_bps = 1;
+  // sin_pause_blocks is how long bad debt may stay above sin_pause_bps before pausing.
+  uint32 sin_pause_blocks = 2;
+}

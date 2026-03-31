@@ -1,0 +1,49 @@
+syntax = "proto3";
+package keystone.custody.v1;
+
+import "amino/amino.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/OWNER/keystone/x/custody/types";
+
+// Params are the x/custody parameters (design §9.1, §10.3; bounds §17).
+message Params {
+  option (amino.name) = "keystone/x/custody/Params";
+  // treasury_cap_sat caps credited BTC, in satoshis.
+  string treasury_cap_sat = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  // membership_delay_blocks is the wait before a changed operator set takes custody.
+  uint64 membership_delay_blocks = 2;
+  // confirm_depth is the Bitcoin confirmation depth k.
+  uint32 confirm_depth = 3;
+  // nonce_pool is the number of preprocessed nonce commitments per share.
+  uint32 nonce_pool = 4;
+  // session_deadline is the number of blocks a FROST session waits for shares.
+  uint32 session_deadline = 5;
+  // max_inputs caps inputs per withdrawal transaction.
+  uint32 max_inputs = 6;
+  // batch_min_requests is the number of requests that opens a batch at once.
+  uint32 batch_min_requests = 7;
+  // batch_max_wait is the number of blocks after which a smaller batch opens.
+  uint32 batch_max_wait = 8;
+  // feerate_min is the lowest feerate used, in sat/vB.
+  uint64 feerate_min = 9;
+  // feerate_max is the highest feerate used, in sat/vB.
+  uint64 feerate_max = 10;
+  // rbf_after_btc_blocks is the number of Bitcoin blocks before a fee bump.
+  uint32 rbf_after_btc_blocks = 11;
+  // min_withdraw_sat is the smallest withdrawal, in satoshis.
+  string min_withdraw_sat = 12 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  // emergency_rekey starts a new epoch among online operators without the delay (§9.4).
+  bool emergency_rekey = 13;
+}

@@ -1,0 +1,13 @@
+syntax = "proto3";
+package keystone.stablecoin.v1;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+import "keystone/stablecoin/v1/params.proto";
+
+option go_package = "github.com/OWNER/keystone/x/stablecoin/types";
+
+// GenesisState is the x/stablecoin genesis state.
+message GenesisState {
+  Params params = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}

@@ -1,0 +1,27 @@
+syntax = "proto3";
+package keystone.liquidation.v1;
+
+import "amino/amino.proto";
+import "cosmos/query/v1/query.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "keystone/liquidation/v1/params.proto";
+
+option go_package = "github.com/OWNER/keystone/x/liquidation/types";
+
+// Query is the x/liquidation query service.
+service Query {
+  // Params returns the x/liquidation params.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/liquidation/v1/params";
+  }
+}
+
+// QueryParamsRequest is the request for Query/Params.
+message QueryParamsRequest {}
+
+// QueryParamsResponse is the response for Query/Params.
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}

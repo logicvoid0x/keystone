@@ -1,0 +1,27 @@
+syntax = "proto3";
+package keystone.oracle.v1;
+
+import "amino/amino.proto";
+
+option go_package = "github.com/OWNER/keystone/x/oracle/types";
+
+// Params are the x/oracle parameters (design §10.3; bounds §17).
+message Params {
+  option (amino.name) = "keystone/x/oracle/Params";
+  // min_sources is the minimum number of exchange quotes in a validator's local median.
+  uint32 min_sources = 1;
+  // max_step_bps clamps the committed price move per block.
+  uint32 max_step_bps = 2;
+  // stale_blocks is the number of blocks without an update before the price is STALE.
+  uint32 stale_blocks = 3;
+  // twap_blocks is the TWAP ring-buffer length.
+  uint32 twap_blocks = 4;
+  // volatile_bps is the spot/TWAP gap that marks the price VOLATILE.
+  uint32 volatile_bps = 5;
+  // miss_window is the number of blocks over which oracle misses are counted.
+  uint32 miss_window = 6;
+  // miss_alert is the miss count in the window that raises an alert.
+  uint32 miss_alert = 7;
+  // outlier_bps is the distance from the median that counts a report as an outlier.
+  uint32 outlier_bps = 8;
+}

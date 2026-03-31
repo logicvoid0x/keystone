@@ -1,0 +1,23 @@
+syntax = "proto3";
+package keystone.liquidation.v1;
+
+import "amino/amino.proto";
+
+option go_package = "github.com/OWNER/keystone/x/liquidation/types";
+
+// Params are the x/liquidation parameters (design §10.3; bounds §17).
+message Params {
+  option (amino.name) = "keystone/x/liquidation/Params";
+  // penalty_bps is the liquidation penalty paid to whoever absorbs the debt.
+  uint32 penalty_bps = 1;
+  // max_per_block caps liquidations per block.
+  uint32 max_per_block = 2;
+  // auction_start_bps is the auction start price as a share of the oracle price.
+  uint32 auction_start_bps = 3;
+  // auction_step_bps is the per-block price decrease.
+  uint32 auction_step_bps = 4;
+  // auction_reset_bps is the price, as a share of the start, that resets an auction.
+  uint32 auction_reset_bps = 5;
+  // auction_max_blocks is the auction duration before a reset.
+  uint32 auction_max_blocks = 6;
+}

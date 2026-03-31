@@ -1,0 +1,30 @@
+syntax = "proto3";
+package keystone.liquidation.v1;
+
+import "amino/amino.proto";
+import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+import "keystone/liquidation/v1/params.proto";
+
+option go_package = "github.com/OWNER/keystone/x/liquidation/types";
+
+// Msg is the x/liquidation Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+
+  // UpdateParams replaces the params. Signed by the x/poa admin.
+  rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
+}
+
+// MsgUpdateParams replaces the x/liquidation params.
+message MsgUpdateParams {
+  option (cosmos.msg.v1.signer) = "admin";
+  option (amino.name) = "keystone/liquidation/MsgUpdateParams";
+
+  string admin = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  Params params = 2 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// MsgUpdateParamsResponse is the response to MsgUpdateParams.
+message MsgUpdateParamsResponse {}

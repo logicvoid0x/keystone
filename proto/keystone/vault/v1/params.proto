@@ -1,0 +1,45 @@
+syntax = "proto3";
+package keystone.vault.v1;
+
+import "amino/amino.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/OWNER/keystone/x/vault/types";
+
+// Params are the x/vault parameters (design §7.1, §10.3; bounds §17).
+message Params {
+  option (amino.name) = "keystone/x/vault/Params";
+  // mcr_bps is the minimum collateral ratio after a mint or collateral withdrawal.
+  uint32 mcr_bps = 1;
+  // lr_bps is the liquidation ratio. Must be below mcr_bps.
+  uint32 lr_bps = 2;
+  // stability_fee_per_second is the per-second rate multiplier in RAY (1e27).
+  string stability_fee_per_second = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  // global_debt_ceiling is the maximum total debt, in ukusd.
+  string global_debt_ceiling = 4 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  // dust is the minimum non-zero debt per vault, in ukusd.
+  string dust = 5 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  // min_deposit_sat is the smallest deposit credited to a vault, in satoshis.
+  string min_deposit_sat = 6 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
