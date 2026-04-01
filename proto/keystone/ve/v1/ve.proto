@@ -1,0 +1,100 @@
+syntax = "proto3";
+package keystone.ve.v1;
+
+import "gogoproto/gogo.proto";
+import "tendermint/abci/types.proto";
+
+option go_package = "github.com/OWNER/keystone/app/protocol/vetypes";
+
+// VoteExtension is the payload each validator signs into its precommit (design §5.2, §6.1).
+// Canonical form: repeated fields sorted as documented below, strictly (no duplicates).
+message VoteExtension {
+  // version is 1.
+  uint32 version = 1;
+  // height must equal the vote height.
+  int64 height = 2;
+  // oracle is absent when there is no price this height.
+  OraclePayload oracle = 3;
+  // bitcoin carries Bitcoin attestations (design §9.7).
+  BitcoinPayload bitcoin = 4;
+  // frost carries nonce commitments and signature shares (design §9.11).
+  FrostPayload frost = 5;
+}
+
+// OraclePayload is a validator's local median price (design §6.1).
+message OraclePayload {
+  // price_micro_usd is the local median in micro-USD per BTC, > 0.
+  uint64 price_micro_usd = 1;
+  // num_sources is the number of quotes used in the local median.
+  uint32 num_sources = 2;
+}
+
+// BitcoinPayload is a watcher's view of Bitcoin (design §9.7).
+message BitcoinPayload {
+  // anchor is the block at (tip - k) on the watcher's best chain.
+  BtcBlockRef anchor = 1;
+  uint64 feerate_sat_vb = 2;
+  // deposits: max 16, sorted by (txid, vout).
+  repeated DepositSeen deposits = 3 [(gogoproto.nullable) = false];
+  // confirms: our signed txs at depth k, sorted by txid.
+  repeated TxConfirmed confirms = 4 [(gogoproto.nullable) = false];
+  // reorgs: sorted by (txid, vout).
+  repeated ReorgSeen reorgs = 5 [(gogoproto.nullable) = false];
+}
+
+// BtcBlockRef identifies a Bitcoin block.
+message BtcBlockRef {
+  uint32 height = 1;
+  bytes hash = 2;
+}
+
+// DepositSeen attests a deposit at depth >= k.
+message DepositSeen {
+  bytes txid = 1;
+  uint32 vout = 2;
+  uint64 amount_sat = 3;
+  bytes pk_script = 4;
+  BtcBlockRef block = 5;
+}
+
+// TxConfirmed attests one of our signed txs at depth k.
+message TxConfirmed {
+  bytes txid = 1;
+  BtcBlockRef block = 2;
+}
+
+// ReorgSeen attests that a credited deposit's block left the best chain.
+message ReorgSeen {
+  bytes txid = 1;
+  uint32 vout = 2;
+  bytes old_block_hash = 3;
+}
+
+// FrostPayload carries FROST signer output (design §9.11).
+message FrostPayload {
+  // commitments are sorted by (share_index, seq).
+  repeated NonceCommitment commitments = 1 [(gogoproto.nullable) = false];
+  // shares are sorted by session_id.
+  repeated CombinedShare shares = 2 [(gogoproto.nullable) = false];
+  bool revoke_all_nonces = 3;
+}
+
+// NonceCommitment is a preprocessed FROST nonce commitment (33-byte points).
+message NonceCommitment {
+  uint32 share_index = 1;
+  uint64 seq = 2;
+  bytes hiding = 3;
+  bytes binding = 4;
+}
+
+// CombinedShare is the sum of z_i over this validator's assigned shares (32 bytes).
+message CombinedShare {
+  bytes session_id = 1;
+  bytes z = 2;
+}
+
+// InjectedVotes is the body of tx0: "KSTN" | 0x01 | InjectedVotes (design §5.6).
+message InjectedVotes {
+  // extended_commit is LocalLastCommit, unchanged.
+  tendermint.abci.ExtendedCommitInfo extended_commit = 1 [(gogoproto.nullable) = false];
+}

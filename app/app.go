@@ -61,6 +61,7 @@ import (
 	upgradekeeper "github.com/cosmos/cosmos-sdk/x/upgrade/keeper"
 	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
 
+	"github.com/OWNER/keystone/app/protocol"
 	"github.com/OWNER/keystone/x/custody"
 	custodykeeper "github.com/OWNER/keystone/x/custody/keeper"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
@@ -137,6 +138,8 @@ type App struct {
 	ModuleManager      *module.Manager
 	BasicModuleManager module.BasicManager
 	configurator       module.Configurator
+
+	protocol *protocol.PreBlocker
 }
 
 // New returns a Keystone app. It refuses to start with any block executor other than
@@ -328,8 +331,20 @@ func (app *App) setPostHandler() {
 	app.SetPostHandler(h)
 }
 
-// setABCIHandlers registers the ABCI++ handlers. M0-T6 replaces this with app/protocol.
-func (app *App) setABCIHandlers() {}
+// setABCIHandlers registers the ABCI++ handlers from app/protocol (design §5). User
+// txs are selected and checked by the SDK default proposal handler.
+func (app *App) setABCIHandlers() {
+	veh := protocol.NewVoteExtHandler()
+	app.SetExtendVoteHandler(veh.ExtendVote)
+	app.SetVerifyVoteExtensionHandler(veh.VerifyVoteExtension)
+
+	def := baseapp.NewDefaultProposalHandler(app.Mempool(), app)
+	ph := protocol.NewProposalHandler(app.Logger(), app.PoaKeeper, def.PrepareProposalHandler(), def.ProcessProposalHandler())
+	app.SetPrepareProposal(ph.PrepareProposal)
+	app.SetProcessProposal(ph.ProcessProposal)
+
+	app.protocol = protocol.NewPreBlocker(app.PoaKeeper)
+}
 
 // Name returns the app name.
 func (app *App) Name() string { return app.BaseApp.Name() }
@@ -337,7 +352,12 @@ func (app *App) Name() string { return app.BaseApp.Name() }
 // PreBlocker runs x/upgrade's PreBlock (via the module manager) and then the protocol
 // segment (design §5.9).
 func (app *App) PreBlocker(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
-	return app.ModuleManager.PreBlock(ctx)
+	res, err := app.ModuleManager.PreBlock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	app.protocol.PreBlock(ctx, req)
+	return res, nil
 }
 
 // BeginBlocker runs module BeginBlockers (none in M0).
