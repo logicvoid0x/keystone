@@ -57,6 +57,12 @@ type Chain struct {
 	accNums map[string]uint64
 	seqs    map[string]uint64
 	rng     *rand.Rand
+
+	// Consensus simulation for NextBlock (consensus.go).
+	consKeys   map[string]ed25519.PrivKey // consensus address -> key
+	valsets    map[int64][]validator      // height -> validator set
+	lastExt    abci.ExtendedCommitInfo
+	lastCommit abci.CommitInfo
 }
 
 // New starts a chain with n operators (power 1), an admin and two funded users, and
@@ -116,6 +122,12 @@ func New(t *testing.T, n int) *Chain {
 	for i, a := range all {
 		c.accNums[a.String()] = uint64(i)
 	}
+	c.consKeys = map[string]ed25519.PrivKey{}
+	for _, op := range c.Operators {
+		c.RegisterConsKey(op.ConsKey)
+	}
+	set := applyUpdates(nil, res.Validators)
+	c.valsets = map[int64][]validator{1: set, 2: set}
 	return c
 }
 
