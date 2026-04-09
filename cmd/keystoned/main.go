@@ -1,14 +1,22 @@
+// Command keystoned is the Keystone node and CLI.
 package main
 
 import (
 	"fmt"
+	"os"
 
-	"github.com/cosmos/cosmos-sdk/baseapp"
+	clientv2helpers "cosmossdk.io/client/v2/helpers"
+
+	svrcmd "github.com/cosmos/cosmos-sdk/server/cmd"
+
+	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/cmd/keystoned/cmd"
 )
 
-// Placeholder until T7 replaces it with the root command.
-var _ = baseapp.NewBaseApp
-
 func main() {
-	fmt.Println("keystoned: scaffold")
+	rootCmd := cmd.NewRootCmd()
+	if err := svrcmd.Execute(rootCmd, clientv2helpers.EnvPrefix, app.DefaultNodeHome); err != nil {
+		fmt.Fprintln(rootCmd.OutOrStderr(), err)
+		os.Exit(1)
+	}
 }
