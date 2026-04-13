@@ -21,6 +21,7 @@ import (
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
 	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/sidecar/price"
 )
 
 // TimeoutCommit targets ~3 s blocks. In CometBFT v0.40 this is config.toml
@@ -86,17 +87,31 @@ func initCometBFTConfig() *cmtcfg.Config {
 	return cfg
 }
 
+// KeystoneConfig is the [keystone.*] part of app.toml.
+type KeystoneConfig struct {
+	Price price.Config `mapstructure:"price"`
+}
+
+// AppConfig is app.toml: the SDK server config plus [keystone.*].
+type AppConfig struct {
+	serverconfig.Config `mapstructure:",squash"`
+	Keystone            KeystoneConfig `mapstructure:"keystone"`
+}
+
+// AppConfigTemplate is the SDK template plus the Keystone sections.
+const AppConfigTemplate = serverconfig.DefaultConfigTemplate + price.ConfigTemplate
+
 // initAppConfig is the default app.toml: zero gas price, sequential executor, no
-// app-side mempool (CometBFT FIFO order).
+// app-side mempool (CometBFT FIFO order), real-exchange price sources.
 func initAppConfig() (string, any) {
-	return serverconfig.DefaultConfigTemplate, DefaultAppConfig()
+	return AppConfigTemplate, DefaultAppConfig()
 }
 
 // DefaultAppConfig returns Keystone's app.toml defaults.
-func DefaultAppConfig() *serverconfig.Config {
+func DefaultAppConfig() *AppConfig {
 	cfg := serverconfig.DefaultConfig()
 	cfg.MinGasPrices = "0" + app.Denom
 	cfg.BlockExecutor = serverconfig.BlockExecutorSequential
 	cfg.Mempool.MaxTxs = -1
-	return cfg
+	return &AppConfig{Config: *cfg, Keystone: KeystoneConfig{Price: price.DefaultConfig()}}
 }

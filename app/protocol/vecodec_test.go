@@ -159,3 +159,28 @@ func TestExtendVoteOutputVerifies(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, abci.ResponseVerifyVoteExtension_REJECT, v.Status, "undecodable")
 }
+
+type fixedPrice struct {
+	p  *vetypes.OraclePayload
+	ok bool
+}
+
+func (f fixedPrice) Snapshot() (*vetypes.OraclePayload, bool) { return f.p, f.ok }
+
+func TestExtendVoteCarriesPriceSnapshot(t *testing.T) {
+	h := protocol.NewVoteExtHandler()
+	h.SetPriceSource(fixedPrice{&vetypes.OraclePayload{PriceMicroUsd: 100_000_000_000, NumSources: 3}, true})
+	res, err := h.ExtendVote(testCtx(), &abci.RequestExtendVote{Height: 4})
+	require.NoError(t, err)
+	ve, err := protocol.DecodeVE(res.VoteExtension, 4)
+	require.NoError(t, err)
+	require.Equal(t, &vetypes.OraclePayload{PriceMicroUsd: 100_000_000_000, NumSources: 3}, ve.Oracle)
+
+	// No snapshot: no oracle payload, still a valid VE.
+	h.SetPriceSource(fixedPrice{nil, false})
+	res, err = h.ExtendVote(testCtx(), &abci.RequestExtendVote{Height: 4})
+	require.NoError(t, err)
+	ve, err = protocol.DecodeVE(res.VoteExtension, 4)
+	require.NoError(t, err)
+	require.Nil(t, ve.Oracle)
+}

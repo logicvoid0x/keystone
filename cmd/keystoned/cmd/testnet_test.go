@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 
 	"cosmossdk.io/log/v2"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/cmd/keystoned/cmd"
+	"github.com/OWNER/keystone/sidecar/price"
 	poatypes "github.com/OWNER/keystone/x/poa/types"
 )
 
@@ -110,4 +112,27 @@ func peersLine(toml string) string {
 		}
 	}
 	return ""
+}
+
+func TestInitFilesMockfeedSources(t *testing.T) {
+	a := app.New(log.NewNopLogger(), dbm.NewMemDB(), true, simtestutil.EmptyAppOptions{})
+	dir := t.TempDir()
+	require.NoError(t, cmd.InitFiles(a.AppCodec(), a.DefaultGenesis(), cmd.InitFilesArgs{
+		Operators: 1, OutputDir: dir, ChainID: "keystone-local-1", KeyringBackend: keyring.BackendTest,
+		FundAmount: sdkmath.NewInt(1), MockfeedURL: "http://127.0.0.1:18080",
+	}, bufio.NewReader(strings.NewReader(""))))
+
+	v := viper.New()
+	v.SetConfigFile(filepath.Join(dir, "node0", "config", "app.toml"))
+	require.NoError(t, v.ReadInConfig())
+	require.Equal(t, []string{
+		"mock:http://127.0.0.1:18080/ex/a/btcusd",
+		"mock:http://127.0.0.1:18080/ex/b/btcusd",
+		"mock:http://127.0.0.1:18080/ex/c/btcusd",
+	}, v.GetStringSlice(price.FlagSources))
+	require.Equal(t, "1s", v.GetString(price.FlagPollInterval))
+	require.Equal(t, 3, v.GetInt(price.FlagMinSources))
+	f, err := price.FetcherFromAppOptions(v)
+	require.NoError(t, err)
+	require.NotNil(t, f)
 }

@@ -140,6 +140,8 @@ type App struct {
 	configurator       module.Configurator
 
 	protocol *protocol.PreBlocker
+	voteExt  *protocol.VoteExtHandler
+	price    protocol.PriceSource
 }
 
 // New returns a Keystone app. It refuses to start with any block executor other than
@@ -335,6 +337,7 @@ func (app *App) setPostHandler() {
 // txs are selected and checked by the SDK default proposal handler.
 func (app *App) setABCIHandlers() {
 	veh := protocol.NewVoteExtHandler()
+	app.voteExt = veh
 	app.SetExtendVoteHandler(veh.ExtendVote)
 	app.SetVerifyVoteExtensionHandler(veh.VerifyVoteExtension)
 
@@ -452,4 +455,19 @@ func BlockedAddresses() map[string]bool {
 		out[authtypes.NewModuleAddress(acc).String()] = true
 	}
 	return out
+}
+
+// SetPriceSource attaches the price sidecar to ExtendVote. Call before the node
+// starts. If src has a Stop method, Close calls it.
+func (app *App) SetPriceSource(src protocol.PriceSource) {
+	app.price = src
+	app.voteExt.SetPriceSource(src)
+}
+
+// Close stops the sidecars, then closes BaseApp.
+func (app *App) Close() error {
+	if s, ok := app.price.(interface{ Stop() }); ok {
+		s.Stop()
+	}
+	return app.BaseApp.Close()
 }

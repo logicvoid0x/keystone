@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/spf13/cobra"
@@ -18,6 +20,7 @@ import (
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
 
 	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/sidecar/price"
 )
 
 func initRootCmd(rootCmd *cobra.Command, tempApp *app.App) {
@@ -91,7 +94,21 @@ func txCommand() *cobra.Command {
 }
 
 func newApp(logger log.Logger, db dbm.DB, appOpts servertypes.AppOptions) servertypes.Application {
-	return app.New(logger, db, true, appOpts, server.DefaultBaseappOptions(appOpts)...)
+	a := app.New(logger, db, true, appOpts, server.DefaultBaseappOptions(appOpts)...)
+
+	// Price sidecar: polls in the background; ExtendVote reads its snapshot.
+	fetcher, err := price.FetcherFromAppOptions(appOpts)
+	if err != nil {
+		panic(fmt.Errorf("[keystone.price]: %w", err))
+	}
+	if fetcher != nil {
+		fetcher.Start(context.Background())
+		a.SetPriceSource(fetcher)
+		logger.Info("price sidecar started")
+	} else {
+		logger.Warn("no [keystone.price] sources configured; vote extensions carry no price")
+	}
+	return a
 }
 
 func appExport(

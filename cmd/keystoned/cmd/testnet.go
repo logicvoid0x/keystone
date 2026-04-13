@@ -27,12 +27,14 @@ import (
 	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
 
 	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/sidecar/price"
 )
 
 const (
 	flagOperators  = "operators"
 	flagOutput     = "output"
 	flagFundAmount = "fund-amount"
+	flagMockfeed   = "mockfeed"
 
 	// Port layout for nodes on one machine: node i uses base + 10*i.
 	p2pPortBase  = 26656
@@ -63,6 +65,8 @@ type InitFilesArgs struct {
 	ChainID        string
 	KeyringBackend string
 	FundAmount     sdkmath.Int
+	// MockfeedURL, if set, points every node's price sources at a mockfeed.
+	MockfeedURL string
 }
 
 func initFilesCmd(tempApp *app.App) *cobra.Command {
@@ -79,12 +83,13 @@ a single "admin" key in node0 when N = 1), vote extensions enabled at height 1.`
 			chainID, _ := cmd.Flags().GetString(flags.FlagChainID)
 			backend, _ := cmd.Flags().GetString(flags.FlagKeyringBackend)
 			fundStr, _ := cmd.Flags().GetString(flagFundAmount)
+			mock, _ := cmd.Flags().GetString(flagMockfeed)
 			fund, ok := sdkmath.NewIntFromString(fundStr)
 			if !ok {
 				return fmt.Errorf("invalid --%s %q", flagFundAmount, fundStr)
 			}
 			if err := InitFiles(tempApp.AppCodec(), tempApp.DefaultGenesis(), InitFilesArgs{
-				Operators: n, OutputDir: out, ChainID: chainID, KeyringBackend: backend, FundAmount: fund,
+				Operators: n, OutputDir: out, ChainID: chainID, KeyringBackend: backend, FundAmount: fund, MockfeedURL: mock,
 			}, bufio.NewReader(cmd.InOrStdin())); err != nil {
 				return err
 			}
@@ -97,6 +102,7 @@ a single "admin" key in node0 when N = 1), vote extensions enabled at height 1.`
 	cmd.Flags().String(flags.FlagChainID, "keystone-local-1", "chain id")
 	cmd.Flags().String(flags.FlagKeyringBackend, keyring.BackendTest, "keyring backend")
 	cmd.Flags().String(flagFundAmount, "1000000000000", "test-denom balance for each funded account")
+	cmd.Flags().String(flagMockfeed, "", "mockfeed base URL (e.g. http://127.0.0.1:18080); default: real exchanges")
 	return cmd
 }
 
@@ -174,7 +180,10 @@ func InitFiles(cdc codec.Codec, defaults app.GenesisState, args InitFilesArgs, i
 		appCfg := DefaultAppConfig()
 		appCfg.GRPC.Address = fmt.Sprintf("127.0.0.1:%d", grpcPortBase+portStride*i)
 		appCfg.API.Address = fmt.Sprintf("tcp://127.0.0.1:%d", apiPortBase+portStride*i)
-		serverconfig.SetConfigTemplate(serverconfig.DefaultConfigTemplate)
+		if args.MockfeedURL != "" {
+			appCfg.Keystone.Price = price.MockConfig(args.MockfeedURL)
+		}
+		serverconfig.SetConfigTemplate(AppConfigTemplate)
 		serverconfig.WriteConfigFile(filepath.Join(nf.home, "config", "app.toml"), appCfg)
 
 		if err := writeClientConfig(nf.home, args.ChainID, args.KeyringBackend, fmt.Sprintf("tcp://127.0.0.1:%d", rpcPortBase+portStride*i)); err != nil {
