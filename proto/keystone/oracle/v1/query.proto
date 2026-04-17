@@ -3,9 +3,11 @@ package keystone.oracle.v1;
 
 import "amino/amino.proto";
 import "cosmos/query/v1/query.proto";
+import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
 import "keystone/oracle/v1/params.proto";
+import "keystone/oracle/v1/state.proto";
 
 option go_package = "github.com/OWNER/keystone/x/oracle/types";
 
@@ -16,6 +18,21 @@ service Query {
     option (cosmos.query.v1.module_query_safe) = true;
     option (google.api.http).get = "/keystone/oracle/v1/params";
   }
+  // Price returns the committed price state.
+  rpc Price(QueryPriceRequest) returns (QueryPriceResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/oracle/v1/price";
+  }
+  // Twap returns the TWAP and the number of blocks it covers.
+  rpc Twap(QueryTwapRequest) returns (QueryTwapResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/oracle/v1/twap";
+  }
+  // MissCounter returns an operator's oracle misses in the current window.
+  rpc MissCounter(QueryMissCounterRequest) returns (QueryMissCounterResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/oracle/v1/miss_counter/{validator}";
+  }
 }
 
 // QueryParamsRequest is the request for Query/Params.
@@ -24,4 +41,38 @@ message QueryParamsRequest {}
 // QueryParamsResponse is the response for Query/Params.
 message QueryParamsResponse {
   Params params = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// QueryPriceRequest is the request for Query/Price.
+message QueryPriceRequest {}
+
+// QueryPriceResponse is the response for Query/Price.
+message QueryPriceResponse {
+  PriceState price = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// QueryTwapRequest is the request for Query/Twap.
+message QueryTwapRequest {}
+
+// QueryTwapResponse is the response for Query/Twap.
+message QueryTwapResponse {
+  string twap_micro_usd = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  uint32 blocks = 2;
+}
+
+// QueryMissCounterRequest is the request for Query/MissCounter.
+message QueryMissCounterRequest {
+  // validator is the operator account address.
+  string validator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// QueryMissCounterResponse is the response for Query/MissCounter.
+message QueryMissCounterResponse {
+  uint32 misses = 1;
+  uint32 window = 2;
 }

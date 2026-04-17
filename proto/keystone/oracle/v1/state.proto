@@ -1,0 +1,63 @@
+syntax = "proto3";
+package keystone.oracle.v1;
+
+import "amino/amino.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/OWNER/keystone/x/oracle/types";
+
+// PriceStatus is the oracle status (design §6.4).
+enum PriceStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+  PRICE_STATUS_UNSPECIFIED = 0;
+  PRICE_STATUS_ACTIVE = 1;
+  PRICE_STATUS_VOLATILE = 2;
+  PRICE_STATUS_STALE = 3;
+}
+
+// PriceState is the committed price (design §6.1). Prices are micro-USD per BTC.
+message PriceState {
+  string spot_micro_usd = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string last_median_micro_usd = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  int64 last_update_height = 3;
+  string twap_micro_usd = 4 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  PriceStatus status = 5;
+  // prev_spot_micro_usd is the spot before the last update (invariant 9). M1 addition.
+  string prev_spot_micro_usd = 6 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// TwapMeta tracks the TWAP ring buffer (prefix 0x06, M1 addition).
+message TwapMeta {
+  // next is the ring index written next.
+  uint32 next = 1;
+  // count is the number of filled entries (<= TwapBlocks).
+  uint32 count = 2;
+  // sum is the sum of the filled entries.
+  string sum = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}

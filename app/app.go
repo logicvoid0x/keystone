@@ -228,7 +228,7 @@ func New(
 	)
 
 	app.PoaKeeper = poakeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[poatypes.StoreKey]))
-	app.OracleKeeper = oraclekeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[oracletypes.StoreKey]), app.PoaKeeper)
+	app.OracleKeeper = oraclekeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[oracletypes.StoreKey]), app.PoaKeeper, app.PoaKeeper)
 	app.VaultKeeper = vaultkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[vaulttypes.StoreKey]), app.PoaKeeper)
 	app.StablecoinKeeper = stablecoinkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[stablecointypes.StoreKey]), app.PoaKeeper)
 	app.LiquidationKeeper = liquidationkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[liquidationtypes.StoreKey]), app.PoaKeeper)

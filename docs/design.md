@@ -554,6 +554,7 @@ message PriceState {
   int64  last_update_height   = 3;
   string twap_micro_usd       = 4 [(cosmos_proto.scalar) = "cosmos.Int"];
   PriceStatus status          = 5; // ACTIVE, VOLATILE, STALE
+  string prev_spot_micro_usd  = 6 [(cosmos_proto.scalar) = "cosmos.Int"]; // spot before the last update (invariant 9; added in M1)
 }
 ```
 
@@ -1142,6 +1143,7 @@ All state uses `cosmossdk.io/collections` with one-byte prefixes per module; the
 | oracle | 0x01 / 0x02 | Params; `PriceState` |
 | oracle | 0x03 | ring index (uint32) → spot (Int), length `TwapBlocks` |
 | oracle | 0x04 / 0x05 | (consAddr, window index) → missed bool; consAddr → miss count |
+| oracle | 0x06 | `TwapMeta{next, count, sum}` for the TWAP ring (added in M1) |
 | vault | 0x01 / 0x02 / 0x03 | Params; vault id → `Vault`; next vault id |
 | vault | 0x04 | (owner, vault id) → empty (owner index) |
 | vault | 0x05 | (inverted ratio 32 B, vault id) → empty (liquidation index, §8.1) |
