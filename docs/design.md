@@ -1149,6 +1149,7 @@ All state uses `cosmossdk.io/collections` with one-byte prefixes per module; the
 | vault | 0x05 | (inverted ratio 32 B, vault id) → empty (liquidation index, §8.1) |
 | vault | 0x06 / 0x07 | `RateState{rate, last_drip_unix}`; total art |
 | stablecoin | 0x01 / 0x02 | Params; `sin` (Int). Surplus is the `surplus` module account balance |
+| stablecoin | 0x03 / 0x04 | height since sin first exceeded `SinPauseBps` of supply (0 = not over); mints-paused flag (added in M1) |
 | liquidation | 0x01 / 0x02 | Params; `PoolScalars{P, S, epoch, scale}` |
 | liquidation | 0x03 | depositor → `PoolDeposit{initial, P_snapshot, S_snapshot, epoch, scale}` |
 | liquidation | 0x04 / 0x05 | auction id → `Auction`; next auction id |

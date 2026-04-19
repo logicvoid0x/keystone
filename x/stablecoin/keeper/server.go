@@ -30,3 +30,19 @@ func (q querier) Params(ctx context.Context, _ *types.QueryParamsRequest) (*type
 	}
 	return &types.QueryParamsResponse{Params: p}, nil
 }
+
+func (q querier) Surplus(ctx context.Context, _ *types.QuerySurplusRequest) (*types.QuerySurplusResponse, error) {
+	return &types.QuerySurplusResponse{Surplus: q.k.SurplusBalance(ctx)}, nil
+}
+
+func (q querier) BadDebt(ctx context.Context, _ *types.QueryBadDebtRequest) (*types.QueryBadDebtResponse, error) {
+	sin, err := q.k.GetSin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	paused, err := q.k.AreMintsPaused(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &types.QueryBadDebtResponse{Sin: sin, MintsPaused: paused}, nil
+}

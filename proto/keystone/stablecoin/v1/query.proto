@@ -3,6 +3,7 @@ package keystone.stablecoin.v1;
 
 import "amino/amino.proto";
 import "cosmos/query/v1/query.proto";
+import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
 import "keystone/stablecoin/v1/params.proto";
@@ -16,6 +17,16 @@ service Query {
     option (cosmos.query.v1.module_query_safe) = true;
     option (google.api.http).get = "/keystone/stablecoin/v1/params";
   }
+  // Surplus returns the surplus buffer balance (ukusd).
+  rpc Surplus(QuerySurplusRequest) returns (QuerySurplusResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/stablecoin/v1/surplus";
+  }
+  // BadDebt returns sin (ukusd) and whether mints are paused.
+  rpc BadDebt(QueryBadDebtRequest) returns (QueryBadDebtResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/stablecoin/v1/bad_debt";
+  }
 }
 
 // QueryParamsRequest is the request for Query/Params.
@@ -24,4 +35,31 @@ message QueryParamsRequest {}
 // QueryParamsResponse is the response for Query/Params.
 message QueryParamsResponse {
   Params params = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// QuerySurplusRequest is the request for Query/Surplus.
+message QuerySurplusRequest {}
+
+// QuerySurplusResponse is the response for Query/Surplus.
+message QuerySurplusResponse {
+  string surplus = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// QueryBadDebtRequest is the request for Query/BadDebt.
+message QueryBadDebtRequest {}
+
+// QueryBadDebtResponse is the response for Query/BadDebt.
+message QueryBadDebtResponse {
+  string sin = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  bool mints_paused = 2;
 }

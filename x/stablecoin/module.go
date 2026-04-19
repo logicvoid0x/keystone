@@ -108,3 +108,8 @@ func (AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 		},
 	}
 }
+
+var _ appmodule.HasEndBlocker = AppModule{}
+
+// EndBlock heals bad debt from surplus and updates the mint pause (design §7.4).
+func (am AppModule) EndBlock(ctx context.Context) error { return am.keeper.EndBlocker(ctx) }
