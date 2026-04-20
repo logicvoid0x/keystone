@@ -3,6 +3,11 @@ package keeper
 import (
 	"context"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
+
 	"github.com/OWNER/keystone/x/custody/types"
 )
 
@@ -29,4 +34,19 @@ func (q querier) Params(ctx context.Context, _ *types.QueryParamsRequest) (*type
 		return nil, err
 	}
 	return &types.QueryParamsResponse{Params: p}, nil
+}
+
+func (q querier) Claimable(ctx context.Context, req *types.QueryClaimableRequest) (*types.QueryClaimableResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "empty request")
+	}
+	addr, err := sdk.AccAddressFromBech32(req.Address)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	v, err := q.k.GetClaimable(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	return &types.QueryClaimableResponse{ClaimableSat: v}, nil
 }
