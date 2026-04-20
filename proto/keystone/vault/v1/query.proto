@@ -3,18 +3,40 @@ package keystone.vault.v1;
 
 import "amino/amino.proto";
 import "cosmos/query/v1/query.proto";
+import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
 import "keystone/vault/v1/params.proto";
+import "keystone/vault/v1/vault.proto";
 
 option go_package = "github.com/OWNER/keystone/x/vault/types";
 
-// Query is the x/vault query service.
+// Query is the x/vault query service (design §11.2).
 service Query {
   // Params returns the x/vault params.
   rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
     option (cosmos.query.v1.module_query_safe) = true;
     option (google.api.http).get = "/keystone/vault/v1/params";
+  }
+  // Vault returns one vault and its debt.
+  rpc Vault(QueryVaultRequest) returns (QueryVaultResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/vault/v1/vaults/{id}";
+  }
+  // VaultsByOwner returns an owner's vaults, by id.
+  rpc VaultsByOwner(QueryVaultsByOwnerRequest) returns (QueryVaultsByOwnerResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/vault/v1/owners/{owner}/vaults";
+  }
+  // RateState returns the stability-fee index.
+  rpc RateState(QueryRateStateRequest) returns (QueryRateStateResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/vault/v1/rate";
+  }
+  // LiquidationQueue returns the first vaults of the liquidation index (worst first).
+  rpc LiquidationQueue(QueryLiquidationQueueRequest) returns (QueryLiquidationQueueResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/vault/v1/liquidation_queue";
   }
 }
 
@@ -24,4 +46,60 @@ message QueryParamsRequest {}
 // QueryParamsResponse is the response for Query/Params.
 message QueryParamsResponse {
   Params params = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// VaultWithDebt is a vault and its current debt in ukusd.
+message VaultWithDebt {
+  Vault vault = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+  string debt = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// QueryVaultRequest is the request for Query/Vault.
+message QueryVaultRequest {
+  uint64 id = 1;
+}
+
+// QueryVaultResponse is the response for Query/Vault.
+message QueryVaultResponse {
+  VaultWithDebt vault = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// QueryVaultsByOwnerRequest is the request for Query/VaultsByOwner.
+message QueryVaultsByOwnerRequest {
+  string owner = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// QueryVaultsByOwnerResponse is the response for Query/VaultsByOwner.
+message QueryVaultsByOwnerResponse {
+  repeated VaultWithDebt vaults = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// QueryRateStateRequest is the request for Query/RateState.
+message QueryRateStateRequest {}
+
+// QueryRateStateResponse is the response for Query/RateState.
+message QueryRateStateResponse {
+  RateState rate_state = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+  string total_art = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// QueryLiquidationQueueRequest is the request for Query/LiquidationQueue.
+message QueryLiquidationQueueRequest {
+  // limit caps the result (default 50, max 500).
+  uint32 limit = 1;
+}
+
+// QueryLiquidationQueueResponse is the response for Query/LiquidationQueue.
+message QueryLiquidationQueueResponse {
+  repeated VaultWithDebt vaults = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
 }

@@ -40,12 +40,15 @@ func NewAppModule(cdc codec.Codec, k *keeper.Keeper) AppModule {
 	return AppModule{cdc: cdc, keeper: k}
 }
 
-func (AppModule) Name() string                                    { return types.ModuleName }
-func (AppModule) IsOnePerModuleType()                             {}
-func (AppModule) IsAppModule()                                    {}
-func (AppModule) ConsensusVersion() uint64                        { return consensusVersion }
-func (AppModule) RegisterLegacyAminoCodec(c *codec.LegacyAmino)   { types.RegisterLegacyAminoCodec(c) }
-func (AppModule) RegisterInterfaces(r cdctypes.InterfaceRegistry) { types.RegisterInterfaces(r) }
+func (AppModule) Name() string                                  { return types.ModuleName }
+func (AppModule) IsOnePerModuleType()                           {}
+func (AppModule) IsAppModule()                                  {}
+func (AppModule) ConsensusVersion() uint64                      { return consensusVersion }
+func (AppModule) RegisterLegacyAminoCodec(c *codec.LegacyAmino) { types.RegisterLegacyAminoCodec(c) }
+func (AppModule) RegisterInterfaces(r cdctypes.InterfaceRegistry) {
+	types.RegisterInterfaces(r)
+	registerDevInterfaces(r)
+}
 
 func (AppModule) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *gwruntime.ServeMux) {
 	if err := types.RegisterQueryHandlerClient(context.Background(), mux, types.NewQueryClient(clientCtx)); err != nil {
@@ -56,6 +59,7 @@ func (AppModule) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *gwrunt
 func (am AppModule) RegisterServices(cfg module.Configurator) {
 	types.RegisterMsgServer(cfg.MsgServer(), keeper.NewMsgServerImpl(am.keeper))
 	types.RegisterQueryServer(cfg.QueryServer(), keeper.NewQuerier(am.keeper))
+	registerDevServices(cfg, am.keeper)
 }
 
 func (AppModule) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {

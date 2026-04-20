@@ -1148,6 +1148,7 @@ All state uses `cosmossdk.io/collections` with one-byte prefixes per module; the
 | vault | 0x04 | (owner, vault id) → empty (owner index) |
 | vault | 0x05 | (inverted ratio 32 B, vault id) → empty (liquidation index, §8.1) |
 | vault | 0x06 / 0x07 | `RateState{rate, last_drip_unix}`; total art |
+| vault | 0x08 / 0x09 | `CeilingMark{rate, ceiling}` at the last mint (invariant 5); rounding slack S (invariant 1) (added in M1) |
 | stablecoin | 0x01 / 0x02 | Params; `sin` (Int). Surplus is the `surplus` module account balance |
 | stablecoin | 0x03 / 0x04 | height since sin first exceeded `SinPauseBps` of supply (0 = not over); mints-paused flag (added in M1) |
 | liquidation | 0x01 / 0x02 | Params; `PoolScalars{P, S, epoch, scale}` |
@@ -1518,16 +1519,16 @@ Fifteen decisions are recorded below; each is accepted for the testnet and can b
 
 All invariants are checked at the end of every block in test builds and registered as `x/crisis`-style invariants callable by query in release builds. Notation: V = vaults with art > 0; debt\_v = ⌈art\_v · rate / RAY⌉.
 
-1. **Supply.** Rounding favors the protocol by at most 1 ukusd per vault:
+1. **Supply.** Rounding favors the protocol: the gap is never negative. Its upper bound is |V| plus a tracked rounding slack S (`x/vault` prefix 0x09). Corrected in M1: the original bound |V| cannot hold, because every partial mint, partial repay and fee drip adds up to about 1 ukusd of protocol-favoring rounding and these accumulate. S grows by ceil(rate / RAY) per partial mint or repay, and by 1 per full repay, liquidation, or drip with outstanding debt:
 
 ```latex
-0 \le \sum_{v \in V} \text{debt}_v + \text{sin} - \text{supply}(\text{ukusd}) \le |V|
+0 \le \sum_{v \in V} \text{debt}_v + \text{sin} - \text{supply}(\text{ukusd}) \le |V| + S
 ```
 
 2. **Total art.** `totalArt = Σ_v art_v`.
 3. **Rate.** `rate ≥ RAY` and never decreases; `last_drip` never decreases.
 4. **Dust.** For every v, debt\_v = 0 or debt\_v ≥ `Dust`.
-5. **Ceiling.** Σ\_v debt\_v ≤ `GlobalDebtCeiling` + fees accrued since the last mint (fees may push past the ceiling; mints may not).
+5. **Ceiling.** Σ\_v debt\_v ≤ `GlobalDebtCeiling` + fees accrued since the last mint (fees may push past the ceiling; mints may not). Checked in aggregate form, as the mint check is: ⌈totalArt · rate\_lastMint / RAY⌉ ≤ ceiling\_lastMint, from `CeilingMark` (`x/vault` prefix 0x08, M1).
 6. **Custody coverage.** Satoshis held in Keystone UTXOs plus the recorded deficit cover every satoshi owed:
 
 ```latex

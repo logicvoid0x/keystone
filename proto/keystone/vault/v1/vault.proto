@@ -1,0 +1,66 @@
+syntax = "proto3";
+package keystone.vault.v1;
+
+import "amino/amino.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/OWNER/keystone/x/vault/types";
+
+// VaultStatus is a vault's lifecycle state (design §7.2).
+enum VaultStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+  VAULT_STATUS_UNSPECIFIED = 0;
+  VAULT_STATUS_OPEN = 1;
+  VAULT_STATUS_ACTIVE = 2;
+  VAULT_STATUS_LIQUIDATED = 3;
+  VAULT_STATUS_CLOSED = 4;
+}
+
+// Vault is one collateral position (design §10.2). art is normalized debt.
+message Vault {
+  uint64 id = 1;
+  string owner = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string art = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string collateral_sat = 4 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  VaultStatus status = 5;
+}
+
+// RateState is the global stability-fee index (design §7.3).
+message RateState {
+  // rate is in RAY (1e27); starts at 1 RAY and never decreases.
+  string rate = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  int64 last_drip_unix = 2;
+}
+
+// CeilingMark records the rate and ceiling at the last mint (prefix 0x08, M1), so
+// invariant 5 can be checked: fees may push debt past the ceiling, mints may not.
+message CeilingMark {
+  string rate = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string ceiling = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
