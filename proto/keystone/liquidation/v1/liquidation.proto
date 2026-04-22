@@ -1,0 +1,129 @@
+syntax = "proto3";
+package keystone.liquidation.v1;
+
+import "amino/amino.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/OWNER/keystone/x/liquidation/types";
+
+// Mode is how a vault is liquidated (design §8.4).
+enum Mode {
+  option (gogoproto.goproto_enum_prefix) = false;
+  MODE_UNSPECIFIED = 0;
+  MODE_POOL = 1;
+  MODE_AUCTION = 2;
+}
+
+// Entry is one vault chosen by Select.
+message Entry {
+  uint64 vault_id = 1;
+  Mode mode = 2;
+}
+
+// LiquidationBatch is Select's output, executed in the same PreBlocker (design §8.2).
+message LiquidationBatch {
+  string price_micro_usd = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  repeated Entry entries = 2 [(gogoproto.nullable) = false];
+}
+
+// PoolScalars are the stability pool's product scalar and its epoch/scale (prefix
+// 0x02). The sum scalar S lives per (epoch, scale) under prefix 0x06 (M1 change).
+message PoolScalars {
+  // p is Liquity's product P in 1e18 precision.
+  string p = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  uint64 epoch = 2;
+  uint64 scale = 3;
+}
+
+// PoolErrors are Liquity's error-feedback terms (prefix 0x09, M1).
+message PoolErrors {
+  // coll_error is lastETHError_Offset (sat × 1e18 units).
+  string coll_error = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  // debt_error is lastLUSDLossError_Offset (ukusd × 1e18 units).
+  string debt_error = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// PoolDeposit is one depositor's position (prefix 0x03).
+message PoolDeposit {
+  string initial = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string p_snapshot = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string s_snapshot = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  uint64 epoch = 4;
+  uint64 scale = 5;
+}
+
+// Auction is a fallback Dutch auction (design §8.4). Prices are micro-USD per BTC.
+message Auction {
+  uint64 id = 1;
+  uint64 vault_id = 2;
+  // tab is the KUSD target: debt × (1 + penalty).
+  string tab = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  // raised is the KUSD paid so far.
+  string raised = 4 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string collateral_sat = 5 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string start_price = 6 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  int64 start_height = 7;
+  // sin_owed is the part of the debt still in sin that proceeds burn first (M1 addition).
+  string sin_owed = 8 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}

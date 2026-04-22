@@ -1154,6 +1154,8 @@ All state uses `cosmossdk.io/collections` with one-byte prefixes per module; the
 | liquidation | 0x01 / 0x02 | Params; `PoolScalars{P, S, epoch, scale}` |
 | liquidation | 0x03 | depositor → `PoolDeposit{initial, P_snapshot, S_snapshot, epoch, scale}` |
 | liquidation | 0x04 / 0x05 | auction id → `Auction`; next auction id |
+| liquidation | 0x06 / 0x07 | (epoch, scale) → S (Liquity `epochToScaleToSum`; PoolScalars keeps P, epoch, scale); total deposits (added in M1) |
+| liquidation | 0x08 / 0x09 | seized satoshis not yet paid to depositors; `PoolErrors{coll_error, debt_error}` (Liquity error feedback) (added in M1) |
 | custody | 0x01 / 0x02 / 0x03 | Params; epoch → `KeyEpoch`; active epoch number |
 | custody | 0x04 / 0x05 | pk\_script → vault id; (vault id, epoch) → pk\_script |
 | custody | 0x06 | attestation hash → `Tally{power, voter_bitmap, first_height, payload}` |
@@ -1194,7 +1196,7 @@ message WithdrawalBatch {
   int64 opened_height = 11;   uint32 anchor_height_at_sign = 12; uint32 rbf_count = 13;
 }
 message KeyEpoch { uint64 number = 1; bytes group_key = 2; uint32 n = 3; uint32 t = 4; EpochStatus status = 5; int64 start_height = 6; }
-message Auction { uint64 id = 1; uint64 vault_id = 2; string tab = 3; string raised = 4; uint64 collateral_sat = 5; string start_price = 6; int64 start_height = 7; }
+message Auction { uint64 id = 1; uint64 vault_id = 2; string tab = 3; string raised = 4; string collateral_sat = 5; string start_price = 6; int64 start_height = 7; string sin_owed = 8; } // M1: collateral_sat as cosmos.Int; sin_owed added
 // LiquidationBatch, CustodyBatch, VoteExtension, FrostPayload, BitcoinPayload, SigningSession: §5, §6, §9.
 ```
 

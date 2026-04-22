@@ -3,18 +3,40 @@ package keystone.liquidation.v1;
 
 import "amino/amino.proto";
 import "cosmos/query/v1/query.proto";
+import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
+import "keystone/liquidation/v1/liquidation.proto";
 import "keystone/liquidation/v1/params.proto";
 
 option go_package = "github.com/OWNER/keystone/x/liquidation/types";
 
-// Query is the x/liquidation query service.
+// Query is the x/liquidation query service (design §11.2).
 service Query {
   // Params returns the x/liquidation params.
   rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
     option (cosmos.query.v1.module_query_safe) = true;
     option (google.api.http).get = "/keystone/liquidation/v1/params";
+  }
+  // Pool returns the stability pool totals and scalars.
+  rpc Pool(QueryPoolRequest) returns (QueryPoolResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/liquidation/v1/pool";
+  }
+  // PoolDeposit returns a depositor's compounded deposit and pending BTC gain.
+  rpc PoolDeposit(QueryPoolDepositRequest) returns (QueryPoolDepositResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/liquidation/v1/pool/{address}";
+  }
+  // Auction returns one auction with its current price.
+  rpc Auction(QueryAuctionRequest) returns (QueryAuctionResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/liquidation/v1/auctions/{id}";
+  }
+  // Auctions returns every running auction.
+  rpc Auctions(QueryAuctionsRequest) returns (QueryAuctionsResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/liquidation/v1/auctions";
   }
 }
 
@@ -24,4 +46,74 @@ message QueryParamsRequest {}
 // QueryParamsResponse is the response for Query/Params.
 message QueryParamsResponse {
   Params params = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// QueryPoolRequest is the request for Query/Pool.
+message QueryPoolRequest {}
+
+// QueryPoolResponse is the response for Query/Pool.
+message QueryPoolResponse {
+  string total_deposits = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string pending_sat = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  PoolScalars scalars = 3 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// QueryPoolDepositRequest is the request for Query/PoolDeposit.
+message QueryPoolDepositRequest {
+  string address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// QueryPoolDepositResponse is the response for Query/PoolDeposit.
+message QueryPoolDepositResponse {
+  string compounded = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string pending_gain_sat = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// QueryAuctionRequest is the request for Query/Auction.
+message QueryAuctionRequest {
+  uint64 id = 1;
+}
+
+// AuctionWithPrice is an auction and its price at the current height.
+message AuctionWithPrice {
+  Auction auction = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+  string price = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// QueryAuctionResponse is the response for Query/Auction.
+message QueryAuctionResponse {
+  AuctionWithPrice auction = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// QueryAuctionsRequest is the request for Query/Auctions.
+message QueryAuctionsRequest {}
+
+// QueryAuctionsResponse is the response for Query/Auctions.
+message QueryAuctionsResponse {
+  repeated AuctionWithPrice auctions = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
 }

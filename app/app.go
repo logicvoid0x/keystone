@@ -233,7 +233,8 @@ func New(
 	app.CustodyKeeper = custodykeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[custodytypes.StoreKey]), app.PoaKeeper)
 	app.VaultKeeper = vaultkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[vaulttypes.StoreKey]), app.PoaKeeper,
 		app.OracleKeeper, app.StablecoinKeeper, app.CustodyKeeper)
-	app.LiquidationKeeper = liquidationkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[liquidationtypes.StoreKey]), app.PoaKeeper)
+	app.LiquidationKeeper = liquidationkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[liquidationtypes.StoreKey]), app.PoaKeeper,
+		app.OracleKeeper, app.VaultKeeper, app.StablecoinKeeper, app.CustodyKeeper, app.BankKeeper)
 
 	app.ModuleManager = module.NewManager(
 		// x/poa is genutil's StakingKeeper. There are no gentxs, so genutil returns no

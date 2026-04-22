@@ -9,12 +9,18 @@ import "keystone/liquidation/v1/params.proto";
 
 option go_package = "github.com/OWNER/keystone/x/liquidation/types";
 
-// Msg is the x/liquidation Msg service.
+// Msg is the x/liquidation Msg service (design §11.1).
 service Msg {
   option (cosmos.msg.v1.service) = true;
 
   // UpdateParams replaces the params. Signed by the x/poa admin.
   rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
+  // DepositPool deposits KUSD into the stability pool (and pays pending BTC gains).
+  rpc DepositPool(MsgDepositPool) returns (MsgDepositPoolResponse);
+  // WithdrawPool withdraws KUSD from the stability pool (amount 0 claims gains only).
+  rpc WithdrawPool(MsgWithdrawPool) returns (MsgWithdrawPoolResponse);
+  // TakeCollateral buys auctioned BTC with KUSD.
+  rpc TakeCollateral(MsgTakeCollateral) returns (MsgTakeCollateralResponse);
 }
 
 // MsgUpdateParams replaces the x/liquidation params.
@@ -28,3 +34,89 @@ message MsgUpdateParams {
 
 // MsgUpdateParamsResponse is the response to MsgUpdateParams.
 message MsgUpdateParamsResponse {}
+
+// MsgDepositPool deposits amount ukusd into the stability pool.
+message MsgDepositPool {
+  option (cosmos.msg.v1.signer) = "depositor";
+  option (amino.name) = "keystone/liquidation/MsgDepositPool";
+
+  string depositor = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string amount = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// MsgDepositPoolResponse is the response to MsgDepositPool.
+message MsgDepositPoolResponse {}
+
+// MsgWithdrawPool withdraws up to amount ukusd. Blocked while any vault is
+// liquidatable at the current price or the price is STALE.
+message MsgWithdrawPool {
+  option (cosmos.msg.v1.signer) = "depositor";
+  option (amino.name) = "keystone/liquidation/MsgWithdrawPool";
+
+  string depositor = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string amount = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// MsgWithdrawPoolResponse returns the KUSD withdrawn and BTC gain paid.
+message MsgWithdrawPoolResponse {
+  string withdrawn = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string gain_sat = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// MsgTakeCollateral buys up to max_sat from an auction if its current price is at
+// most max_price (micro-USD per BTC).
+message MsgTakeCollateral {
+  option (cosmos.msg.v1.signer) = "taker";
+  option (amino.name) = "keystone/liquidation/MsgTakeCollateral";
+
+  string taker = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 auction_id = 2;
+  string max_sat = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string max_price = 4 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// MsgTakeCollateralResponse returns what was bought.
+message MsgTakeCollateralResponse {
+  string sat = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  string paid = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
