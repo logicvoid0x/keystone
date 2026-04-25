@@ -348,7 +348,12 @@ func (app *App) setABCIHandlers() {
 	app.SetPrepareProposal(ph.PrepareProposal)
 	app.SetProcessProposal(ph.ProcessProposal)
 
-	app.protocol = protocol.NewPreBlocker(app.PoaKeeper)
+	app.protocol = protocol.NewPreBlocker(app.PoaKeeper, protocol.Keepers{
+		Oracle:      app.OracleKeeper,
+		Vault:       app.VaultKeeper,
+		Liquidation: app.LiquidationKeeper,
+		Custody:     app.CustodyKeeper,
+	})
 }
 
 // Name returns the app name.

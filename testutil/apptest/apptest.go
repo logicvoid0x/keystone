@@ -54,6 +54,9 @@ type Chain struct {
 	// InitValidators are the validator updates returned by InitChain.
 	InitValidators []abci.ValidatorUpdate
 
+	// Price is the price sidecar every validator reports from (down until Set).
+	Price *PriceFeed
+
 	accNums map[string]uint64
 	seqs    map[string]uint64
 	rng     *rand.Rand
@@ -89,6 +92,8 @@ func New(t *testing.T, n int) *Chain {
 	c.Users = []Account{newAccount("user0"), newAccount("user1")}
 
 	c.App = app.New(log.NewNopLogger(), dbm.NewMemDB(), true, simtestutil.EmptyAppOptions{}, baseapp.SetChainID(ChainID))
+	c.Price = &PriceFeed{}
+	c.App.SetPriceSource(c.Price)
 
 	in := app.GenesisInput{Admin: c.Admin.Addr, FundAmount: sdkmath.NewInt(1_000_000_000)}
 	for i, op := range c.Operators {

@@ -80,8 +80,11 @@ func commitFor(t *testing.T, keys []ed25519.PrivKey, height int64, round int32, 
 }
 
 // testCtx is a context with VEs enabled at height 1.
-func testCtx() sdk.Context {
-	ctx := testutil.DefaultContext(storetypes.NewKVStoreKey("protocol_test"), storetypes.NewTransientStoreKey("protocol_test_t"))
+func testCtx() sdk.Context { return testCtxWith(storetypes.NewKVStoreKey("protocol_test")) }
+
+// testCtxWith is testCtx over a store with key.
+func testCtxWith(key *storetypes.KVStoreKey) sdk.Context {
+	ctx := testutil.DefaultContext(key, storetypes.NewTransientStoreKey("protocol_test_t"))
 	return ctx.WithChainID(chainID).WithConsensusParams(cmtproto.ConsensusParams{
 		Abci: &cmtproto.ABCIParams{VoteExtensionsEnableHeight: 1},
 	}).WithEventManager(sdk.NewEventManager())
@@ -96,4 +99,9 @@ func cloneExt(e abci.ExtendedCommitInfo) abci.ExtendedCommitInfo {
 		out.Votes[i] = v
 	}
 	return out
+}
+
+func signBytes(t *testing.T, height int64, round int32, ve []byte) []byte {
+	t.Helper()
+	return cmttypes.VoteExtensionSignBytes(chainID, &cmtproto.Vote{Height: height, Round: round, Extension: ve})
 }

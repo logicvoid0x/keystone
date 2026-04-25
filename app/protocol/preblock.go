@@ -1,49 +1,96 @@
 package protocol
 
 import (
+	"context"
 	"strconv"
+	"time"
 
 	abci "github.com/cometbft/cometbft/abci/types"
 
+	sdkmath "cosmossdk.io/math"
+
 	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+
+	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
+	oracletypes "github.com/OWNER/keystone/x/oracle/types"
 )
 
-// Events emitted by the protocol segment. Names outside design §11.3: recorded in
-// docs/decisions.md.
+// Events emitted by the protocol segment (docs/decisions.md; §11.3 names none for the
+// orchestrator).
 const (
-	EventTypeProtocolSkipped = "protocol_skipped"
-	EventTypeProtocolVotes   = "protocol_votes"
+	EventTypeProtocolSkipped    = "protocol_skipped"
+	EventTypeProtocolVotes      = "protocol_votes"
+	EventTypeProtocolStepFailed = "protocol_step_failed"
 
 	AttributeKeyReason        = "reason"
 	AttributeKeyVoters        = "voters"
 	AttributeKeyVerifiedPower = "verified_power"
 	AttributeKeyTotalPower    = "total_power"
+	AttributeKeyStep          = "step"
+	AttributeKeyError         = "error"
 
 	SkipMissingTx0 = "missing_tx0"
 	SkipBadTx0     = "undecodable_tx0"
+
+	StepAggregate  = "aggregate"
+	StepOracle     = "oracle"
+	StepDrip       = "drip"
+	StepLiqSelect  = "liquidation_select"
+	StepLiqExecute = "liquidation_execute"
+	StepCustodyOps = "custody_apply"
 )
 
-// Step is one module step of the protocol segment, run in order after aggregation
-// (design §5.9: oracle, drip, liquidations, custody). A step must not fail for a tx0
-// that ProcessProposal accepted; it skips what cannot apply and emits an event.
-type Step func(ctx sdk.Context, agg Aggregated)
+// OracleKeeper is x/oracle as used by the PreBlocker.
+type OracleKeeper interface {
+	OracleView
+	ApplyAggregate(ctx context.Context, agg oracletypes.PriceAggregate) error
+	LiquidationPrice(ctx context.Context) (sdkmath.Int, bool, error)
+}
+
+// VaultKeeper is x/vault as used by the PreBlocker.
+type VaultKeeper interface {
+	Drip(ctx context.Context, blockTime time.Time) error
+}
+
+// LiquidationKeeper is x/liquidation as used by the PreBlocker (design §4.2).
+type LiquidationKeeper interface {
+	Select(ctx context.Context, price sdkmath.Int) (liqtypes.LiquidationBatch, error)
+	Execute(ctx context.Context, batch liqtypes.LiquidationBatch, price sdkmath.Int) error
+}
+
+// CustodyKeeper is x/custody as used by the PreBlocker (BuildOps arrives in M3).
+type CustodyKeeper interface {
+	ApplyOps(ctx context.Context) error
+}
+
+// Keepers are the modules the protocol segment calls, in order.
+type Keepers struct {
+	Oracle      OracleKeeper
+	Vault       VaultKeeper
+	Liquidation LiquidationKeeper
+	Custody     CustodyKeeper
+}
 
 // PreBlocker runs the protocol segment on the real (non-branched) state.
 type PreBlocker struct {
 	valStore ValidatorStore
-	steps    []Step
+	keepers  Keepers
 }
 
-// NewPreBlocker builds the orchestrator. M0 has no module steps.
-func NewPreBlocker(vs ValidatorStore, steps ...Step) *PreBlocker {
-	return &PreBlocker{valStore: vs, steps: steps}
+// NewPreBlocker builds the orchestrator.
+func NewPreBlocker(vs ValidatorStore, k Keepers) *PreBlocker {
+	return &PreBlocker{valStore: vs, keepers: k}
 }
 
-// PreBlock decodes tx0, verifies the votes, aggregates and runs the module steps
-// (design §5.9). Totality: it never returns an error. A block without a usable tx0
-// can only reach here if ProcessProposal is bypassed (tests, replay of a bug); it is
-// skipped with an event.
+// PreBlock is design §5.9: decode tx0, verify the votes, aggregate, then
+// oracle.ApplyAggregate → vault.Drip → liquidation.Select → liquidation.Execute →
+// custody.ApplyOps.
+//
+// Totality: PreBlock never returns an error. Each step runs in a cached context; a
+// step that fails has its writes discarded, emits protocol_step_failed and the next
+// step still runs. A block without a usable tx0 can only reach here if ProcessProposal
+// was bypassed; the segment is skipped with an event.
 func (p *PreBlocker) PreBlock(ctx sdk.Context, req *abci.RequestFinalizeBlock) {
 	if !VEActive(ctx, req.Height) {
 		return
@@ -61,15 +108,60 @@ func (p *PreBlocker) PreBlock(ctx sdk.Context, req *abci.RequestFinalizeBlock) {
 		return
 	}
 	votes, verified, total := VerifyVotes(ctx, p.valStore, ctx.ChainID(), req.Height-1, ext)
-	agg := Aggregate(votes, verified, total)
 	ctx.EventManager().EmitEvent(sdk.NewEvent(EventTypeProtocolVotes,
-		sdk.NewAttribute(AttributeKeyVoters, strconv.Itoa(agg.Voters)),
+		sdk.NewAttribute(AttributeKeyVoters, strconv.Itoa(len(votes))),
 		sdk.NewAttribute(AttributeKeyVerifiedPower, strconv.FormatInt(verified, 10)),
 		sdk.NewAttribute(AttributeKeyTotalPower, strconv.FormatInt(total, 10)),
 	))
-	for _, step := range p.steps {
-		step(ctx, agg)
+
+	k := p.keepers
+	var agg Aggregated
+	if !runStep(ctx, StepAggregate, func(c sdk.Context) (err error) {
+		agg, err = Aggregate(c, k.Oracle, votes, verified, total)
+		return err
+	}) {
+		agg = Aggregated{Voters: len(votes), VerifiedPower: verified, TotalPower: total}
 	}
+
+	runStep(ctx, StepOracle, func(c sdk.Context) error { return k.Oracle.ApplyAggregate(c, agg.Oracle) })
+	runStep(ctx, StepDrip, func(c sdk.Context) error { return k.Vault.Drip(c, c.BlockTime()) })
+
+	var (
+		batch   liqtypes.LiquidationBatch
+		price   sdkmath.Int
+		haveLiq bool
+	)
+	runStep(ctx, StepLiqSelect, func(c sdk.Context) error {
+		pr, ok, err := k.Oracle.LiquidationPrice(c)
+		if err != nil || !ok {
+			return err // STALE: no liquidations this block
+		}
+		b, err := k.Liquidation.Select(c, pr)
+		if err != nil {
+			return err
+		}
+		batch, price, haveLiq = b, pr, true
+		return nil
+	})
+	if haveLiq {
+		runStep(ctx, StepLiqExecute, func(c sdk.Context) error { return k.Liquidation.Execute(c, batch, price) })
+	}
+	runStep(ctx, StepCustodyOps, func(c sdk.Context) error { return k.Custody.ApplyOps(c) })
+}
+
+// runStep runs f in a cached context and commits its writes and events only if it
+// succeeds. It reports whether f succeeded.
+func runStep(ctx sdk.Context, name string, f func(sdk.Context) error) bool {
+	cc, write := ctx.CacheContext()
+	if err := f(cc); err != nil {
+		ctx.EventManager().EmitEvent(sdk.NewEvent(EventTypeProtocolStepFailed,
+			sdk.NewAttribute(AttributeKeyStep, name),
+			sdk.NewAttribute(AttributeKeyError, err.Error())))
+		ctx.Logger().Error("protocol step failed; skipped", "step", name, "err", err)
+		return false
+	}
+	write()
+	return true
 }
 
 func emitSkip(ctx sdk.Context, reason string) {
