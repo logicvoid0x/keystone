@@ -23,7 +23,9 @@ type FetcherConfig struct {
 	PollInterval time.Duration
 	MaxAge       time.Duration
 	MinSources   int
-	Now          func() time.Time // defaults to time.Now
+	// RequestTimeout bounds each source request (default 800 ms).
+	RequestTimeout time.Duration
+	Now            func() time.Time // defaults to time.Now
 }
 
 type snapshot struct {
@@ -54,6 +56,9 @@ func NewFetcher(cfg FetcherConfig) *Fetcher {
 	}
 	if cfg.MinSources <= 0 {
 		cfg.MinSources = DefaultMinSources
+	}
+	if cfg.RequestTimeout <= 0 {
+		cfg.RequestTimeout = requestTimeout
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
@@ -104,7 +109,7 @@ func (f *Fetcher) Poll(ctx context.Context) {
 		wg.Add(1)
 		go func(s Source) {
 			defer wg.Done()
-			rctx, cancel := context.WithTimeout(ctx, requestTimeout)
+			rctx, cancel := context.WithTimeout(ctx, f.cfg.RequestTimeout)
 			defer cancel()
 			q, err := s.Fetch(rctx)
 			results <- result{s.Name(), q, err}

@@ -28,6 +28,7 @@ type Keeper struct {
 	TotalDeposits collections.Item[sdkmath.Int]
 	PendingSat    collections.Item[sdkmath.Int]
 	Errors        collections.Item[types.PoolErrors]
+	PoolSlack     collections.Item[sdkmath.Int]
 
 	admin      types.AdminKeeper
 	oracle     types.OracleKeeper
@@ -54,6 +55,7 @@ func NewKeeper(cdc codec.BinaryCodec, storeService store.KVStoreService, admin t
 		TotalDeposits: collections.NewItem(sb, types.TotalDepositsKey, "total_deposits", sdk.IntValue),
 		PendingSat:    collections.NewItem(sb, types.PendingSatKey, "pending_sat", sdk.IntValue),
 		Errors:        collections.NewItem(sb, types.PoolErrorsKey, "pool_errors", codec.CollValue[types.PoolErrors](cdc)),
+		PoolSlack:     collections.NewItem(sb, types.PoolSlackKey, "pool_slack", sdk.IntValue),
 		admin:         admin,
 		oracle:        oracle,
 		vault:         vault,
@@ -115,6 +117,9 @@ func (k *Keeper) InitGenesis(ctx context.Context, gs *types.GenesisState) error 
 		return err
 	}
 	if err := k.PendingSat.Set(ctx, z); err != nil {
+		return err
+	}
+	if err := k.PoolSlack.Set(ctx, z); err != nil {
 		return err
 	}
 	return k.Errors.Set(ctx, types.PoolErrors{CollError: z, DebtError: z})

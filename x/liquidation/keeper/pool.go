@@ -96,6 +96,13 @@ func (k *Keeper) touch(ctx context.Context, addr sdk.AccAddress) (sdkmath.Int, s
 	if err != nil {
 		return sdkmath.Int{}, sdkmath.Int{}, err
 	}
+	if has, err := k.Deposits.Has(ctx, addr); err != nil {
+		return sdkmath.Int{}, sdkmath.Int{}, err
+	} else if has {
+		if err := k.addSlack(ctx); err != nil {
+			return sdkmath.Int{}, sdkmath.Int{}, err
+		}
+	}
 	if g.IsPositive() {
 		pending, err := k.PendingSat.Get(ctx)
 		if err != nil {
@@ -232,6 +239,9 @@ func (k *Keeper) sweepIfEmpty(ctx context.Context) error {
 	if err := k.TotalDeposits.Set(ctx, sdkmath.ZeroInt()); err != nil {
 		return err
 	}
+	if err := k.PoolSlack.Set(ctx, sdkmath.ZeroInt()); err != nil {
+		return err
+	}
 	if dust := k.ModuleBalance(ctx); dust.IsPositive() {
 		return k.stablecoin.AddToSurplus(ctx, types.ModuleName, dust)
 	}
@@ -315,6 +325,9 @@ func (k *Keeper) offset(ctx context.Context, debtLoss, collSat sdkmath.Int) erro
 	if err := k.addTotal(ctx, debtLoss.Neg()); err != nil {
 		return err
 	}
+	if err := k.addSlack(ctx); err != nil {
+		return err
+	}
 	pending, err := k.PendingSat.Get(ctx)
 	if err != nil {
 		return err
@@ -329,6 +342,9 @@ func (k *Keeper) offset(ctx context.Context, debtLoss, collSat sdkmath.Int) erro
 		if err != nil {
 			return err
 		}
+		if err := k.PoolSlack.Set(ctx, sdkmath.ZeroInt()); err != nil {
+			return err
+		}
 		if rest.IsPositive() {
 			if err := k.TotalDeposits.Set(ctx, sdkmath.ZeroInt()); err != nil {
 				return err
@@ -337,4 +353,14 @@ func (k *Keeper) offset(ctx context.Context, debtLoss, collSat sdkmath.Int) erro
 		}
 	}
 	return nil
+}
+
+// addSlack raises the invariant-8 rounding bound (docs/decisions.md): a deposit touch
+// can strand up to 1 ukusd of compounding dust, and a liquidation offset up to 1.
+func (k *Keeper) addSlack(ctx context.Context) error {
+	s, err := k.PoolSlack.Get(ctx)
+	if err != nil {
+		return err
+	}
+	return k.PoolSlack.Set(ctx, s.AddRaw(1))
 }

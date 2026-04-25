@@ -21,6 +21,7 @@ var (
 	TotalDepositsKey = collections.NewPrefix(0x07) // total compounded deposits, ukusd (M1)
 	PendingSatKey    = collections.NewPrefix(0x08) // seized sat not yet paid to depositors (M1)
 	PoolErrorsKey    = collections.NewPrefix(0x09) // PoolErrors error feedback (M1)
+	PoolSlackKey     = collections.NewPrefix(0x0A) // rounding-slack bound for invariant 8 (M1)
 )
 
 // Liquity precision constants (StabilityPool.sol).

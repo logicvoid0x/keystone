@@ -1156,6 +1156,7 @@ All state uses `cosmossdk.io/collections` with one-byte prefixes per module; the
 | liquidation | 0x04 / 0x05 | auction id → `Auction`; next auction id |
 | liquidation | 0x06 / 0x07 | (epoch, scale) → S (Liquity `epochToScaleToSum`; PoolScalars keeps P, epoch, scale); total deposits (added in M1) |
 | liquidation | 0x08 / 0x09 | seized satoshis not yet paid to depositors; `PoolErrors{coll_error, debt_error}` (Liquity error feedback) (added in M1) |
+| liquidation | 0x0A | pool rounding slack (invariant 8) (added in M1) |
 | custody | 0x01 / 0x02 / 0x03 | Params; epoch → `KeyEpoch`; active epoch number |
 | custody | 0x04 / 0x05 | pk\_script → vault id; (vault id, epoch) → pk\_script |
 | custody | 0x06 | attestation hash → `Tally{power, voter_bitmap, first_height, payload}` |
@@ -1540,8 +1541,8 @@ All invariants are checked at the end of every block in test builds and register
 The UTXO sum covers AVAILABLE and LOCKED; pending covers queued and in-flight requests (gross amounts before fee share).
 
 7. **Liquidation index.** A vault is in the index if and only if art\_v > 0, with key exactly as in §8.1.
-8. **Stability pool.** The pool module's KUSD balance ≥ the sum of compounded deposits, and the difference is at most one ukusd per depositor.
-9. **Oracle step.** For consecutive updates, |spot\_new − spot\_old| × 10,000 ≤ spot\_old × `MaxStepBps`.
+8. **Stability pool.** The pool module's KUSD balance ≥ the sum of compounded deposits, and the difference is at most one ukusd per depositor plus a tracked pool slack (`x/liquidation` prefix 0x0A). Corrected in M1: each deposit touch strands up to 1 ukusd of compounding dust (as in Liquity), so the per-depositor bound alone cannot hold. The slack grows by 1 per deposit touch and per liquidation and resets when dust is swept to surplus (pool emptied or epoch reset).
+9. **Oracle step.** For consecutive updates, |spot\_new − spot\_old| ≤ ⌈spot\_old × `MaxStepBps` / 10,000⌉. Corrected in M1: the §6.3 clamp floors its lower bound, so a downward step can exceed `MaxStepBps` by up to 1 micro-USD; the original form (|Δ| × 10,000 ≤ spot\_old × `MaxStepBps`) fails on that rounding.
 10. **Nonces.** Each (epoch, share, seq) is assigned to at most one session; the consumed head never moves backwards.
 11. **Signatures.** Every `SIGNED` session's signature passes BIP-340 verification for its output key and sighash.
 12. **Protocol txs.** Every block from enable height + 1 has exactly one magic-prefixed tx, at index 0.

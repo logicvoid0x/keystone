@@ -142,6 +142,7 @@ type App struct {
 	protocol *protocol.PreBlocker
 	voteExt  *protocol.VoteExtHandler
 	price    protocol.PriceSource
+	invState invariantState
 }
 
 // New returns a Keystone app. It refuses to start with any block executor other than
@@ -377,7 +378,16 @@ func (app *App) BeginBlocker(ctx sdk.Context) (sdk.BeginBlock, error) {
 
 // EndBlocker runs module EndBlockers; x/poa returns the validator updates.
 func (app *App) EndBlocker(ctx sdk.Context) (sdk.EndBlock, error) {
-	return app.ModuleManager.EndBlock(ctx)
+	res, err := app.ModuleManager.EndBlock(ctx)
+	if err != nil {
+		return res, err
+	}
+	if InvariantsEnabled {
+		if err := app.CheckInvariants(ctx); err != nil {
+			panic(fmt.Errorf("invariant violated at height %d: %w", ctx.BlockHeight(), err))
+		}
+	}
+	return res, nil
 }
 
 // InitChainer initialises state from genesis.

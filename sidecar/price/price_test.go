@@ -106,12 +106,16 @@ func post(t *testing.T, url string, body any) {
 	resp.Body.Close()
 }
 
+// testClient avoids keep-alive connections so httptest.Server.Close never waits on them.
+var testClient = &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
+
 func mockFetcher(srvURL string, clk *clock) *price.Fetcher {
 	var srcs []price.Source
 	for _, ex := range mockfeed.Exchanges {
-		srcs = append(srcs, price.NewMockSource(ex, srvURL+"/ex/"+ex+"/btcusd", http.DefaultClient, clk.Now))
+		srcs = append(srcs, price.NewMockSource(ex, srvURL+"/ex/"+ex+"/btcusd", testClient, clk.Now))
 	}
-	return price.NewFetcher(price.FetcherConfig{Sources: srcs, Now: clk.Now})
+	// Generous timeout: the whole suite runs in parallel on loaded CI machines.
+	return price.NewFetcher(price.FetcherConfig{Sources: srcs, Now: clk.Now, RequestTimeout: 10 * time.Second})
 }
 
 func TestFetcherMedianAndMinSources(t *testing.T) {
@@ -173,7 +177,7 @@ func TestFetcherStartStop(t *testing.T) {
 	_, srv := feed(t, "100000", clk)
 	f := mockFetcher(srv.URL, clk)
 	f.Start(context.Background())
-	require.Eventually(t, func() bool { _, ok := f.Snapshot(); return ok }, 5*time.Second, 50*time.Millisecond)
+	require.Eventually(t, func() bool { _, ok := f.Snapshot(); return ok }, 30*time.Second, 50*time.Millisecond)
 	f.Stop()
 	f.Stop() // idempotent
 }

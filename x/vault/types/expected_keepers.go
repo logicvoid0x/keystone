@@ -28,6 +28,8 @@ type StablecoinKeeper interface {
 	BurnFrom(ctx context.Context, from sdk.AccAddress, amt sdkmath.Int) error
 	AccrueSurplus(ctx context.Context, amt sdkmath.Int) error
 	AreMintsPaused(ctx context.Context) (bool, error)
+	Supply(ctx context.Context) sdkmath.Int
+	GetSin(ctx context.Context) (sdkmath.Int, error)
 }
 
 // CustodyKeeper is x/custody as seen by x/vault (M1 stub surface).
@@ -38,4 +40,5 @@ type CustodyKeeper interface {
 	CapHeadroom(ctx context.Context) (sdkmath.Int, error)
 	AddCredited(ctx context.Context, sat sdkmath.Int) error
 	SubCredited(ctx context.Context, sat sdkmath.Int) error
+	GetCredited(ctx context.Context) (sdkmath.Int, error)
 }
