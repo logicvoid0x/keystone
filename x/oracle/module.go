@@ -7,7 +7,6 @@ import (
 
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
 
-	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 	"cosmossdk.io/core/appmodule"
 
 	"github.com/cosmos/cosmos-sdk/client"
@@ -84,27 +83,4 @@ func (am AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.Raw
 		panic(err)
 	}
 	return cdc.MustMarshalJSON(gs)
-}
-
-// AutoCLIOptions implements autocli.HasAutoCLIConfig.
-func (AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
-	return &autocliv1.ModuleOptions{
-		Query: &autocliv1.ServiceCommandDescriptor{
-			Service: types.Query_serviceDesc.ServiceName,
-			RpcCommandOptions: []*autocliv1.RpcCommandOptions{
-				{RpcMethod: "Params", Use: "params", Short: "Query the x/" + types.ModuleName + " params"},
-			},
-		},
-		Tx: &autocliv1.ServiceCommandDescriptor{
-			Service: types.Msg_serviceDesc.ServiceName,
-			RpcCommandOptions: []*autocliv1.RpcCommandOptions{
-				{
-					RpcMethod:      "UpdateParams",
-					Use:            "update-params [params-json]",
-					Short:          "Replace the x/" + types.ModuleName + " params; signed by the x/poa admin",
-					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "params"}},
-				},
-			},
-		},
-	}
 }
