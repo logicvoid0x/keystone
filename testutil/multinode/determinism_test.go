@@ -1,3 +1,5 @@
+//go:build devcredit
+
 package multinode_test
 
 import (
@@ -6,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/testutil/multinode"
 )
 
@@ -19,8 +22,11 @@ func TestDeterminism10k(t *testing.T) {
 	w := multinode.NewWorkload(net, 42)
 	for h := 0; h < determinismHeights; h++ {
 		w.Step()
-		for _, nd := range net.Nodes {
-			require.NoError(t, nd.App.CheckInvariants(nd.App.NewContext(true)), "node %d height %d", nd.Index, net.Height)
+		// Builds with -tags invariants already check (and panic) in every node's EndBlock.
+		if !app.InvariantsEnabled {
+			for _, nd := range net.Nodes {
+				require.NoError(t, nd.App.CheckInvariants(nd.App.NewContext(true)), "node %d height %d", nd.Index, net.Height)
+			}
 		}
 	}
 	t.Logf("%d heights in %s: %+v", determinismHeights, time.Since(start), w.Stats)

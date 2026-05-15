@@ -5,7 +5,7 @@ BUILDDIR ?= build
 # collateral message is routed.
 TEST_TAGS ?= invariants,devcredit
 
-.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 localnet-start localnet-stop clean
+.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 determinism-long localnet-start localnet-stop clean
 
 all: build
 
@@ -50,6 +50,10 @@ e2e: build-dev
 
 e2e-M0: build
 	bash scripts/demo-M0.sh
+
+# determinism-long is M2 acceptance 1: 4 nodes, 10,000 heights (about 10 minutes).
+determinism-long: check-go
+	$(GO) test -tags long,devcredit -timeout 60m -run TestDeterminism10k -v ./testutil/multinode
 
 localnet-start:
 	@echo "localnet arrives in M2"; exit 1
