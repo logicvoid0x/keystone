@@ -51,10 +51,10 @@ type Chain struct {
 	Height    int64 // last committed height
 	Time      time.Time
 
-	// InitValidators are the validator updates returned by InitChain.
+	// InitValidators are the Validator updates returned by InitChain.
 	InitValidators []abci.ValidatorUpdate
 
-	// Price is the price sidecar every validator reports from (down until Set).
+	// Price is the price sidecar every Validator reports from (down until Set).
 	Price *PriceFeed
 
 	accNums map[string]uint64
@@ -63,7 +63,7 @@ type Chain struct {
 
 	// Consensus simulation for NextBlock (consensus.go).
 	consKeys   map[string]ed25519.PrivKey // consensus address -> key
-	valsets    map[int64][]validator      // height -> validator set
+	valsets    map[int64][]Validator      // height -> Validator set
 	lastExt    abci.ExtendedCommitInfo
 	lastCommit abci.CommitInfo
 }
@@ -131,8 +131,8 @@ func New(t *testing.T, n int) *Chain {
 	for _, op := range c.Operators {
 		c.RegisterConsKey(op.ConsKey)
 	}
-	set := applyUpdates(nil, res.Validators)
-	c.valsets = map[int64][]validator{1: set, 2: set}
+	set := ApplyUpdates(nil, res.Validators)
+	c.valsets = map[int64][]Validator{1: set, 2: set}
 	return c
 }
 

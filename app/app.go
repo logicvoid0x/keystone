@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 
 	abci "github.com/cometbft/cometbft/abci/types"
 	dbm "github.com/cosmos/cosmos-db"
@@ -487,4 +488,14 @@ func (app *App) Close() error {
 		s.Stop()
 	}
 	return app.BaseApp.Close()
+}
+
+// KVStoreKeyNames returns the names of every KV store, sorted (tests: state diffs).
+func (app *App) KVStoreKeyNames() []string {
+	names := make([]string, 0, len(app.keys))
+	for name := range app.keys {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
 }
