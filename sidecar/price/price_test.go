@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/OWNER/keystone/app/protocol/vetypes"
 	"github.com/OWNER/keystone/sidecar/price"
 	"github.com/OWNER/keystone/sidecar/price/mockfeed"
 )
@@ -244,4 +245,25 @@ func TestFetcherFromAppOptions(t *testing.T) {
 	require.Error(t, err)
 	_, err = price.FetcherFromAppOptions(opts{price.FlagSources: []string{"coinbase"}, price.FlagMaxAge: "soon"})
 	require.Error(t, err)
+}
+
+type slowSource struct{ delay time.Duration }
+
+func (s slowSource) Snapshot() (*vetypes.OraclePayload, bool) {
+	time.Sleep(s.delay)
+	return &vetypes.OraclePayload{PriceMicroUsd: 1, NumSources: 3}, true
+}
+
+func TestWithDeadline(t *testing.T) {
+	fast := price.WithDeadline(slowSource{0}, time.Second)
+	p, ok := fast.Snapshot()
+	require.True(t, ok)
+	require.Equal(t, uint64(1), p.PriceMicroUsd)
+
+	slow := price.WithDeadline(slowSource{2 * time.Second}, 50*time.Millisecond)
+	start := time.Now()
+	_, ok = slow.Snapshot()
+	require.False(t, ok, "a late snapshot yields no payload")
+	require.Less(t, time.Since(start), time.Second, "Snapshot returns at the deadline")
+	slow.Stop() // inner has no Stop: no-op
 }

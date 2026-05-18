@@ -103,7 +103,7 @@ func newApp(logger log.Logger, db dbm.DB, appOpts servertypes.AppOptions) server
 	}
 	if fetcher != nil {
 		fetcher.Start(context.Background())
-		a.SetPriceSource(fetcher)
+		a.SetPriceSource(price.WithDeadline(fetcher, price.ExtendVoteDeadline))
 		logger.Info("price sidecar started")
 	} else {
 		logger.Warn("no [keystone.price] sources configured; vote extensions carry no price")
