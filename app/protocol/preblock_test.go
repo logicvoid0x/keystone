@@ -180,3 +180,14 @@ func TestPreBlockTotality(t *testing.T) {
 	require.Contains(t, r.calls, "oracle")
 	require.False(t, r.agg.Updated)
 }
+
+func TestPreBlockReportsUnverifiedVEs(t *testing.T) {
+	keys := testKeys(4)
+	ext, _ := commitFor(t, keys, 10, 0, protocol.MinimalVE(10))
+	ext.Votes[2].ExtensionSignature[0] ^= 1
+	var got [][]byte
+	pb := newPB(storeFor(keys), &recorder{})
+	pb.SetUnverifiedObserver(func(a []byte) { got = append(got, a) })
+	pb.PreBlock(pbCtx(), &abci.RequestFinalizeBlock{Height: 11, Txs: [][]byte{protocol.EncodeInjected(ext)}})
+	require.Equal(t, [][]byte{ext.Votes[2].Validator.Address}, got)
+}

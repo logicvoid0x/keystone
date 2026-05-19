@@ -15,6 +15,7 @@ type ProposalHandler struct {
 	valStore       ValidatorStore
 	prepareUserTxs sdk.PrepareProposalHandler
 	processUserTxs sdk.ProcessProposalHandler
+	onReject       func(reason string)
 }
 
 // NewProposalHandler wires the handler. prepareUserTxs and processUserTxs are the SDK
@@ -95,36 +96,68 @@ func withoutMagic(txs [][]byte) [][]byte {
 	return out
 }
 
+// Reject reasons reported to the observer (metric process_proposal_rejects{reason}).
+const (
+	RejectMagicBeforeVEs   = "magic_before_ves"
+	RejectMissingTx0       = "missing_tx0"
+	RejectExtraMagic       = "extra_magic"
+	RejectBadTx0           = "undecodable_tx0"
+	RejectLastCommit       = "last_commit_mismatch"
+	RejectLowVerifiedPower = "verified_power"
+	RejectUserTxs          = "user_txs"
+)
+
+// SetRejectObserver installs a callback told why a proposal was rejected. It only
+// observes; ProcessProposal's result does not depend on it.
+func (h *ProposalHandler) SetRejectObserver(f func(reason string)) { h.onReject = f }
+
+func (h *ProposalHandler) reject(reason string) (*abci.ResponseProcessProposal, error) {
+	if h.onReject != nil {
+		h.onReject(reason)
+	}
+	return &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}, nil
+}
+
+func (h *ProposalHandler) userTxsResult(ctx sdk.Context, req *abci.RequestProcessProposal) (*abci.ResponseProcessProposal, error) {
+	res, err := h.processUserTxs(ctx, req)
+	if err == nil && res.Status == abci.ResponseProcessProposal_REJECT {
+		return h.reject(RejectUserTxs)
+	}
+	return res, err
+}
+
 // ProcessProposal accepts a block only if tx0 is present exactly at index 0 (when VEs
 // are active), decodes, matches the block's LastCommit, and carries verified VE power
 // above 2/3; and the user txs pass the SDK default checks.
 func (h *ProposalHandler) ProcessProposal(ctx sdk.Context, req *abci.RequestProcessProposal) (*abci.ResponseProcessProposal, error) {
-	reject := &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}
 	if !VEActive(ctx, req.Height) {
 		for _, tx := range req.Txs {
 			if HasMagic(tx) {
-				return reject, nil
+				return h.reject(RejectMagicBeforeVEs)
 			}
 		}
-		return h.processUserTxs(ctx, req)
+		return h.userTxsResult(ctx, req)
 	}
-	if len(req.Txs) == 0 {
-		return reject, nil
+	if len(req.Txs) == 0 || !HasMagic(req.Txs[0]) {
+		return h.reject(RejectMissingTx0)
 	}
 	for _, tx := range req.Txs[1:] {
 		if HasMagic(tx) {
-			return reject, nil
+			return h.reject(RejectExtraMagic)
 		}
 	}
 	ext, ok := DecodeInjected(req.Txs[0])
-	if !ok || !MatchesLastCommit(ext, req.ProposedLastCommit) {
-		return reject, nil
+	if !ok {
+		return h.reject(RejectBadTx0)
+	}
+	if !MatchesLastCommit(ext, req.ProposedLastCommit) {
+		return h.reject(RejectLastCommit)
 	}
 	_, verified, total := VerifyVotes(ctx, h.valStore, ctx.ChainID(), req.Height-1, ext)
 	if !HasQuorum(verified, total) {
-		return reject, nil
+		return h.reject(RejectLowVerifiedPower)
 	}
 	sub := *req
 	sub.Txs = req.Txs[1:]
-	return h.processUserTxs(ctx, &sub)
+	return h.userTxsResult(ctx, &sub)
 }

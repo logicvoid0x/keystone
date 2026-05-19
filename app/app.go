@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	abci "github.com/cometbft/cometbft/abci/types"
 	dbm "github.com/cosmos/cosmos-db"
@@ -140,10 +141,12 @@ type App struct {
 	BasicModuleManager module.BasicManager
 	configurator       module.Configurator
 
-	protocol *protocol.PreBlocker
-	voteExt  *protocol.VoteExtHandler
-	price    protocol.PriceSource
-	invState invariantState
+	protocol  *protocol.PreBlocker
+	voteExt   *protocol.VoteExtHandler
+	price     protocol.PriceSource
+	invState  invariantState
+	metrics   *Metrics
+	proposals *protocol.ProposalHandler
 }
 
 // New returns a Keystone app. It refuses to start with any block executor other than
@@ -342,13 +345,29 @@ func (app *App) setPostHandler() {
 func (app *App) setABCIHandlers() {
 	veh := protocol.NewVoteExtHandler()
 	app.voteExt = veh
-	app.SetExtendVoteHandler(veh.ExtendVote)
+	app.SetExtendVoteHandler(func(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
+		start := time.Now()
+		res, err := veh.ExtendVote(ctx, req)
+		if m := app.metrics; m != nil && res != nil {
+			m.ExtendVoteMs.Observe(msSince(start))
+			m.VEBytes.Observe(float64(len(res.VoteExtension)))
+		}
+		return res, err
+	})
 	app.SetVerifyVoteExtensionHandler(veh.VerifyVoteExtension)
 
 	def := baseapp.NewDefaultProposalHandler(app.Mempool(), app)
 	ph := protocol.NewProposalHandler(app.Logger(), app.PoaKeeper, def.PrepareProposalHandler(), def.ProcessProposalHandler())
 	app.SetPrepareProposal(ph.PrepareProposal)
-	app.SetProcessProposal(ph.ProcessProposal)
+	app.proposals = ph
+	app.SetProcessProposal(func(ctx sdk.Context, req *abci.RequestProcessProposal) (*abci.ResponseProcessProposal, error) {
+		start := time.Now()
+		res, err := ph.ProcessProposal(ctx, req)
+		if m := app.metrics; m != nil {
+			m.ProcessProposalMs.Observe(msSince(start))
+		}
+		return res, err
+	})
 
 	app.protocol = protocol.NewPreBlocker(app.PoaKeeper, protocol.Keepers{
 		Oracle:      app.OracleKeeper,
@@ -368,7 +387,11 @@ func (app *App) PreBlocker(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sd
 	if err != nil {
 		return nil, err
 	}
+	start := time.Now()
 	app.protocol.PreBlock(ctx, req)
+	if m := app.metrics; m != nil {
+		m.observePreBlock(ctx, start)
+	}
 	return res, nil
 }
 
@@ -387,6 +410,9 @@ func (app *App) EndBlocker(ctx sdk.Context) (sdk.EndBlock, error) {
 		if err := app.CheckInvariants(ctx); err != nil {
 			panic(fmt.Errorf("invariant violated at height %d: %w", ctx.BlockHeight(), err))
 		}
+	}
+	if app.metrics != nil {
+		app.observeState(ctx)
 	}
 	return res, nil
 }

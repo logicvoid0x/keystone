@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	dbm "github.com/cosmos/cosmos-db"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
 	"cosmossdk.io/log/v2"
@@ -95,6 +96,13 @@ func txCommand() *cobra.Command {
 
 func newApp(logger log.Logger, db dbm.DB, appOpts servertypes.AppOptions) servertypes.Application {
 	a := app.New(logger, db, true, appOpts, server.DefaultBaseappOptions(appOpts)...)
+
+	// Prometheus metrics (design §16), served by CometBFT on instrumentation.prometheus_listen_addr.
+	if m, err := app.NewMetrics(prometheus.DefaultRegisterer); err != nil {
+		logger.Error("keystone metrics not registered", "err", err)
+	} else {
+		a.EnableMetrics(m)
+	}
 
 	// Price sidecar: polls in the background; ExtendVote reads its snapshot.
 	fetcher, err := price.FetcherFromAppOptions(appOpts)
