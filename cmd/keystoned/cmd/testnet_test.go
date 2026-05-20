@@ -136,3 +136,31 @@ func TestInitFilesMockfeedSources(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, f)
 }
+
+func TestInitFilesDocker(t *testing.T) {
+	a := app.New(log.NewNopLogger(), dbm.NewMemDB(), true, simtestutil.EmptyAppOptions{})
+	dir := t.TempDir()
+	require.NoError(t, cmd.InitFiles(a.AppCodec(), a.DefaultGenesis(), cmd.InitFilesArgs{
+		Operators: 4, OutputDir: dir, ChainID: "keystone-local-1", KeyringBackend: keyring.BackendTest,
+		FundAmount: sdkmath.NewInt(1), Docker: true,
+	}, bufio.NewReader(strings.NewReader(""))))
+	for i, bps := range []int{0, 10, -15, 25} {
+		home := filepath.Join(dir, fmt.Sprintf("node%d", i))
+		cfg, err := os.ReadFile(filepath.Join(home, "config", "config.toml"))
+		require.NoError(t, err)
+		require.Contains(t, string(cfg), `laddr = "tcp://0.0.0.0:26657"`)
+		require.Contains(t, string(cfg), `prometheus = true`)
+		require.NotContains(t, string(cfg), `\\`, "forward slashes only: Linux containers read these homes")
+		require.Contains(t, string(cfg), `prometheus_listen_addr = ":26660"`)
+		require.Equal(t, 3, strings.Count(peersLine(string(cfg)), ":26656"))
+		require.NotContains(t, peersLine(string(cfg)), fmt.Sprintf("@node%d:", i), "no self peer")
+
+		v := viper.New()
+		v.SetConfigFile(filepath.Join(home, "config", "app.toml"))
+		require.NoError(t, v.ReadInConfig())
+		srcs := v.GetStringSlice(price.FlagSources)
+		require.Len(t, srcs, 3)
+		require.Equal(t, fmt.Sprintf("mock:http://mockfeed:18080/ex/a/btcusd?offset_bps=%d", bps), srcs[0])
+		require.Equal(t, "0.0.0.0:9090", v.GetString("grpc.address"))
+	}
+}

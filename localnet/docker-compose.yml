@@ -1,0 +1,51 @@
+# 4-operator Keystone localnet (spec M2-T1). Homes come from
+#   keystoned testnet init-files --operators 4 --docker --output localnet/homes
+# and are bind-mounted, so they survive `make localnet-stop`.
+# Host ports per node i: RPC 26657+10i, gRPC 9090+10i, Prometheus 26660+10i.
+# node3 can be restarted as a byzantine proposer: make localnet-byz MODE=extra_magic.
+# node4 (profile "extra") is the 5th operator added by scripts/add-operator.sh.
+name: keystone-localnet
+
+x-node: &node
+  image: keystone-localnet:latest
+  depends_on: [mockfeed]
+  restart: unless-stopped
+  command: ["keystoned", "start", "--home", "/home/keystone"]
+
+services:
+  mockfeed:
+    build:
+      context: ..
+      dockerfile: localnet/Dockerfile
+    image: keystone-localnet:latest
+    command: ["mockfeed", "--listen", "0.0.0.0:18080", "--price", "100000"]
+    ports: ["18080:18080"]
+
+  node0:
+    <<: *node
+    volumes: ["./homes/node0:/home/keystone"]
+    ports: ["26657:26657", "9090:9090", "26660:26660"]
+
+  node1:
+    <<: *node
+    volumes: ["./homes/node1:/home/keystone"]
+    ports: ["26667:26657", "9100:9090", "26670:26660"]
+
+  node2:
+    <<: *node
+    volumes: ["./homes/node2:/home/keystone"]
+    ports: ["26677:26657", "9110:9090", "26680:26660"]
+
+  node3:
+    <<: *node
+    command: ["sh", "-c", "exec ${NODE3_BIN:-keystoned} start --home /home/keystone"]
+    environment:
+      KEYSTONE_BYZ: ${KEYSTONE_BYZ:-}
+    volumes: ["./homes/node3:/home/keystone"]
+    ports: ["26687:26657", "9120:9090", "26690:26660"]
+
+  node4:
+    <<: *node
+    profiles: [extra]
+    volumes: ["./homes/node4:/home/keystone"]
+    ports: ["26697:26657", "9130:9090", "26700:26660"]

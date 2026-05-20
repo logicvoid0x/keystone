@@ -1,0 +1,6 @@
+.git
+.demo
+localnet/homes
+keystone-specs.zip
+build/*
+!build/linux

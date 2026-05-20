@@ -109,3 +109,13 @@ func durationOr(v any, def time.Duration) (time.Duration, error) {
 	}
 	return time.ParseDuration(s)
 }
+
+// MockConfigOffset is MockConfig with a per-caller price offset (?offset_bps=N), so
+// localnet nodes reading one mockfeed see different local prices.
+func MockConfigOffset(baseURL string, bps int) Config {
+	c := MockConfig(baseURL)
+	for i, s := range c.Sources {
+		c.Sources[i] = fmt.Sprintf("%s?offset_bps=%d", s, bps)
+	}
+	return c
+}

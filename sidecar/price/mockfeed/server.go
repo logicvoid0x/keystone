@@ -1,7 +1,7 @@
 // Package mockfeed is a controllable BTC/USD feed with three fake exchanges (a, b, c),
 // used by tests and localnet (spec M1-T1).
 //
-//	GET  /ex/{a|b|c}/btcusd   -> {"price":"100000.00","ts":<unix>}
+//	GET  /ex/{a|b|c}/btcusd   -> {"price":"100000.00","ts":<unix>}  (?offset_bps=N skews it)
 //	POST /admin/price  {"usd":"76000"}              base price
 //	POST /admin/offset {"exchange":"a","bps":30}     skew one exchange
 //	POST /admin/down   {"exchange":"a"}              503 from one exchange ("*" = all)
@@ -12,6 +12,7 @@ package mockfeed
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -74,7 +75,17 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "exchange down", http.StatusServiceUnavailable)
 			return
 		}
-		writeJSON(w, map[string]any{"price": price.FormatUSD(s.PriceMicro(ex)), "ts": s.now().Unix()})
+		p := s.PriceMicro(ex)
+		// ?offset_bps=N skews the price for one caller (localnet: one offset per node).
+		if v := r.URL.Query().Get("offset_bps"); v != "" {
+			bps, err := strconv.ParseInt(v, 10, 64)
+			if err != nil || bps <= -10_000 {
+				http.Error(w, "bad offset_bps", http.StatusBadRequest)
+				return
+			}
+			p = p * uint64(10_000+bps) / 10_000
+		}
+		writeJSON(w, map[string]any{"price": price.FormatUSD(p), "ts": s.now().Unix()})
 	})
 	mux.HandleFunc("POST /admin/price", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

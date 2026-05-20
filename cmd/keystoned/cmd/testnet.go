@@ -35,6 +35,7 @@ const (
 	flagOutput     = "output"
 	flagFundAmount = "fund-amount"
 	flagMockfeed   = "mockfeed"
+	flagDocker     = "docker"
 
 	// Port layout for nodes on one machine: node i uses base + 10*i.
 	p2pPortBase  = 26656
@@ -67,6 +68,9 @@ type InitFilesArgs struct {
 	FundAmount     sdkmath.Int
 	// MockfeedURL, if set, points every node's price sources at a mockfeed.
 	MockfeedURL string
+	// Docker writes container configs: listen on 0.0.0.0 default ports, peers by hostname
+	// nodeN, Prometheus on :26660, and per-node mockfeed offsets (spec M2-T1).
+	Docker bool
 }
 
 func initFilesCmd(tempApp *app.App) *cobra.Command {
@@ -84,12 +88,13 @@ a single "admin" key in node0 when N = 1), vote extensions enabled at height 1.`
 			backend, _ := cmd.Flags().GetString(flags.FlagKeyringBackend)
 			fundStr, _ := cmd.Flags().GetString(flagFundAmount)
 			mock, _ := cmd.Flags().GetString(flagMockfeed)
+			docker, _ := cmd.Flags().GetBool(flagDocker)
 			fund, ok := sdkmath.NewIntFromString(fundStr)
 			if !ok {
 				return fmt.Errorf("invalid --%s %q", flagFundAmount, fundStr)
 			}
 			if err := InitFiles(tempApp.AppCodec(), tempApp.DefaultGenesis(), InitFilesArgs{
-				Operators: n, OutputDir: out, ChainID: chainID, KeyringBackend: backend, FundAmount: fund, MockfeedURL: mock,
+				Operators: n, OutputDir: out, ChainID: chainID, KeyringBackend: backend, FundAmount: fund, MockfeedURL: mock, Docker: docker,
 			}, bufio.NewReader(cmd.InOrStdin())); err != nil {
 				return err
 			}
@@ -103,6 +108,7 @@ a single "admin" key in node0 when N = 1), vote extensions enabled at height 1.`
 	cmd.Flags().String(flags.FlagKeyringBackend, keyring.BackendTest, "keyring backend")
 	cmd.Flags().String(flagFundAmount, "1000000000000", "test-denom balance for each funded account")
 	cmd.Flags().String(flagMockfeed, "", "mockfeed base URL (e.g. http://127.0.0.1:18080); default: real exchanges")
+	cmd.Flags().Bool(flagDocker, false, "write configs for the docker-compose localnet (localnet/)")
 	return cmd
 }
 
@@ -170,12 +176,15 @@ func InitFiles(cdc codec.Codec, defaults app.GenesisState, args InitFilesArgs, i
 	for i, nf := range nodes {
 		var peers []string
 		for j, other := range nodes {
-			if j != i {
+			switch {
+			case j == i:
+			case args.Docker:
+				peers = append(peers, fmt.Sprintf("%s@node%d:%d", other.nodeID, j, p2pPortBase))
+			default:
 				peers = append(peers, fmt.Sprintf("%s@127.0.0.1:%d", other.nodeID, p2pPortBase+portStride*j))
 			}
 		}
 		nf.cfg.P2P.PersistentPeers = strings.Join(peers, ",")
-		cmtcfg.WriteConfigFile(filepath.Join(nf.home, "config", "config.toml"), nf.cfg)
 
 		appCfg := DefaultAppConfig()
 		appCfg.GRPC.Address = fmt.Sprintf("127.0.0.1:%d", grpcPortBase+portStride*i)
@@ -183,6 +192,10 @@ func InitFiles(cdc codec.Codec, defaults app.GenesisState, args InitFilesArgs, i
 		if args.MockfeedURL != "" {
 			appCfg.Keystone.Price = price.MockConfig(args.MockfeedURL)
 		}
+		if args.Docker {
+			dockerConfig(nf.cfg, appCfg, args, i)
+		}
+		cmtcfg.WriteConfigFile(filepath.Join(nf.home, "config", "config.toml"), nf.cfg)
 		serverconfig.SetConfigTemplate(AppConfigTemplate)
 		serverconfig.WriteConfigFile(filepath.Join(nf.home, "config", "app.toml"), appCfg)
 
@@ -304,4 +317,34 @@ broadcast-mode = "sync"
 func writeClientConfig(home, chainID, backend, node string) error {
 	body := fmt.Sprintf(clientConfigTemplate, chainID, backend, node)
 	return os.WriteFile(filepath.Join(home, "config", "client.toml"), []byte(body), 0o644)
+}
+
+// Docker localnet layout (spec M2-T1): every node uses the default ports inside its
+// container (the compose file maps RPC 26657+10i, gRPC 9090+10i, Prometheus 26660+10i
+// on the host) and reads the mockfeed container with its own offset.
+const dockerMockfeedURL = "http://mockfeed:18080"
+
+// DockerPriceOffsetsBps are the per-node mockfeed offsets (node0 0, +10, −15, +25, …).
+var DockerPriceOffsetsBps = []int{0, 10, -15, 25}
+
+func dockerConfig(cfg *cmtcfg.Config, appCfg *AppConfig, args InitFilesArgs, i int) {
+	// The homes are written on the host but read by Linux containers: relative paths must
+	// use forward slashes (Windows hosts would write configgenesis.json).
+	cfg.Genesis = filepath.ToSlash(cfg.Genesis)
+	cfg.PrivValidatorKey = filepath.ToSlash(cfg.PrivValidatorKey)
+	cfg.PrivValidatorState = filepath.ToSlash(cfg.PrivValidatorState)
+	cfg.NodeKey = filepath.ToSlash(cfg.NodeKey)
+	cfg.P2P.AddrBook = filepath.ToSlash(cfg.P2P.AddrBook)
+	cfg.Consensus.WalPath = filepath.ToSlash(cfg.Consensus.WalPath)
+	cfg.RPC.ListenAddress = fmt.Sprintf("tcp://0.0.0.0:%d", rpcPortBase)
+	cfg.P2P.ListenAddress = fmt.Sprintf("tcp://0.0.0.0:%d", p2pPortBase)
+	cfg.Instrumentation.Prometheus = true
+	cfg.Instrumentation.PrometheusListenAddr = ":26660"
+	appCfg.GRPC.Address = fmt.Sprintf("0.0.0.0:%d", grpcPortBase)
+	appCfg.API.Address = fmt.Sprintf("tcp://0.0.0.0:%d", apiPortBase)
+	url := args.MockfeedURL
+	if url == "" {
+		url = dockerMockfeedURL
+	}
+	appCfg.Keystone.Price = price.MockConfigOffset(url, DockerPriceOffsetsBps[i%len(DockerPriceOffsetsBps)])
 }

@@ -267,3 +267,18 @@ func TestWithDeadline(t *testing.T) {
 	require.Less(t, time.Since(start), time.Second, "Snapshot returns at the deadline")
 	slow.Stop() // inner has no Stop: no-op
 }
+
+func TestMockfeedPerCallerOffset(t *testing.T) {
+	clk := &clock{t: time.Unix(1_700_000_000, 0)}
+	_, srv := feed(t, "100000", clk)
+	resp, err := http.Get(srv.URL + "/ex/a/btcusd?offset_bps=-15")
+	require.NoError(t, err)
+	var out map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
+	resp.Body.Close()
+	require.Equal(t, "99850.00", out["price"])
+	resp, err = http.Get(srv.URL + "/ex/a/btcusd?offset_bps=x")
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}

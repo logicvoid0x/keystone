@@ -5,7 +5,7 @@ BUILDDIR ?= build
 # collateral message is routed.
 TEST_TAGS ?= invariants,devcredit
 
-.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 determinism-long localnet-start localnet-stop clean
+.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz clean
 
 all: build
 
@@ -57,11 +57,32 @@ e2e-M0: build
 determinism-long: check-go
 	$(GO) test -tags long,devcredit -timeout 60m -run TestDeterminism10k -v ./testutil/multinode
 
-localnet-start:
-	@echo "localnet arrives in M2"; exit 1
+# Docker localnet (spec M2-T1). Homes in $(LOCALNET_HOMES) are kept by localnet-stop.
+LOCALNET_HOMES ?= localnet/homes
+COMPOSE ?= docker compose -f localnet/docker-compose.yml
+
+# localnet-bin cross-compiles the Linux binaries the localnet image copies.
+localnet-bin: check-go
+	@mkdir -p $(BUILDDIR)/linux
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -tags devcredit -o $(BUILDDIR)/linux/keystoned ./cmd/keystoned
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -tags devcredit,byzantine -o $(BUILDDIR)/linux/keystoned-byz ./cmd/keystoned
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -o $(BUILDDIR)/linux/mockfeed ./cmd/mockfeed
+
+localnet-start: build localnet-bin
+	@if [ ! -d $(LOCALNET_HOMES)/node0 ]; then \
+		./$(BUILDDIR)/keystoned testnet init-files --operators 4 --docker --output $(LOCALNET_HOMES) --chain-id keystone-local-1; fi
+	$(COMPOSE) up -d --build mockfeed node0 node1 node2 node3
 
 localnet-stop:
-	@echo "localnet arrives in M2"; exit 1
+	$(COMPOSE) --profile extra down
+
+localnet-clean: localnet-stop
+	rm -rf $(LOCALNET_HOMES)
+
+# localnet-byz restarts node3 as a byzantine proposer: make localnet-byz MODE=extra_magic
+# (drop_tx0, extra_magic, corrupt_one_ve, corrupt_two_ve; MODE= restores honest).
+localnet-byz:
+	KEYSTONE_BYZ=$(MODE) NODE3_BIN=$(if $(MODE),keystoned-byz,keystoned) $(COMPOSE) up -d --no-deps --force-recreate node3
 
 clean:
 	rm -rf $(BUILDDIR)
