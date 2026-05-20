@@ -26,12 +26,6 @@ func spotAndStatus(t *testing.T, net *multinode.Net) (string, oracletypes.PriceS
 	return ps.SpotMicroUsd.String(), ps.Status
 }
 
-func steps(net *multinode.Net, n int) {
-	for i := 0; i < n; i++ {
-		net.Step(multinode.StepOpts{})
-	}
-}
-
 // 1 of 4 nodes sends no oracle payload: 3/4 > 2/3, so the price still updates.
 func TestOneNodeWithholdsPrice(t *testing.T) {
 	net := multinode.New(t, 4)

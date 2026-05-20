@@ -358,7 +358,7 @@ func (app *App) setABCIHandlers() {
 
 	def := baseapp.NewDefaultProposalHandler(app.Mempool(), app)
 	ph := protocol.NewProposalHandler(app.Logger(), app.PoaKeeper, def.PrepareProposalHandler(), def.ProcessProposalHandler())
-	app.SetPrepareProposal(ph.PrepareProposal)
+	app.SetPrepareProposal(wrapPrepare(ph.PrepareProposal))
 	app.proposals = ph
 	app.SetProcessProposal(func(ctx sdk.Context, req *abci.RequestProcessProposal) (*abci.ResponseProcessProposal, error) {
 		start := time.Now()

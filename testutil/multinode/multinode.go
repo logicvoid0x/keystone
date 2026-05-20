@@ -350,3 +350,6 @@ func (net *Net) SetAllPrices(usd uint64) {
 		nd.Price.Set(usd)
 	}
 }
+
+// LastCommit is the commit info of the last height (the next block's LastCommit).
+func (net *Net) LastCommit() abci.CommitInfo { return net.lastCommit }
