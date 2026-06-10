@@ -164,3 +164,26 @@ func TestInitFilesDocker(t *testing.T) {
 		require.Equal(t, "0.0.0.0:9090", v.GetString("grpc.address"))
 	}
 }
+
+func TestAddNode(t *testing.T) {
+	a := app.New(log.NewNopLogger(), dbm.NewMemDB(), true, simtestutil.EmptyAppOptions{})
+	dir := t.TempDir()
+	require.NoError(t, cmd.InitFiles(a.AppCodec(), a.DefaultGenesis(), cmd.InitFilesArgs{
+		Operators: 4, OutputDir: dir, ChainID: "keystone-local-1", KeyringBackend: keyring.BackendTest,
+		FundAmount: sdkmath.NewInt(1), Docker: true,
+	}, bufio.NewReader(strings.NewReader(""))))
+	info, err := cmd.AddNode(a.AppCodec(), cmd.AddNodeArgs{
+		InitFilesArgs: cmd.InitFilesArgs{OutputDir: dir, ChainID: "keystone-local-1", KeyringBackend: keyring.BackendTest, Docker: true},
+		Index:         4, Peers: "abc@node0:26656", GenesisFile: filepath.Join(dir, "node0", "config", "genesis.json"),
+	}, bufio.NewReader(strings.NewReader("")))
+	require.NoError(t, err)
+	require.Len(t, info.ConsensusPubkey, 32)
+	require.Equal(t, "node4", info.Moniker)
+	g0, _ := os.ReadFile(filepath.Join(dir, "node0", "config", "genesis.json"))
+	g4, _ := os.ReadFile(filepath.Join(dir, "node4", "config", "genesis.json"))
+	require.Equal(t, g0, g4)
+	cfg, _ := os.ReadFile(filepath.Join(dir, "node4", "config", "config.toml"))
+	require.Contains(t, string(cfg), `persistent_peers = "abc@node0:26656"`)
+	_, err = cmd.AddNode(a.AppCodec(), cmd.AddNodeArgs{Index: 5}, bufio.NewReader(strings.NewReader("")))
+	require.Error(t, err)
+}

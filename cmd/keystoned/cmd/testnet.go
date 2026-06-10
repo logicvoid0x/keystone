@@ -55,7 +55,7 @@ func NewTestnetCmd(tempApp *app.App) *cobra.Command {
 		Use:   "testnet",
 		Short: "Testnet tooling",
 	}
-	cmd.AddCommand(initFilesCmd(tempApp))
+	cmd.AddCommand(initFilesCmd(tempApp), addNodeCmd(tempApp))
 	return cmd
 }
 
@@ -347,4 +347,113 @@ func dockerConfig(cfg *cmtcfg.Config, appCfg *AppConfig, args InitFilesArgs, i i
 		url = dockerMockfeedURL
 	}
 	appCfg.Keystone.Price = price.MockConfigOffset(url, DockerPriceOffsetsBps[i%len(DockerPriceOffsetsBps)])
+}
+
+const (
+	flagIndex   = "index"
+	flagPeers   = "peers"
+	flagGenesis = "genesis"
+)
+
+// addNodeCmd writes one more node home next to an existing localnet (spec M2-T7). The
+// node is not a validator until the admin multisig adds it with MsgSetValidators.
+func addNodeCmd(tempApp *app.App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "add-node",
+		Short: "Write a new node home (DIR/node<index>) for an existing localnet and print its keys as JSON",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			out, _ := cmd.Flags().GetString(flagOutput)
+			idx, _ := cmd.Flags().GetInt(flagIndex)
+			peers, _ := cmd.Flags().GetString(flagPeers)
+			gen, _ := cmd.Flags().GetString(flagGenesis)
+			chainID, _ := cmd.Flags().GetString(flags.FlagChainID)
+			backend, _ := cmd.Flags().GetString(flags.FlagKeyringBackend)
+			docker, _ := cmd.Flags().GetBool(flagDocker)
+			mock, _ := cmd.Flags().GetString(flagMockfeed)
+			info, err := AddNode(tempApp.AppCodec(), AddNodeArgs{
+				InitFilesArgs: InitFilesArgs{OutputDir: out, ChainID: chainID, KeyringBackend: backend, Docker: docker, MockfeedURL: mock},
+				Index:         idx, Peers: peers, GenesisFile: gen,
+			}, bufio.NewReader(cmd.InOrStdin()))
+			if err != nil {
+				return err
+			}
+			bz, err := json.Marshal(info)
+			if err != nil {
+				return err
+			}
+			cmd.Println(string(bz))
+			return nil
+		},
+	}
+	cmd.Flags().String(flagOutput, "./localnet/homes", "directory holding the node homes")
+	cmd.Flags().Int(flagIndex, 4, "index of the new node (home DIR/node<index>)")
+	cmd.Flags().String(flagPeers, "", "persistent peers (id@host:port,...)")
+	cmd.Flags().String(flagGenesis, "", "genesis file to copy (e.g. DIR/node0/config/genesis.json)")
+	cmd.Flags().String(flags.FlagChainID, "keystone-local-1", "chain id")
+	cmd.Flags().String(flags.FlagKeyringBackend, keyring.BackendTest, "keyring backend")
+	cmd.Flags().Bool(flagDocker, false, "write a docker-compose localnet config")
+	cmd.Flags().String(flagMockfeed, "", "mockfeed base URL")
+	return cmd
+}
+
+// AddNodeArgs configures AddNode.
+type AddNodeArgs struct {
+	InitFilesArgs
+	Index       int
+	Peers       string
+	GenesisFile string
+}
+
+// NodeInfo is what the admin needs to add the node with MsgSetValidators.
+type NodeInfo struct {
+	Home            string `json:"home"`
+	NodeID          string `json:"node_id"`
+	OperatorAddress string `json:"operator_address"`
+	ConsensusPubkey []byte `json:"consensus_pubkey"` // base64 in JSON, as MsgSetValidators expects
+	ConsAddress     string `json:"cons_address_hex"`
+	Moniker         string `json:"moniker"`
+}
+
+// AddNode writes DIR/node<index> with fresh keys, the given genesis and peers.
+func AddNode(cdc codec.Codec, args AddNodeArgs, in *bufio.Reader) (NodeInfo, error) {
+	if args.GenesisFile == "" {
+		return NodeInfo{}, errors.New("--genesis is required")
+	}
+	nf, err := initNode(cdc, args.InitFilesArgs, args.Index, in)
+	if err != nil {
+		return NodeInfo{}, err
+	}
+	nf.cfg.P2P.PersistentPeers = args.Peers
+	appCfg := DefaultAppConfig()
+	i := args.Index
+	appCfg.GRPC.Address = fmt.Sprintf("127.0.0.1:%d", grpcPortBase+portStride*i)
+	appCfg.API.Address = fmt.Sprintf("tcp://127.0.0.1:%d", apiPortBase+portStride*i)
+	if args.MockfeedURL != "" {
+		appCfg.Keystone.Price = price.MockConfig(args.MockfeedURL)
+	}
+	if args.Docker {
+		dockerConfig(nf.cfg, appCfg, args.InitFilesArgs, i)
+	}
+	cmtcfg.WriteConfigFile(filepath.Join(nf.home, "config", "config.toml"), nf.cfg)
+	serverconfig.SetConfigTemplate(AppConfigTemplate)
+	serverconfig.WriteConfigFile(filepath.Join(nf.home, "config", "app.toml"), appCfg)
+	if err := writeClientConfig(nf.home, args.ChainID, args.KeyringBackend, fmt.Sprintf("tcp://127.0.0.1:%d", rpcPortBase+portStride*i)); err != nil {
+		return NodeInfo{}, err
+	}
+	gen, err := os.ReadFile(args.GenesisFile)
+	if err != nil {
+		return NodeInfo{}, err
+	}
+	if err := os.WriteFile(nf.cfg.GenesisFile(), gen, 0o644); err != nil {
+		return NodeInfo{}, err
+	}
+	op, err := nf.operator.GetAddress()
+	if err != nil {
+		return NodeInfo{}, err
+	}
+	return NodeInfo{
+		Home: nf.home, NodeID: nf.nodeID, OperatorAddress: op.String(),
+		ConsensusPubkey: nf.consPub.Bytes(), ConsAddress: fmt.Sprintf("%X", nf.consPub.Address()),
+		Moniker: fmt.Sprintf("node%d", i),
+	}, nil
 }
