@@ -5,7 +5,7 @@ BUILDDIR ?= build
 # collateral message is routed.
 TEST_TAGS ?= invariants,devcredit
 
-.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz clean
+.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M1 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz clean
 
 all: build
 
@@ -46,8 +46,11 @@ build-dev: check-go
 	@mkdir -p $(BUILDDIR)
 	$(GO) build -tags devcredit -o $(BUILDDIR)/ ./cmd/keystoned ./cmd/mockfeed
 
-# e2e runs the demo of the latest finished milestone.
+# e2e runs the demo of the latest finished milestone (M2: needs Docker).
 e2e: build-dev
+	bash scripts/demo-M2.sh
+
+e2e-M1: build-dev
 	bash scripts/demo-M1.sh
 
 e2e-M0: build
@@ -68,7 +71,7 @@ localnet-bin: check-go
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -tags devcredit,byzantine -o $(BUILDDIR)/linux/keystoned-byz ./cmd/keystoned
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -o $(BUILDDIR)/linux/mockfeed ./cmd/mockfeed
 
-localnet-start: build localnet-bin
+localnet-start: build-dev localnet-bin
 	@if [ ! -d $(LOCALNET_HOMES)/node0 ]; then \
 		./$(BUILDDIR)/keystoned testnet init-files --operators 4 --docker --output $(LOCALNET_HOMES) --chain-id keystone-local-1; fi
 	$(COMPOSE) up -d --build mockfeed node0 node1 node2 node3
