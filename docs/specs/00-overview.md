@@ -72,12 +72,14 @@ keystone/
 5. `docs/decisions.md` lists any deviation from the design, with the reason.
 6. Nothing outside the milestone's scope was started.
 
-## Prompt to start a milestone in Claude Code
+## Prompt to run the milestones in Claude Code
+
+Milestones run autonomously, one after another, per the Workflow section of `CLAUDE.md`:
 
 ```
-Read CLAUDE.md, docs/specs/00-overview.md and docs/specs/<SPEC>.md, plus the design
-sections the spec cites and docs/verified-apis.md. Enter plan mode and give me a plan
-that maps every task to files and tests. Do not write code until I approve.
+Follow CLAUDE.md. Complete every remaining milestone in docs/status.md in order,
+without waiting for approval. When in doubt, make a conservative default assumption,
+update docs/design.md and log it in docs/decisions.md.
 ```
 
-Or use the slash command `/milestone <SPEC>` (defined in `.claude/commands/milestone.md`).
+Or use the slash command `/milestone [SPEC]` (defined in `.claude/skills/milestone/SKILL.md`).

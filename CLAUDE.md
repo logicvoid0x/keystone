@@ -16,7 +16,8 @@ ABCI++ vote extensions.
 | `docs/decisions.md` | Log of decisions made during implementation. Append, never rewrite. |
 
 If a spec and `docs/design.md` disagree, the spec wins for scope and the design
-wins for behaviour. Record the conflict in `docs/decisions.md` and tell the user.
+wins for behaviour. Record the conflict in `docs/decisions.md` and mention it in
+the milestone summary; do not stop for it.
 
 ## Versions (pinned)
 
@@ -62,16 +63,34 @@ randomness; its output only reaches state through vote extensions.
   `docs/verified-apis.md`.
 - Mark a task done with failing tests or skipped acceptance checks.
 
-## Workflow
+## Workflow (autonomous)
 
-1. Work on exactly one milestone spec per session. Start in plan mode: read the
-   spec, the design sections it cites, and `docs/verified-apis.md`, then propose a
-   plan that maps every spec task to files and tests. Wait for approval.
-2. Implement task by task. After each task: `make lint test`, then commit
-   (`<milestone>-T<n>: <summary>`).
+Work through every remaining milestone in order (see `docs/status.md`) in one
+continuous run, without waiting for approval between steps or milestones.
+
+1. For each milestone: read the spec, the design sections it cites,
+   `docs/verified-apis.md` and `docs/decisions.md`. Write a short plan mapping every
+   spec task to files and tests into `docs/status.md` (task table), then start
+   implementing. No plan-mode approval step.
+2. Implement task by task. Update `docs/status.md` before each task starts. After
+   each task: `make lint test`, then commit (`<milestone>-T<n>: <summary>`).
 3. When the milestone's acceptance checks all pass, run the demo script it names,
-   update `docs/decisions.md`, and stop. Do not start the next milestone unasked.
-4. If the design is ambiguous or wrong, stop and ask. Do not improvise protocol behaviour.
+   update `docs/decisions.md` and `docs/status.md`, commit, and go straight on to
+   the next milestone. Stop only after the last milestone is done.
+4. **When in doubt, decide.** If the design is ambiguous, silent or wrong, pick the
+   most conservative default consistent with the rest of the design (safety and
+   determinism first, rounding in the protocol's favour, smallest change to wire
+   formats), then:
+   - update `docs/design.md` so it describes the chosen behaviour, and
+   - append a row to `docs/decisions.md` (mark it "default assumption — review").
+   Keep going; do not stop to ask.
+5. Stop and report only if you are truly blocked: something needs the user
+   (credentials, funded signet wallets, paid services, hardware), a dependency or
+   tool cannot be installed, or tests cannot be made to pass after a genuine effort.
+   Mark the task `blocked` in `docs/status.md` with the reason first. If a later
+   milestone does not depend on the blocked work, continue with it.
+6. The hard rules, the Never list and the definition of done still apply in full.
+   Never mark a task done with failing tests or skipped acceptance checks.
 
 ## Commands (create them in M0, keep them working)
 

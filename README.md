@@ -6,7 +6,7 @@ Claude Code one milestone at a time.
 | Path | Purpose |
 | --- | --- |
 | `CLAUDE.md` | Rules Claude Code loads automatically: versions, determinism rules, workflow |
-| `.claude/commands/milestone.md` | `/milestone <spec>` slash command: plan, approve, implement, verify |
+| `.claude/skills/milestone/SKILL.md` | `/milestone [spec]` skill: implements all remaining milestones autonomously |
 | `docs/design.md` | Full design document (exported from the shared doc) |
 | `docs/verified-apis.md` | SDK v0.55.0 / CometBFT v0.40.0 / btcd APIs checked against source |
 | `docs/decisions.md` | Decision log Claude Code appends to |
