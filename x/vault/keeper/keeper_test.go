@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/stretchr/testify/require"
 
 	"cosmossdk.io/collections"
@@ -84,7 +86,7 @@ func setup(t *testing.T) *fixture {
 		stablecointypes.ModuleName: {authtypes.Minter, authtypes.Burner},
 	})
 	sc := stablecoinkeeper.NewKeeper(cdc, runtime.NewKVStoreService(keys[stablecointypes.StoreKey]), fakeAdmin{}, bank)
-	cust := custodykeeper.NewKeeper(cdc, runtime.NewKVStoreService(keys[custodytypes.StoreKey]), fakeAdmin{})
+	cust := custodykeeper.NewKeeper(cdc, runtime.NewKVStoreService(keys[custodytypes.StoreKey]), fakeAdmin{}, nil)
 	or := &fakeOracle{spot: sdkmath.NewInt(100_000 * usd), twap: sdkmath.NewInt(100_000 * usd), status: oracletypes.PRICE_STATUS_ACTIVE}
 	k := keeper.NewKeeper(cdc, runtime.NewKVStoreService(keys[types.StoreKey]), fakeAdmin{}, or, sc, cust)
 	require.NoError(t, sc.InitGenesis(ctx, stablecointypes.DefaultGenesis()))
@@ -100,7 +102,7 @@ func kusd(v int64) sdkmath.Int { return n(v * 1_000_000) }
 // open opens a vault for owner and dev-credits sat.
 func (f *fixture) open(t *testing.T, owner sdk.AccAddress, sat int64) uint64 {
 	t.Helper()
-	id, err := f.k.OpenVault(f.ctx, &types.MsgOpenVault{Owner: owner.String()})
+	id, _, err := f.k.OpenVault(f.ctx, &types.MsgOpenVault{Owner: owner.String()})
 	require.NoError(t, err)
 	if sat > 0 {
 		require.NoError(t, f.k.DevCreditCollateral(f.ctx, &types.MsgDevCreditCollateral{Admin: admin, VaultId: id, Sat: n(sat)}))
@@ -445,4 +447,50 @@ func TestGenesisAndParams(t *testing.T) {
 	require.NoError(t, err)
 	got, _ := f.k.GetParams(f.ctx)
 	require.Equal(t, next, got)
+}
+
+// With an ACTIVE custody epoch, MsgOpenVault registers the vault's deposit script and
+// returns its address (design §9.7 step 1).
+func TestOpenVaultAddress(t *testing.T) {
+	f := setup(t)
+	f.ctx = f.ctx.WithChainID("keystone-local-1")
+	_, pub := btcec.PrivKeyFromBytes([]byte{7})
+	key := pub.SerializeCompressed()
+	key[0] = 0x02
+	cp := custodytypes.DefaultParams()
+	cp.BitcoinNetwork = custodytypes.NetworkRegtest
+	require.NoError(t, f.cust.Params.Set(f.ctx, cp))
+	require.NoError(t, f.cust.Epochs.Set(f.ctx, 1, custodytypes.KeyEpoch{Number: 1, GroupKey: key, N: 1, T: 1, Status: custodytypes.EPOCH_STATUS_ACTIVE}))
+	require.NoError(t, f.cust.ActiveEpoch.Set(f.ctx, 1))
+
+	res, err := keeper.NewMsgServerImpl(f.k).OpenVault(f.ctx, &types.MsgOpenVault{Owner: alice.String()})
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(res.Address, "bcrt1p"), res.Address)
+	addr, script, _, err := f.cust.DepositAddress(f.ctx, res.VaultId)
+	require.NoError(t, err)
+	require.Equal(t, res.Address, addr)
+	id, err := f.cust.ScriptVault.Get(f.ctx, script)
+	require.NoError(t, err)
+	require.Equal(t, res.VaultId, id)
+	ev := f.ctx.EventManager().Events()
+	require.Equal(t, res.Address, attr(ev, types.EventTypeVaultOpened, types.AttributeKeyAddress))
+
+	owner, open, err := f.k.VaultOwner(f.ctx, res.VaultId)
+	require.NoError(t, err)
+	require.True(t, open)
+	require.Equal(t, alice, owner)
+}
+
+func attr(evs sdk.Events, typ, key string) string {
+	for _, e := range evs {
+		if e.Type != typ {
+			continue
+		}
+		for _, a := range e.Attributes {
+			if a.Key == key {
+				return a.Value
+			}
+		}
+	}
+	return ""
 }

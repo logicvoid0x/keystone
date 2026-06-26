@@ -36,6 +36,9 @@ func TestParamsValidate(t *testing.T) {
 		{"rbf after 0", func(p *types.Params) { p.RbfAfterBtcBlocks = 0 }, false},
 		{"min withdraw below dust limit", func(p *types.Params) { p.MinWithdrawSat = sdkmath.NewInt(329) }, false},
 		{"emergency rekey on", func(p *types.Params) { p.EmergencyRekey = true }, true},
+		{"network regtest", func(p *types.Params) { p.BitcoinNetwork = types.NetworkRegtest }, true},
+		{"network mainnet", func(p *types.Params) { p.BitcoinNetwork = "mainnet" }, false},
+		{"network empty", func(p *types.Params) { p.BitcoinNetwork = "" }, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -66,4 +69,5 @@ func TestDefaultsMatchDesign(t *testing.T) {
 	require.Equal(t, uint32(6), p.RbfAfterBtcBlocks)
 	require.Equal(t, "10000", p.MinWithdrawSat.String())
 	require.False(t, p.EmergencyRekey)
+	require.Equal(t, types.NetworkSignet, p.BitcoinNetwork)
 }

@@ -385,3 +385,17 @@ func (k *Keeper) UpdateParams(ctx context.Context, msg *types.MsgUpdateParams) e
 	}
 	return k.Params.Set(ctx, msg.Params)
 }
+
+// VaultOwner returns a vault's owner and whether it can still take collateral (not
+// closed). Used by x/custody to credit deposits.
+func (k *Keeper) VaultOwner(ctx context.Context, id uint64) (sdk.AccAddress, bool, error) {
+	v, err := k.GetVault(ctx, id)
+	if err != nil {
+		return nil, false, err
+	}
+	owner, err := sdk.AccAddressFromBech32(v.Owner)
+	if err != nil {
+		return nil, false, err
+	}
+	return owner, v.Status != types.VAULT_STATUS_CLOSED, nil
+}

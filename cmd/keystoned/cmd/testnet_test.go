@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +25,10 @@ import (
 
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/cmd/keystoned/cmd"
+	"github.com/OWNER/keystone/crypto/frost/secret"
 	"github.com/OWNER/keystone/sidecar/price"
+	"github.com/OWNER/keystone/testutil/devdealer"
+	custodytypes "github.com/OWNER/keystone/x/custody/types"
 	poatypes "github.com/OWNER/keystone/x/poa/types"
 )
 
@@ -186,4 +191,56 @@ func TestAddNode(t *testing.T) {
 	require.Contains(t, string(cfg), `persistent_peers = "abc@node0:26656"`)
 	_, err = cmd.AddNode(a.AppCodec(), cmd.AddNodeArgs{Index: 5}, bufio.NewReader(strings.NewReader("")))
 	require.Error(t, err)
+}
+
+func TestInitFilesDevDealer(t *testing.T) {
+	a := app.New(log.NewNopLogger(), dbm.NewMemDB(), true, simtestutil.EmptyAppOptions{})
+	args := cmd.InitFilesArgs{
+		Operators: 4, OutputDir: t.TempDir(), ChainID: "keystone-signet-1",
+		KeyringBackend: keyring.BackendTest, FundAmount: sdkmath.NewInt(1000), DevDealer: true,
+	}
+	err := cmd.InitFiles(a.AppCodec(), a.DefaultGenesis(), args, bufio.NewReader(strings.NewReader("")))
+	require.ErrorContains(t, err, "localnet chain id", "--dev-dealer is refused off localnet")
+
+	args.ChainID = "keystone-local-1"
+	require.NoError(t, cmd.InitFiles(a.AppCodec(), a.DefaultGenesis(), args, bufio.NewReader(strings.NewReader(""))))
+	gen, err := genutiltypes.AppGenesisFromFile(filepath.Join(args.OutputDir, "node0", "config", "genesis.json"))
+	require.NoError(t, err)
+	var state map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(gen.AppState, &state))
+	require.NoError(t, a.BasicModuleManager.ValidateGenesis(a.AppCodec(), a.TxConfig(), state))
+	var cg custodytypes.GenesisState
+	a.AppCodec().MustUnmarshalJSON(state[custodytypes.ModuleName], &cg)
+	require.Equal(t, uint64(1), cg.ActiveEpoch)
+	require.Equal(t, uint32(3), cg.Epochs[0].T)
+	require.Equal(t, custodytypes.NetworkRegtest, cg.Params.BitcoinNetwork)
+	require.Equal(t, uint32(1), cg.Params.ConfirmDepth)
+
+	// Each node holds exactly its own share, encrypted; t of them recover the key.
+	shares := map[uint32][]byte{}
+	for i := 0; i < 4; i++ {
+		home := filepath.Join(args.OutputDir, fmt.Sprintf("node%d", i))
+		_, err := secret.ReadShares(home, []byte("wrong"), 1)
+		require.Error(t, err)
+		s, err := secret.ReadShares(home, []byte(cmd.DefaultCustodyPassphrase), 1)
+		require.NoError(t, err)
+		require.Len(t, s.Shares, 1)
+		require.Equal(t, cg.Epochs[0].GroupKey, s.GroupKey)
+		kb, err := keyring.New("keystone", keyring.BackendTest, home, nil, a.AppCodec())
+		require.NoError(t, err)
+		rec, err := kb.Key("operator")
+		require.NoError(t, err)
+		opAddr, err := rec.GetAddress()
+		require.NoError(t, err)
+		idx := slices.IndexFunc(cg.ShareIndices, func(si custodytypes.ShareIndex) bool { return si.Operator == opAddr.String() })
+		require.GreaterOrEqual(t, idx, 0)
+		require.Equal(t, cg.ShareIndices[idx].Index, s.Shares[0].Index)
+		shares[s.Shares[0].Index] = s.Shares[0].Secret
+	}
+	delete(shares, 2)
+	sum, err := devdealer.Combine(shares)
+	require.NoError(t, err)
+	b := sum.Bytes()
+	_, pub := btcec.PrivKeyFromBytes(b[:])
+	require.Equal(t, cg.Epochs[0].GroupKey, pub.SerializeCompressed())
 }

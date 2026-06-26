@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"bufio"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	cmtcfg "github.com/cometbft/cometbft/config"
@@ -27,7 +29,10 @@ import (
 	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
 
 	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/crypto/frost/secret"
 	"github.com/OWNER/keystone/sidecar/price"
+	"github.com/OWNER/keystone/testutil/devdealer"
+	custodytypes "github.com/OWNER/keystone/x/custody/types"
 )
 
 const (
@@ -36,6 +41,11 @@ const (
 	flagFundAmount = "fund-amount"
 	flagMockfeed   = "mockfeed"
 	flagDocker     = "docker"
+	flagDevDealer  = "dev-dealer"
+	flagCustodyPW  = "custody-passphrase"
+
+	// DefaultCustodyPassphrase encrypts localnet shares (dev only).
+	DefaultCustodyPassphrase = "keystone-localnet"
 
 	// Port layout for nodes on one machine: node i uses base + 10*i.
 	p2pPortBase  = 26656
@@ -71,6 +81,11 @@ type InitFilesArgs struct {
 	// Docker writes container configs: listen on 0.0.0.0 default ports, peers by hostname
 	// nodeN, Prometheus on :26660, and per-node mockfeed offsets (spec M2-T1).
 	Docker bool
+	// DevDealer generates the epoch-1 custody key in this process (localnet chain ids only,
+	// spec M3): the group key goes into custody genesis and each operator's share to
+	// <home>/custody/epoch_1/shares.json, encrypted with CustodyPassphrase.
+	DevDealer         bool
+	CustodyPassphrase string
 }
 
 func initFilesCmd(tempApp *app.App) *cobra.Command {
@@ -89,12 +104,15 @@ a single "admin" key in node0 when N = 1), vote extensions enabled at height 1.`
 			fundStr, _ := cmd.Flags().GetString(flagFundAmount)
 			mock, _ := cmd.Flags().GetString(flagMockfeed)
 			docker, _ := cmd.Flags().GetBool(flagDocker)
+			dealer, _ := cmd.Flags().GetBool(flagDevDealer)
+			pw, _ := cmd.Flags().GetString(flagCustodyPW)
 			fund, ok := sdkmath.NewIntFromString(fundStr)
 			if !ok {
 				return fmt.Errorf("invalid --%s %q", flagFundAmount, fundStr)
 			}
 			if err := InitFiles(tempApp.AppCodec(), tempApp.DefaultGenesis(), InitFilesArgs{
 				Operators: n, OutputDir: out, ChainID: chainID, KeyringBackend: backend, FundAmount: fund, MockfeedURL: mock, Docker: docker,
+				DevDealer: dealer, CustodyPassphrase: pw,
 			}, bufio.NewReader(cmd.InOrStdin())); err != nil {
 				return err
 			}
@@ -109,6 +127,8 @@ a single "admin" key in node0 when N = 1), vote extensions enabled at height 1.`
 	cmd.Flags().String(flagFundAmount, "1000000000000", "test-denom balance for each funded account")
 	cmd.Flags().String(flagMockfeed, "", "mockfeed base URL (e.g. http://127.0.0.1:18080); default: real exchanges")
 	cmd.Flags().Bool(flagDocker, false, "write configs for the docker-compose localnet (localnet/)")
+	cmd.Flags().Bool(flagDevDealer, false, "generate the epoch-1 custody key with a trusted dealer (localnet chain ids only)")
+	cmd.Flags().String(flagCustodyPW, DefaultCustodyPassphrase, "passphrase that encrypts the dealt shares")
 	return cmd
 }
 
@@ -129,6 +149,9 @@ func InitFiles(cdc codec.Codec, defaults app.GenesisState, args InitFilesArgs, i
 	}
 	if args.ChainID == "" {
 		return errors.New("--chain-id is required")
+	}
+	if args.DevDealer && !custodytypes.IsLocalChainID(args.ChainID) {
+		return fmt.Errorf("--%s needs a localnet chain id (ending in -local-<n>), got %q", flagDevDealer, args.ChainID)
 	}
 	nodes := make([]*nodeFiles, args.Operators)
 	for i := range nodes {
@@ -161,6 +184,9 @@ func InitFiles(cdc codec.Codec, defaults app.GenesisState, args InitFilesArgs, i
 	}
 	appState, err := app.BuildGenesis(cdc, defaults, input)
 	if err != nil {
+		return err
+	}
+	if err := localCustodyGenesis(cdc, appState, args, nodes); err != nil {
 		return err
 	}
 	appStateJSON, err := json.MarshalIndent(appState, "", "  ")
@@ -456,4 +482,54 @@ func AddNode(cdc codec.Codec, args AddNodeArgs, in *bufio.Reader) (NodeInfo, err
 		ConsensusPubkey: nf.consPub.Bytes(), ConsAddress: fmt.Sprintf("%X", nf.consPub.Address()),
 		Moniker: fmt.Sprintf("node%d", i),
 	}, nil
+}
+
+// localCustodyGenesis applies the localnet custody params (design §9.1: regtest,
+// MembershipDelayBlocks 100, confirmation depth 1) on localnet chain ids and, with
+// --dev-dealer, deals the epoch-1 key and writes each node's encrypted share.
+func localCustodyGenesis(cdc codec.Codec, appState app.GenesisState, args InitFilesArgs, nodes []*nodeFiles) error {
+	if !custodytypes.IsLocalChainID(args.ChainID) {
+		return nil
+	}
+	var gs custodytypes.GenesisState
+	if err := cdc.UnmarshalJSON(appState[custodytypes.ModuleName], &gs); err != nil {
+		return err
+	}
+	gs.Params.BitcoinNetwork = custodytypes.NetworkRegtest
+	gs.Params.MembershipDelayBlocks = 100
+	gs.Params.ConfirmDepth = 1
+	if args.DevDealer {
+		ops := make([]sdk.AccAddress, len(nodes))
+		for i, nf := range nodes {
+			addr, err := nf.operator.GetAddress()
+			if err != nil {
+				return err
+			}
+			ops[i] = addr
+		}
+		d, err := devdealer.Deal(rand.Reader, ops)
+		if err != nil {
+			return err
+		}
+		d.Apply(&gs)
+		pw := args.CustodyPassphrase
+		if pw == "" {
+			pw = DefaultCustodyPassphrase
+		}
+		for i, op := range d.Operators {
+			j := slices.IndexFunc(ops, func(a sdk.AccAddress) bool { return a.Equals(op) })
+			if err := secret.WriteShares(nodes[j].home, []byte(pw), d.Shares[i]); err != nil {
+				return err
+			}
+		}
+	}
+	if err := gs.Validate(); err != nil {
+		return err
+	}
+	bz, err := cdc.MarshalJSON(&gs)
+	if err != nil {
+		return err
+	}
+	appState[custodytypes.ModuleName] = bz
+	return nil
 }

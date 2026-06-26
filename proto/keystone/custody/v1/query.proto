@@ -6,11 +6,13 @@ import "cosmos/query/v1/query.proto";
 import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
+import "keystone/custody/v1/custody.proto";
 import "keystone/custody/v1/params.proto";
+import "keystone/ve/v1/ve.proto";
 
 option go_package = "github.com/OWNER/keystone/x/custody/types";
 
-// Query is the x/custody query service (M1 stub: params and claimable balances).
+// Query is the x/custody query service (design §11.2; M3 subset).
 service Query {
   // Params returns the x/custody params.
   rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
@@ -21,6 +23,21 @@ service Query {
   rpc Claimable(QueryClaimableRequest) returns (QueryClaimableResponse) {
     option (cosmos.query.v1.module_query_safe) = true;
     option (google.api.http).get = "/keystone/custody/v1/claimable/{address}";
+  }
+  // DepositAddress returns a vault's deposit address for the active epoch.
+  rpc DepositAddress(QueryDepositAddressRequest) returns (QueryDepositAddressResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/deposit_address/{vault_id}";
+  }
+  // ActiveEpoch returns the ACTIVE key epoch.
+  rpc ActiveEpoch(QueryActiveEpochRequest) returns (QueryActiveEpochResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/active_epoch";
+  }
+  // Treasury returns the custody totals.
+  rpc Treasury(QueryTreasuryRequest) returns (QueryTreasuryResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/treasury";
   }
 }
 
@@ -45,4 +62,40 @@ message QueryClaimableResponse {
     (gogoproto.nullable) = false,
     (amino.dont_omitempty) = true
   ];
+}
+
+// QueryDepositAddressRequest is the request for Query/DepositAddress.
+message QueryDepositAddressRequest {
+  uint64 vault_id = 1;
+}
+
+// QueryDepositAddressResponse is the response for Query/DepositAddress.
+message QueryDepositAddressResponse {
+  string address = 1;
+  bytes pk_script = 2;
+  uint64 epoch = 3;
+}
+
+// QueryActiveEpochRequest is the request for Query/ActiveEpoch.
+message QueryActiveEpochRequest {}
+
+// QueryActiveEpochResponse is the response for Query/ActiveEpoch.
+message QueryActiveEpochResponse {
+  KeyEpoch epoch = 1 [(gogoproto.nullable) = false];
+  // treasury_address is the epoch's treasury / change address (Q0).
+  string treasury_address = 2;
+}
+
+// QueryTreasuryRequest is the request for Query/Treasury.
+message QueryTreasuryRequest {}
+
+// QueryTreasuryResponse is the response for Query/Treasury. All amounts in satoshis.
+message QueryTreasuryResponse {
+  // custodied_sat is the sum of Keystone UTXOs.
+  string custodied_sat = 1 [(cosmos_proto.scalar) = "cosmos.Int", (gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
+  string credited_sat = 2 [(cosmos_proto.scalar) = "cosmos.Int", (gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
+  string cap_sat = 3 [(cosmos_proto.scalar) = "cosmos.Int", (gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
+  string fee_reserve_sat = 4 [(cosmos_proto.scalar) = "cosmos.Int", (gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
+  string deficit_sat = 5 [(cosmos_proto.scalar) = "cosmos.Int", (gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
+  keystone.ve.v1.BtcBlockRef anchor = 6 [(gogoproto.nullable) = false];
 }

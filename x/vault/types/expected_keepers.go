@@ -32,12 +32,13 @@ type StablecoinKeeper interface {
 	GetSin(ctx context.Context) (sdkmath.Int, error)
 }
 
-// CustodyKeeper is x/custody as seen by x/vault (M1 stub surface).
+// CustodyKeeper is x/custody as seen by x/vault.
 type CustodyKeeper interface {
 	GetParams(ctx context.Context) (custodytypes.Params, error)
 	CreditClaimable(ctx context.Context, addr sdk.AccAddress, sat sdkmath.Int) error
 	DebitClaimable(ctx context.Context, addr sdk.AccAddress, sat sdkmath.Int) error
 	CapHeadroom(ctx context.Context) (sdkmath.Int, error)
+	RegisterVault(ctx context.Context, vaultID uint64) (string, error)
 	AddCredited(ctx context.Context, sat sdkmath.Int) error
 	SubCredited(ctx context.Context, sat sdkmath.Int) error
 	GetCredited(ctx context.Context) (sdkmath.Int, error)

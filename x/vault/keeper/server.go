@@ -28,11 +28,11 @@ func (m msgServer) UpdateParams(ctx context.Context, msg *types.MsgUpdateParams)
 }
 
 func (m msgServer) OpenVault(ctx context.Context, msg *types.MsgOpenVault) (*types.MsgOpenVaultResponse, error) {
-	id, err := m.k.OpenVault(ctx, msg)
+	id, addr, err := m.k.OpenVault(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
-	return &types.MsgOpenVaultResponse{VaultId: id}, nil
+	return &types.MsgOpenVaultResponse{VaultId: id, Address: addr}, nil
 }
 
 func (m msgServer) Mint(ctx context.Context, msg *types.MsgMint) (*types.MsgMintResponse, error) {

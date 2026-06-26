@@ -46,4 +46,6 @@ message Params {
   ];
   // emergency_rekey starts a new epoch among online operators without the delay (§9.4).
   bool emergency_rekey = 13;
+  // bitcoin_network selects address encoding: "regtest" or "signet" (added in M3).
+  string bitcoin_network = 14;
 }

@@ -49,9 +49,11 @@ message MsgOpenVault {
   string owner = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
 }
 
-// MsgOpenVaultResponse returns the new vault id.
+// MsgOpenVaultResponse returns the new vault id and its deposit address (bech32m;
+// empty while no custody epoch is ACTIVE).
 message MsgOpenVaultResponse {
   uint64 vault_id = 1;
+  string address = 2;
 }
 
 // MsgMint mints amount ukusd against a vault.

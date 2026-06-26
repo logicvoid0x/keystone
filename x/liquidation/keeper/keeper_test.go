@@ -92,7 +92,7 @@ func setup(t *testing.T) *fixture {
 	})
 	or := &fakeOracle{spot: sdkmath.NewInt(100_000 * usd), status: oracletypes.PRICE_STATUS_ACTIVE}
 	sc := stablecoinkeeper.NewKeeper(cdc, runtime.NewKVStoreService(keys[stablecointypes.StoreKey]), fakeAdmin{}, bank)
-	cust := custodykeeper.NewKeeper(cdc, runtime.NewKVStoreService(keys[custodytypes.StoreKey]), fakeAdmin{})
+	cust := custodykeeper.NewKeeper(cdc, runtime.NewKVStoreService(keys[custodytypes.StoreKey]), fakeAdmin{}, nil)
 	vk := vaultkeeper.NewKeeper(cdc, runtime.NewKVStoreService(keys[vaulttypes.StoreKey]), fakeAdmin{}, or, sc, cust)
 	k := keeper.NewKeeper(cdc, runtime.NewKVStoreService(keys[types.StoreKey]), fakeAdmin{}, or, vk, sc, cust, bank)
 	require.NoError(t, sc.InitGenesis(ctx, stablecointypes.DefaultGenesis()))
@@ -110,7 +110,7 @@ func kusd(v int64) sdkmath.Int { return n(v * 1_000_000) }
 
 func (f *fixture) vaultWithDebt(t *testing.T, owner sdk.AccAddress, sat int64, debt sdkmath.Int) uint64 {
 	t.Helper()
-	id, err := f.vault.OpenVault(f.ctx, &vaulttypes.MsgOpenVault{Owner: owner.String()})
+	id, _, err := f.vault.OpenVault(f.ctx, &vaulttypes.MsgOpenVault{Owner: owner.String()})
 	require.NoError(t, err)
 	require.NoError(t, f.vault.DevCreditCollateral(f.ctx, &vaulttypes.MsgDevCreditCollateral{Admin: admin, VaultId: id, Sat: n(sat)}))
 	if debt.IsPositive() {

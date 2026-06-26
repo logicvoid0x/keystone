@@ -1,0 +1,96 @@
+syntax = "proto3";
+package keystone.custody.v1;
+
+import "gogoproto/gogo.proto";
+import "keystone/ve/v1/ve.proto";
+
+option go_package = "github.com/OWNER/keystone/x/custody/types";
+
+// EpochStatus is a key epoch's lifecycle (design §9.4).
+enum EpochStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+  EPOCH_STATUS_UNSPECIFIED = 0;
+  EPOCH_STATUS_DKG = 1;
+  EPOCH_STATUS_ACTIVE = 2;
+  EPOCH_STATUS_RETIRING = 3;
+  EPOCH_STATUS_RETIRED = 4;
+}
+
+// KeyEpoch is one FROST group key (design §10.2). group_key is the 33-byte compressed
+// key, normalized to even y (§9.6).
+message KeyEpoch {
+  uint64 number = 1;
+  bytes group_key = 2;
+  uint32 n = 3;
+  uint32 t = 4;
+  EpochStatus status = 5;
+  int64 start_height = 6;
+}
+
+// UtxoStatus is a treasury UTXO's state.
+enum UtxoStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+  UTXO_STATUS_UNSPECIFIED = 0;
+  UTXO_STATUS_AVAILABLE = 1;
+  UTXO_STATUS_LOCKED = 2;
+}
+
+// Utxo is a Keystone-controlled Bitcoin output (design §10.2). tweak is t0 for change
+// and t_v for deposits (§9.6).
+message Utxo {
+  bytes txid = 1;
+  uint32 vout = 2;
+  uint64 amount_sat = 3;
+  uint64 epoch = 4;
+  bytes tweak = 5;
+  UtxoStatus status = 6;
+  uint64 locked_by_batch = 7;
+}
+
+// DepositRecord is how an accepted deposit was credited, kept while its UTXO exists so
+// a reorg can reverse it (design §9.7 step 6; added in M3, docs/decisions.md). The
+// three amounts sum to the UTXO amount.
+message DepositRecord {
+  uint64 vault_id = 1;
+  // owner is the vault owner at crediting; claimable_sat went to this account.
+  string owner = 2;
+  keystone.ve.v1.BtcBlockRef block = 3 [(gogoproto.nullable) = false];
+  uint64 collateral_sat = 4;
+  uint64 claimable_sat = 5;
+  uint64 fee_reserve_sat = 6;
+}
+
+// AttestationKind separates the tally key spaces.
+enum AttestationKind {
+  option (gogoproto.goproto_enum_prefix) = false;
+  ATTESTATION_KIND_UNSPECIFIED = 0;
+  ATTESTATION_KIND_ANCHOR = 1;
+  ATTESTATION_KIND_DEPOSIT = 2;
+  ATTESTATION_KIND_REORG = 3;
+}
+
+// Tally accumulates identical attestations across heights (design §9.7 step 3). Key =
+// SHA-256(kind ‖ payload); payload is the canonical encoding of the BtcBlockRef,
+// DepositSeen or ReorgSeen. voters are consensus addresses, sorted, distinct. Power is
+// recomputed from the current validator set, so it is not stored.
+message Tally {
+  AttestationKind kind = 1;
+  bytes payload = 2;
+  repeated bytes voters = 3;
+  int64 first_height = 4;
+}
+
+// ShareIndex maps an operator to its FROST share index in an epoch (rank by operator
+// address bytes, from 1; design §9.1).
+message ShareIndex {
+  uint64 epoch = 1;
+  string operator = 2;
+  uint32 index = 3;
+}
+
+// VerifyingShare is Y_i = s_i·G (33-byte compressed) for a share of an epoch.
+message VerifyingShare {
+  uint64 epoch = 1;
+  uint32 index = 2;
+  bytes pubkey = 3;
+}

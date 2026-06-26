@@ -17,6 +17,12 @@ func (AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 					RpcMethod: "Claimable", Use: "claimable [address]", Short: "Query an account's claimable BTC (satoshis)",
 					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "address"}},
 				},
+				{
+					RpcMethod: "DepositAddress", Use: "deposit-address [vault-id]", Short: "Query a vault's Bitcoin deposit address for the active epoch",
+					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "vault_id"}},
+				},
+				{RpcMethod: "ActiveEpoch", Use: "active-epoch", Short: "Query the ACTIVE key epoch and its treasury address"},
+				{RpcMethod: "Treasury", Use: "treasury", Short: "Query custody totals: custodied, credited, cap, fee reserve, deficit, anchor"},
 			},
 		},
 		Tx: &autocliv1.ServiceCommandDescriptor{

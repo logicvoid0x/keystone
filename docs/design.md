@@ -943,7 +943,7 @@ The group key P is normalized to even y: if Y has odd y, every share and verifyi
 | Treasury / change (BIP-86 style) | t₀ = H\_TapTweak(x(P)) | Q₀ = P + t₀·G |
 | Vault v deposit | m\_v = H\_tag("Keystone/vault", chain\_id ‖ epoch ‖ vault\_id); t\_v = H\_TapTweak(x(P) ‖ m\_v) | Q\_v = P + t\_v·G |
 
-m\_v takes the place of a Taproot merkle root that has no revealable leaf, so these outputs are key-path only. Each UTXO stores its tweak.
+m\_v takes the place of a Taproot merkle root that has no revealable leaf, so these outputs are key-path only. Each UTXO stores its tweak. Encoding (fixed in M3): chain_id is its UTF-8 bytes, epoch and vault_id are 8-byte big-endian integers, and H_tag is the BIP-340 tagged hash with tag `Keystone/vault`. A tweak that is not below the curve order is rejected (BIP-341). A vault's script is registered when it opens if an epoch is ACTIVE; with no ACTIVE epoch the vault opens without an address (deposits disabled).
 
 **Signing with a tweak t:** let g\_Q = −1 if Q has odd y, else 1. Signers use g\_Q·s\_i as their secret. The aggregator adds c·g\_Q·t to the summed shares. The result is a BIP-340 signature for x(Q). Reference vectors come from the Zcash Foundation `frost-secp256k1-tr` crate, which implements this tweak handling; Keystone's Go code must match it byte for byte. **Flag for audit.**
 
@@ -1159,7 +1159,7 @@ All state uses `cosmossdk.io/collections` with one-byte prefixes per module; the
 | liquidation | 0x0A | pool rounding slack (invariant 8) (added in M1) |
 | custody | 0x01 / 0x02 / 0x03 | Params; epoch → `KeyEpoch`; active epoch number |
 | custody | 0x04 / 0x05 | pk\_script → vault id; (vault id, epoch) → pk\_script |
-| custody | 0x06 | attestation hash → `Tally{power, voter_bitmap, first_height, payload}` |
+| custody | 0x06 | attestation hash → `Tally{kind, payload, voters, first_height}` (M3: voters is the sorted list of consensus addresses instead of a bitmap, and power is recomputed from the current set, since bitmap positions would shift when the set changes) |
 | custody | 0x07 | `BtcAnchor{height, hash}` |
 | custody | 0x08 / 0x09 | outpoint → `Utxo`; (status, inverted amount, outpoint) → empty (coin-selection index) |
 | custody | 0x0A / 0x0B | request id → `WithdrawalRequest`; next id |
@@ -1170,6 +1170,8 @@ All state uses `cosmossdk.io/collections` with one-byte prefixes per module; the
 | custody | 0x15 / 0x16 / 0x17 | address → claimable sat; fee reserve sat; custody deficit sat |
 | custody | 0x18 / 0x19 | operator → custody encryption pubkey; (epoch, operator) → `SignerStats{missed, invalid}` |
 | custody | 0x1A / 0x1B | credited sat (for the cap); `PendingMembership{set_hash, since_height}` |
+| custody | 0x1C | outpoint → `DepositRecord{vault_id, owner, block, collateral_sat, claimable_sat, fee_reserve_sat}`: how an accepted deposit was credited, for the reorg path (added in M3) |
+| custody | 0x1D | (first height, attestation hash) → empty: tally expiry index (added in M3) |
 | poa | 0x01 / 0x02 / 0x03 | Params{admin}; operator address → Operator{consensus\_pubkey, moniker, power}; consensus address → operator address |
 | poa | 0x04 / 0x05 | used consensus pubkeys → empty; operator address → power last sent to CometBFT |
 
@@ -1209,7 +1211,7 @@ message Auction { uint64 id = 1; uint64 vault_id = 2; string tab = 3; string rai
 | vault | MCR 15000, LR 13000, StabilityFeePerSecond (RAY), GlobalDebtCeiling 500,000 KUSD, Dust 100 KUSD, MinDepositSat 10,000 |
 | liquidation | PenaltyBps 1000, MaxPerBlock 50, AuctionStartBps 12000, AuctionStepBps 100, AuctionResetBps 6000, AuctionMaxBlocks 300 |
 | stablecoin | SinPauseBps 500, SinPauseBlocks 1000 |
-| custody | TreasuryCapSat 1,000,000,000 (10 BTC), MembershipDelayBlocks 28800, ConfirmDepth 6, NoncePool 8, SessionDeadline 5, MaxInputs 8, BatchMinRequests 16, BatchMaxWait 20, FeerateMin 1, FeerateMax 200, RbfAfterBtcBlocks 6, MinWithdrawSat 10,000, EmergencyRekey false |
+| custody | TreasuryCapSat 1,000,000,000 (10 BTC), MembershipDelayBlocks 28800, ConfirmDepth 6, NoncePool 8, SessionDeadline 5, MaxInputs 8, BatchMinRequests 16, BatchMaxWait 20, FeerateMin 1, FeerateMax 200, RbfAfterBtcBlocks 6, MinWithdrawSat 10,000, EmergencyRekey false, BitcoinNetwork "signet" (added in M3: "regtest" or "signet"; selects the bech32m prefix) |
 | ante (app) | MaxTxPerAccountPerBlock 5 |
 | poa | admin = operators' multisig address |
 

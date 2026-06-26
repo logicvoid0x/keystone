@@ -2,6 +2,9 @@ package keeper
 
 import (
 	"context"
+	"errors"
+
+	"cosmossdk.io/collections"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -49,4 +52,59 @@ func (q querier) Claimable(ctx context.Context, req *types.QueryClaimableRequest
 		return nil, err
 	}
 	return &types.QueryClaimableResponse{ClaimableSat: v}, nil
+}
+
+func (q querier) DepositAddress(ctx context.Context, req *types.QueryDepositAddressRequest) (*types.QueryDepositAddressResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "empty request")
+	}
+	addr, script, epoch, err := q.k.DepositAddress(ctx, req.VaultId)
+	if errors.Is(err, types.ErrNoEpoch) || errors.Is(err, types.ErrNotFound) {
+		return nil, status.Error(codes.NotFound, err.Error())
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &types.QueryDepositAddressResponse{Address: addr, PkScript: script, Epoch: epoch}, nil
+}
+
+func (q querier) ActiveEpoch(ctx context.Context, _ *types.QueryActiveEpochRequest) (*types.QueryActiveEpochResponse, error) {
+	e, ok, err := q.k.GetActiveEpoch(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, status.Error(codes.NotFound, types.ErrNoEpoch.Error())
+	}
+	addr, err := q.k.TreasuryAddress(ctx, e)
+	if err != nil {
+		return nil, err
+	}
+	return &types.QueryActiveEpochResponse{Epoch: e, TreasuryAddress: addr}, nil
+}
+
+func (q querier) Treasury(ctx context.Context, _ *types.QueryTreasuryRequest) (*types.QueryTreasuryResponse, error) {
+	p, err := q.k.Params.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	res := &types.QueryTreasuryResponse{CapSat: p.TreasuryCapSat}
+	if res.CustodiedSat, err = q.k.UtxoSum(ctx); err != nil {
+		return nil, err
+	}
+	if res.CreditedSat, err = q.k.Credited.Get(ctx); err != nil {
+		return nil, err
+	}
+	if res.FeeReserveSat, err = q.k.FeeReserve.Get(ctx); err != nil {
+		return nil, err
+	}
+	if res.DeficitSat, err = q.k.Deficit.Get(ctx); err != nil {
+		return nil, err
+	}
+	anchor, err := q.k.Anchor.Get(ctx)
+	if err != nil && !errors.Is(err, collections.ErrNotFound) {
+		return nil, err
+	}
+	res.Anchor = anchor
+	return res, nil
 }

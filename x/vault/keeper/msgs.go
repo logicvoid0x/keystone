@@ -36,30 +36,34 @@ func emit(ctx context.Context, typ string, attrs ...sdk.Attribute) {
 	sdk.UnwrapSDKContext(ctx).EventManager().EmitEvent(sdk.NewEvent(typ, attrs...))
 }
 
-// OpenVault opens a vault for owner and returns its id.
-func (k *Keeper) OpenVault(ctx context.Context, msg *types.MsgOpenVault) (uint64, error) {
+// OpenVault opens a vault for owner and returns its id and deposit address (empty
+// while no custody epoch is ACTIVE; design §9.7 step 1).
+func (k *Keeper) OpenVault(ctx context.Context, msg *types.MsgOpenVault) (uint64, string, error) {
 	if err := msg.ValidateBasic(); err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	owner := sdk.MustAccAddressFromBech32(msg.Owner)
 	id, err := k.NextVaultID.Next(ctx)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	id++ // vault ids start at 1
 	v := types.Vault{Id: id, Owner: owner.String(), Art: sdkmath.ZeroInt(), CollateralSat: sdkmath.ZeroInt(), Status: types.VAULT_STATUS_OPEN}
 	if err := k.setVault(ctx, nil, v); err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	if err := k.OwnerIndex.Set(ctx, collections.Join(owner, id)); err != nil {
-		return 0, err
+		return 0, "", err
 	}
-	// The deposit address arrives with custody epochs in M3.
+	addr, err := k.custody.RegisterVault(ctx, id)
+	if err != nil {
+		return 0, "", err
+	}
 	emit(ctx, types.EventTypeVaultOpened,
 		sdk.NewAttribute(types.AttributeKeyID, uintStr(id)),
 		sdk.NewAttribute(types.AttributeKeyOwner, owner.String()),
-		sdk.NewAttribute(types.AttributeKeyAddress, ""))
-	return id, nil
+		sdk.NewAttribute(types.AttributeKeyAddress, addr))
+	return id, addr, nil
 }
 
 // Mint mints amount against a vault (design §7.2): owner; price ACTIVE; mints not

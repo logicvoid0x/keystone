@@ -32,6 +32,7 @@ func DefaultParams() Params {
 		RbfAfterBtcBlocks:     6,
 		MinWithdrawSat:        sdkmath.NewInt(10_000),
 		EmergencyRekey:        false,
+		BitcoinNetwork:        NetworkSignet,
 	}
 }
 
@@ -52,6 +53,9 @@ func (p Params) Validate() error {
 		bounds.Uint("rbf_after_btc_blocks", uint64(p.RbfAfterBtcBlocks), 1, 1000),
 		bounds.Int("min_withdraw_sat", p.MinWithdrawSat, MinWithdrawSatFloor, MinWithdrawSatCeil),
 	)
+	if err == nil {
+		_, err = NetParams(p.BitcoinNetwork)
+	}
 	if err != nil {
 		return errorsmod.Wrap(ErrInvalidParams, err.Error())
 	}
