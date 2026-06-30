@@ -494,3 +494,18 @@ func attr(evs sdk.Events, typ, key string) string {
 	}
 	return ""
 }
+
+// While the custody deficit is non-zero, collateral withdrawals and closing a vault
+// with collateral are rejected (spec M3-T6).
+func TestWithdrawBlockedByDeficit(t *testing.T) {
+	f := setup(t)
+	id := f.open(t, alice, 50_000_000)
+	require.NoError(t, f.cust.Deficit.Set(f.ctx, n(1)))
+	err := f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: alice.String(), VaultId: id, AmountSat: n(1_000_000)})
+	require.ErrorIs(t, err, custodytypes.ErrDeficit)
+	err = f.k.CloseVault(f.ctx, &types.MsgCloseVault{Owner: alice.String(), VaultId: id})
+	require.ErrorIs(t, err, custodytypes.ErrDeficit)
+
+	require.NoError(t, f.cust.Deficit.Set(f.ctx, n(0)))
+	require.NoError(t, f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: alice.String(), VaultId: id, AmountSat: n(1_000_000)}))
+}

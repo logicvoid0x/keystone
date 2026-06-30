@@ -27,7 +27,6 @@ const (
 	EventTypeRepay               = "repay"
 	EventTypeCollateralCredited  = "collateral_credited"
 	EventTypeCollateralWithdrawn = "collateral_withdrawn"
-	EventTypeDepositOverCap      = "deposit_over_cap"
 
 	AttributeKeyID        = "id"
 	AttributeKeyOwner     = "owner"

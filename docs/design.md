@@ -998,6 +998,15 @@ message ReorgSeen   { bytes txid = 1; uint32 vout = 2; bytes old_block_hash = 3;
 5. **Credit:** below `MinDepositSat` → fee reserve. Within cap headroom → `vault.CreditCollateral`. Over the cap → the owner's claimable balance, flagged as unusable for minting until withdrawn (§3.2). The UTXO is added as `AVAILABLE`.
 6. **Reorg:** if a credited deposit's block leaves the watchers' best chain, they attest `ReorgSeen`; on quorum the UTXO is removed and the vault is debited. If the vault has less collateral than the amount, collateral goes to 0 and `custody_deficit_sat` records the rest. The vault is then liquidated through the auction path, ending in `sin`. With k = 6 on signet, where blocks are signed, this is a defensive path.
 
+**Implementation notes (M3).**
+
+- Txids and block hashes in attestations are in internal byte order (as in `wire`); events print them byte-reversed, as bitcoind does. Outpoints print as `txid:vout`.
+- `BuildOps` first deletes tallies whose first height is `TallyTTL` (600) or more blocks old, then adds each verified voter once to the tally of each well-formed attestation in its payload (anchor: 32-byte hash; deposit: 32-byte txid, positive amount, P2TR script, block ref; reorg: 32-byte txid and old block hash; anything else is ignored). Only tallies touched in the block are evaluated, in key order. An accepted tally is deleted; a straggler that re-attests an already accepted deposit creates a fresh tally whose credit is skipped.
+- `ApplyOps` runs each operation in its own cache context. One that cannot apply (deposit already accepted, unknown script, epoch not ACTIVE/RETIRING, anchor lower than the stored one, reorg of an unknown deposit or of a different block, UTXO locked) is skipped with `custody_op_skipped{op, reason}`. An anchor at the same height with a different hash replaces the stored one; `btc_anchor_accepted{height, hash}` is emitted.
+- A deposit to a closed vault goes entirely to the owner's claimable balance. `deposit_accepted` also carries `collateral_sat`, `claimable_sat` and `fee_reserve_sat`; `deposit_over_cap{outpoint, vault, sat}` is emitted by x/custody (no longer by x/vault).
+- The reorg path reverses the recorded split: vault collateral (`vault.DebitCollateral`), the owner's claimable balance and the fee reserve, each capped at what is still there; the shortfall of all three goes to the deficit. A reverted deposit that reappears in another block is credited again by a new `DepositSeen`.
+- While the deficit is non-zero, `MsgWithdrawCollateral` and `MsgCloseVault` with collateral are rejected. M3 has no way to reduce the deficit (default assumption — review).
+
 ### 9.8 Withdrawal flow
 
 1. **Request:** `MsgWithdrawCollateral` or `MsgWithdrawClaim` debits the balance immediately and appends `WithdrawalRequest{id, recipient_script, amount_sat}` to the FIFO queue. The address must be P2TR, P2WPKH or P2WSH.

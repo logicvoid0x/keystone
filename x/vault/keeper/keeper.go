@@ -315,12 +315,10 @@ func (k *Keeper) CreditCollateral(ctx context.Context, id uint64, sat sdkmath.In
 		if err != nil {
 			return sdkmath.Int{}, err
 		}
+		// x/custody emits deposit_over_cap with the outpoint.
 		if err := k.custody.CreditClaimable(ctx, owner, over); err != nil {
 			return sdkmath.Int{}, err
 		}
-		sdkCtx.EventManager().EmitEvent(sdk.NewEvent(types.EventTypeDepositOverCap,
-			sdk.NewAttribute(types.AttributeKeyID, uintStr(id)),
-			sdk.NewAttribute(types.AttributeKeySat, over.String())))
 	}
 	return credit, nil
 }
@@ -398,4 +396,14 @@ func (k *Keeper) VaultOwner(ctx context.Context, id uint64) (sdk.AccAddress, boo
 		return nil, false, err
 	}
 	return owner, v.Status != types.VAULT_STATUS_CLOSED, nil
+}
+
+// MinDepositSat returns the MinDepositSat param (deposits below it go to the custody
+// fee reserve, design §9.7 step 5).
+func (k *Keeper) MinDepositSat(ctx context.Context) (sdkmath.Int, error) {
+	p, err := k.Params.Get(ctx)
+	if err != nil {
+		return sdkmath.Int{}, err
+	}
+	return p.MinDepositSat, nil
 }

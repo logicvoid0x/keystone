@@ -16,6 +16,7 @@ import (
 
 	"github.com/OWNER/keystone/app/protocol"
 	"github.com/OWNER/keystone/app/protocol/vetypes"
+	custodytypes "github.com/OWNER/keystone/x/custody/types"
 	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
 	oracletypes "github.com/OWNER/keystone/x/oracle/types"
 )
@@ -63,7 +64,12 @@ func (r *recorder) Select(ctx context.Context, price sdkmath.Int) (liqtypes.Liqu
 func (r *recorder) Execute(ctx context.Context, _ liqtypes.LiquidationBatch, _ sdkmath.Int) error {
 	return r.step(ctx, "execute")
 }
-func (r *recorder) ApplyOps(ctx context.Context) error { return r.step(ctx, "custody") }
+func (r *recorder) BuildOps(ctx context.Context, _ []custodytypes.BitcoinVote) (custodytypes.CustodyBatch, error) {
+	return custodytypes.CustodyBatch{Anchors: make([]vetypes.BtcBlockRef, 1)}, r.step(ctx, "custody_build")
+}
+func (r *recorder) ApplyOps(ctx context.Context, _ custodytypes.CustodyBatch) error {
+	return r.step(ctx, "custody")
+}
 
 func newPB(vs protocol.ValidatorStore, r *recorder) *protocol.PreBlocker {
 	return protocol.NewPreBlocker(vs, protocol.Keepers{Oracle: r, Vault: r, Liquidation: r, Custody: r})
@@ -111,7 +117,7 @@ func TestPreBlockStepOrderAndAggregate(t *testing.T) {
 	r := &recorder{spot: sdkmath.NewInt(100_020_000_000)}
 	ctx := pbCtx()
 	newPB(vs, r).PreBlock(ctx, &abci.RequestFinalizeBlock{Height: 11, Txs: [][]byte{tx0}})
-	require.Equal(t, []string{"oracle", "drip", "select", "execute", "custody"}, r.calls)
+	require.Equal(t, []string{"oracle", "drip", "select", "execute", "custody_build", "custody"}, r.calls)
 	// §6.3 example through the real aggregation: median 100,020, previous spot 99,800.
 	require.True(t, r.agg.Updated)
 	require.Equal(t, uint64(100_020_000_000), r.agg.Median)
@@ -125,7 +131,7 @@ func TestPreBlockStaleSkipsLiquidations(t *testing.T) {
 	tx0, vs := signedPrices(t, []uint64{100_000, 100_000, 100_000, 100_000})
 	r := &recorder{stale: true}
 	newPB(vs, r).PreBlock(pbCtx(), &abci.RequestFinalizeBlock{Height: 11, Txs: [][]byte{tx0}})
-	require.Equal(t, []string{"oracle", "drip", "custody"}, r.calls)
+	require.Equal(t, []string{"oracle", "drip", "custody_build", "custody"}, r.calls)
 }
 
 // Totality: a failing step is discarded and reported; the following steps run.
@@ -136,7 +142,7 @@ func TestPreBlockStepFailureIsolated(t *testing.T) {
 	require.NotPanics(t, func() {
 		newPB(vs, r).PreBlock(ctx, &abci.RequestFinalizeBlock{Height: 11, Txs: [][]byte{tx0}})
 	})
-	require.Equal(t, []string{"oracle", "drip", "select", "execute", "custody"}, r.calls)
+	require.Equal(t, []string{"oracle", "drip", "select", "execute", "custody_build", "custody"}, r.calls)
 	ev, ok := lastEvent(ctx, protocol.EventTypeProtocolStepFailed)
 	require.True(t, ok)
 	require.Equal(t, protocol.StepDrip, attr(ev, protocol.AttributeKeyStep))
@@ -148,7 +154,7 @@ func TestPreBlockStepFailureIsolated(t *testing.T) {
 	// A failing Select skips Execute.
 	r = &recorder{spot: sdkmath.NewInt(100_000_000_000), failOn: "select"}
 	newPB(vs, r).PreBlock(pbCtx(), &abci.RequestFinalizeBlock{Height: 11, Txs: [][]byte{tx0}})
-	require.Equal(t, []string{"oracle", "drip", "select", "custody"}, r.calls)
+	require.Equal(t, []string{"oracle", "drip", "select", "custody_build", "custody"}, r.calls)
 }
 
 func TestPreBlockTotality(t *testing.T) {

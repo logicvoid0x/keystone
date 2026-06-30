@@ -13,6 +13,7 @@ import (
 	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	custodytypes "github.com/OWNER/keystone/x/custody/types"
 	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
 	oracletypes "github.com/OWNER/keystone/x/oracle/types"
 )
@@ -34,12 +35,13 @@ const (
 	SkipMissingTx0 = "missing_tx0"
 	SkipBadTx0     = "undecodable_tx0"
 
-	StepAggregate  = "aggregate"
-	StepOracle     = "oracle"
-	StepDrip       = "drip"
-	StepLiqSelect  = "liquidation_select"
-	StepLiqExecute = "liquidation_execute"
-	StepCustodyOps = "custody_apply"
+	StepAggregate    = "aggregate"
+	StepOracle       = "oracle"
+	StepDrip         = "drip"
+	StepLiqSelect    = "liquidation_select"
+	StepLiqExecute   = "liquidation_execute"
+	StepCustodyBuild = "custody_build"
+	StepCustodyOps   = "custody_apply"
 )
 
 // OracleKeeper is x/oracle as used by the PreBlocker.
@@ -60,9 +62,10 @@ type LiquidationKeeper interface {
 	Execute(ctx context.Context, batch liqtypes.LiquidationBatch, price sdkmath.Int) error
 }
 
-// CustodyKeeper is x/custody as used by the PreBlocker (BuildOps arrives in M3).
+// CustodyKeeper is x/custody as used by the PreBlocker (design §9.7).
 type CustodyKeeper interface {
-	ApplyOps(ctx context.Context) error
+	BuildOps(ctx context.Context, votes []custodytypes.BitcoinVote) (custodytypes.CustodyBatch, error)
+	ApplyOps(ctx context.Context, batch custodytypes.CustodyBatch) error
 }
 
 // Keepers are the modules the protocol segment calls, in order.
@@ -91,7 +94,7 @@ func NewPreBlocker(vs ValidatorStore, k Keepers) *PreBlocker {
 
 // PreBlock is design §5.9: decode tx0, verify the votes, aggregate, then
 // oracle.ApplyAggregate → vault.Drip → liquidation.Select → liquidation.Execute →
-// custody.ApplyOps.
+// custody.BuildOps → custody.ApplyOps.
 //
 // Totality: PreBlock never returns an error. Each step runs in a cached context; a
 // step that fails has its writes discarded, emits protocol_step_failed and the next
@@ -155,7 +158,13 @@ func (p *PreBlocker) PreBlock(ctx sdk.Context, req *abci.RequestFinalizeBlock) {
 	if haveLiq {
 		runStep(ctx, StepLiqExecute, func(c sdk.Context) error { return k.Liquidation.Execute(c, batch, price) })
 	}
-	runStep(ctx, StepCustodyOps, func(c sdk.Context) error { return k.Custody.ApplyOps(c) })
+	var cb custodytypes.CustodyBatch
+	if runStep(ctx, StepCustodyBuild, func(c sdk.Context) (err error) {
+		cb, err = k.Custody.BuildOps(c, agg.Bitcoin)
+		return err
+	}) && !cb.Empty() {
+		runStep(ctx, StepCustodyOps, func(c sdk.Context) error { return k.Custody.ApplyOps(c, cb) })
+	}
 }
 
 // runStep runs f in a cached context and commits its writes and events only if it

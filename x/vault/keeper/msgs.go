@@ -201,10 +201,13 @@ func (k *Keeper) Repay(ctx context.Context, msg *types.MsgRepay) (sdkmath.Int, e
 }
 
 // WithdrawCollateral debits collateral (design §7.2): owner; price not STALE; CR after
-// ≥ MCR at min(spot, TWAP) or debt = 0; amount ≥ MinWithdrawSat. In M1 the satoshis go
-// to the owner's claimable balance; Bitcoin withdrawals arrive in M4a.
+// ≥ MCR at min(spot, TWAP) or debt = 0; amount ≥ MinWithdrawSat; no custody deficit
+// (spec M3-T6). Until M4a the satoshis go to the owner's claimable balance.
 func (k *Keeper) WithdrawCollateral(ctx context.Context, msg *types.MsgWithdrawCollateral) error {
 	if err := msg.ValidateBasic(); err != nil {
+		return err
+	}
+	if err := k.custody.CheckNoDeficit(ctx); err != nil {
 		return err
 	}
 	v, err := k.ownedVault(ctx, msg.VaultId, msg.Owner)
@@ -277,6 +280,9 @@ func (k *Keeper) CloseVault(ctx context.Context, msg *types.MsgCloseVault) error
 	next.CollateralSat = sdkmath.ZeroInt()
 	next.Status = types.VAULT_STATUS_CLOSED
 	if v.CollateralSat.IsPositive() {
+		if err := k.custody.CheckNoDeficit(ctx); err != nil {
+			return err
+		}
 		return k.moveCollateralToClaimable(ctx, v, next, v.CollateralSat)
 	}
 	return k.setVault(ctx, &v, next)

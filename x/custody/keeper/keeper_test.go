@@ -104,7 +104,6 @@ func TestCreditedAndCap(t *testing.T) {
 
 	cr, _ := k.GetCredited(ctx)
 	require.Equal(t, i(999_999_999), cr)
-	require.NoError(t, k.ApplyOps(ctx))
 }
 
 func TestGenesisRoundTrip(t *testing.T) {
@@ -140,10 +139,15 @@ func (f *fakeVals) ActiveValidators(context.Context) ([]poatypes.Operator, error
 
 func setupWith(t *testing.T, gs *types.GenesisState) (sdk.Context, *keeper.Keeper) {
 	t.Helper()
+	return setupWithVals(t, gs, &fakeVals{})
+}
+
+func setupWithVals(t *testing.T, gs *types.GenesisState, vals *fakeVals) (sdk.Context, *keeper.Keeper) {
+	t.Helper()
 	key := storetypes.NewKVStoreKey(types.StoreKey)
 	tctx := testutil.DefaultContextWithDB(t, key, storetypes.NewTransientStoreKey("transient_test"))
 	ctx := tctx.Ctx.WithChainID(localChain).WithEventManager(sdk.NewEventManager())
-	k := keeper.NewKeeper(moduletestutil.MakeTestEncodingConfig().Codec, runtime.NewKVStoreService(key), fakeAdmin{}, &fakeVals{})
+	k := keeper.NewKeeper(moduletestutil.MakeTestEncodingConfig().Codec, runtime.NewKVStoreService(key), fakeAdmin{}, vals)
 	require.NoError(t, k.InitGenesis(ctx, gs))
 	return ctx, k
 }

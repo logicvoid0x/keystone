@@ -29,4 +29,6 @@ type VaultKeeper interface {
 	DebitCollateral(ctx context.Context, id uint64, sat sdkmath.Int) (sdkmath.Int, error)
 	// VaultOwner returns the owner and whether the vault can still take collateral.
 	VaultOwner(ctx context.Context, id uint64) (owner sdk.AccAddress, open bool, err error)
+	// MinDepositSat is the vault param below which deposits go to the fee reserve.
+	MinDepositSat(ctx context.Context) (sdkmath.Int, error)
 }

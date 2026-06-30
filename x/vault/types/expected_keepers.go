@@ -39,6 +39,7 @@ type CustodyKeeper interface {
 	DebitClaimable(ctx context.Context, addr sdk.AccAddress, sat sdkmath.Int) error
 	CapHeadroom(ctx context.Context) (sdkmath.Int, error)
 	RegisterVault(ctx context.Context, vaultID uint64) (string, error)
+	CheckNoDeficit(ctx context.Context) error
 	AddCredited(ctx context.Context, sat sdkmath.Int) error
 	SubCredited(ctx context.Context, sat sdkmath.Int) error
 	GetCredited(ctx context.Context) (sdkmath.Int, error)
