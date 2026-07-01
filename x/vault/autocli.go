@@ -6,8 +6,7 @@ import (
 	"github.com/OWNER/keystone/x/vault/types"
 )
 
-// AutoCLIOptions implements autocli.HasAutoCLIConfig. In devcredit builds the dev
-// message is under `tx vault dev`.
+// AutoCLIOptions implements autocli.HasAutoCLIConfig.
 func (AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 	tx := &autocliv1.ServiceCommandDescriptor{
 		Service: types.Msg_serviceDesc.ServiceName,
@@ -38,20 +37,6 @@ func (AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 				PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "vault_id"}, {ProtoField: "amount_sat"}},
 			},
 		},
-	}
-	if DevCreditEnabled {
-		tx.SubCommands = map[string]*autocliv1.ServiceCommandDescriptor{
-			"dev": {
-				Service: types.DevMsg_serviceDesc.ServiceName,
-				Short:   "Development-only messages (devcredit builds)",
-				RpcCommandOptions: []*autocliv1.RpcCommandOptions{{
-					RpcMethod:      "DevCreditCollateral",
-					Use:            "credit-collateral [vault-id] [sat]",
-					Short:          "Credit collateral without a Bitcoin deposit; signed by the x/poa admin",
-					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "vault_id"}, {ProtoField: "sat"}},
-				}},
-			},
-		}
 	}
 	return &autocliv1.ModuleOptions{
 		Query: &autocliv1.ServiceCommandDescriptor{

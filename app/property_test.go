@@ -1,5 +1,3 @@
-//go:build devcredit
-
 package app_test
 
 import (
@@ -10,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/btcsuite/btcd/chainhash/v2"
 	"github.com/stretchr/testify/require"
 
 	sdkmath "cosmossdk.io/math"
@@ -94,6 +93,7 @@ func runProperty(t *testing.T, seed int64, blocks int) {
 		}
 
 		var txs [][]byte
+		var sent []chainhash.Hash
 		perActor := map[string]int{}
 		send := func(a actor, name string, msg sdk.Msg) {
 			if perActor[a.addr.String()] >= 4 {
@@ -115,9 +115,14 @@ func runProperty(t *testing.T, seed int64, blocks int) {
 			case k == 0 || vault == nil:
 				send(a, "open", &vaulttypes.MsgOpenVault{Owner: a.addr.String()})
 			case k == 1:
+				// A Bitcoin deposit (fake regtest chain); 1 in 10 is below MinDepositSat
+				// and goes to the fee reserve. Credited two blocks later.
 				sat := int64(100_000 + rng.Intn(200_000_000))
-				send(actor{c.Admin.Key, c.Admin.Addr}, "credit",
-					&vaulttypes.MsgDevCreditCollateral{Admin: c.Admin.Addr.String(), VaultId: vault.Vault.Id, Sat: sdkmath.NewInt(sat)})
+				if rng.Intn(10) == 0 {
+					sat = int64(330 + rng.Intn(9_000))
+				}
+				sent = append(sent, c.Bitcoin.Send(c.DepositScript(vault.Vault.Id), sat))
+				ops["deposit"]++
 			case k <= 3:
 				// 10–90% of the vault's remaining capacity at MCR 150% and the current price,
 				// sometimes above it (rejected), so most mints land.
@@ -163,6 +168,20 @@ func runProperty(t *testing.T, seed int64, blocks int) {
 					})
 				}
 			}
+		}
+		if len(sent) > 0 {
+			c.Bitcoin.Mine(1)
+		}
+		// Rare Bitcoin reorgs: the last 1–3 blocks are replaced; a deposit sent this
+		// block may be dropped. Credited deposits in replaced blocks are reverted (a
+		// shortfall becomes custody deficit) and re-credited if re-mined.
+		if rng.Intn(40) == 0 {
+			var drop []chainhash.Hash
+			if len(sent) > 0 && rng.Intn(2) == 0 {
+				drop = sent[:1]
+			}
+			c.Bitcoin.Reorg(1+rng.Intn(3), drop...)
+			ops["btc_reorg"]++
 		}
 		blk := c.NextBlock(txs)
 		for _, r := range blk.Finalize.TxResults[1:] {

@@ -21,6 +21,7 @@ import (
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
 	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/sidecar/btcwatch"
 	"github.com/OWNER/keystone/sidecar/price"
 )
 
@@ -89,7 +90,8 @@ func initCometBFTConfig() *cmtcfg.Config {
 
 // KeystoneConfig is the [keystone.*] part of app.toml.
 type KeystoneConfig struct {
-	Price price.Config `mapstructure:"price"`
+	Price   price.Config        `mapstructure:"price"`
+	Bitcoin btcwatch.FileConfig `mapstructure:"bitcoin"`
 }
 
 // AppConfig is app.toml: the SDK server config plus [keystone.*].
@@ -99,7 +101,7 @@ type AppConfig struct {
 }
 
 // AppConfigTemplate is the SDK template plus the Keystone sections.
-const AppConfigTemplate = serverconfig.DefaultConfigTemplate + price.ConfigTemplate
+const AppConfigTemplate = serverconfig.DefaultConfigTemplate + price.ConfigTemplate + btcwatch.ConfigTemplate
 
 // initAppConfig is the default app.toml: zero gas price, sequential executor, no
 // app-side mempool (CometBFT FIFO order), real-exchange price sources.
@@ -113,5 +115,5 @@ func DefaultAppConfig() *AppConfig {
 	cfg.MinGasPrices = "0" + app.Denom
 	cfg.BlockExecutor = serverconfig.BlockExecutorSequential
 	cfg.Mempool.MaxTxs = -1
-	return &AppConfig{Config: *cfg, Keystone: KeystoneConfig{Price: price.DefaultConfig()}}
+	return &AppConfig{Config: *cfg, Keystone: KeystoneConfig{Price: price.DefaultConfig(), Bitcoin: btcwatch.DefaultFileConfig()}}
 }

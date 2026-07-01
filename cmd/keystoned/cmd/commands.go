@@ -21,6 +21,7 @@ import (
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
 
 	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/sidecar/btcwatch"
 	"github.com/OWNER/keystone/sidecar/price"
 )
 
@@ -115,6 +116,18 @@ func newApp(logger log.Logger, db dbm.DB, appOpts servertypes.AppOptions) server
 		logger.Info("price sidecar started")
 	} else {
 		logger.Warn("no [keystone.price] sources configured; vote extensions carry no price")
+	}
+
+	// Bitcoin watcher: follows bitcoind in the background; ExtendVote reads its snapshot.
+	w, err := btcwatch.StartFromAppOptions(context.Background(), appOpts, a.BitcoinView(), logger.With("module", "btcwatch"))
+	if err != nil {
+		panic(fmt.Errorf("[keystone.bitcoin]: %w", err))
+	}
+	if w != nil {
+		a.SetBitcoinSource(w)
+		logger.Info("bitcoin watcher started")
+	} else {
+		logger.Warn("[keystone.bitcoin] disabled; vote extensions carry no Bitcoin attestations")
 	}
 	return a
 }

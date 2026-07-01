@@ -25,6 +25,7 @@ import (
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/stretchr/testify/require"
 
+	"cosmossdk.io/collections"
 	"cosmossdk.io/log/v2"
 	sdkmath "cosmossdk.io/math"
 
@@ -34,11 +35,14 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/sidecar/btcwatch"
 	"github.com/OWNER/keystone/testutil/apptest"
+	"github.com/OWNER/keystone/testutil/btcfake"
+	custodytypes "github.com/OWNER/keystone/x/custody/types"
 )
 
 // ChainID is the chain id of every harness network.
-const ChainID = "keystone-multinode-1"
+const ChainID = "keystone-multinode-local-1"
 
 // Node is one simulated operator.
 type Node struct {
@@ -51,6 +55,10 @@ type Node struct {
 	Price *apptest.PriceFeed
 	// VEHook, if set, replaces this node's ExtendVote output (e.g. a timed-out VE).
 	VEHook func(height int64, ve []byte) []byte
+	// Watcher is this node's Bitcoin watcher over the shared fake chain. It is updated
+	// before each ExtendVote unless SkipBitcoinUpdate is set (a lagging watcher).
+	Watcher           *btcwatch.Watcher
+	SkipBitcoinUpdate bool
 }
 
 // ConsAddr is the node's consensus address.
@@ -79,6 +87,8 @@ type Net struct {
 	lastCommit abci.CommitInfo
 	// Tx0 records the committed tx0 of each height (faulty-proposer tests reuse old ones).
 	Tx0 map[int64][]byte
+	// Bitcoin is the fake Bitcoin chain every node's watcher follows.
+	Bitcoin *btcfake.Chain
 }
 
 // New starts an n-node network at genesis (no block committed).
@@ -89,6 +99,7 @@ func New(t testing.TB, n int) *Net {
 		accNums: map[string]uint64{}, seqs: map[string]uint64{}, rng: rand.New(rand.NewSource(7)),
 		valsets: map[int64][]apptest.Validator{}, Tx0: map[int64][]byte{},
 	}
+	net.Bitcoin = btcfake.New(10)
 	for i := 0; i < n; i++ {
 		acc := secp256k1.GenPrivKeyFromSecret([]byte{'m', 'o', byte(i)})
 		node := &Node{
@@ -100,6 +111,8 @@ func New(t testing.TB, n int) *Net {
 		}
 		node.App = app.New(log.NewNopLogger(), dbm.NewMemDB(), true, simtestutil.EmptyAppOptions{}, baseapp.SetChainID(ChainID))
 		node.App.SetPriceSource(node.Price)
+		node.Watcher = btcwatch.New(net.Bitcoin, node.App.BitcoinView(), btcwatch.Config{Network: custodytypes.NetworkRegtest}, nil)
+		node.App.SetBitcoinSource(node.Watcher)
 		net.Nodes = append(net.Nodes, node)
 	}
 	adminKey := secp256k1.GenPrivKeyFromSecret([]byte("multinode-admin"))
@@ -122,6 +135,11 @@ func New(t testing.TB, n int) *Net {
 	in.Accounts = accounts
 	gs, err := app.BuildGenesis(ref.AppCodec(), ref.DefaultGenesis(), in)
 	require.NoError(t, err)
+	ops := make([]sdk.AccAddress, len(net.Nodes))
+	for i, nd := range net.Nodes {
+		ops[i] = nd.Addr
+	}
+	require.NoError(t, apptest.DealCustody(ref.AppCodec(), gs, ops))
 	state, err := json.Marshal(gs)
 	require.NoError(t, err)
 	cp := app.DefaultConsensusParams().ToProto()
@@ -271,6 +289,12 @@ func (net *Net) Step(opts StepOpts) StepResult {
 	}
 	hash := blockHash(h, round)
 
+	// Watchers read the committed state of the previous height (as at ExtendVote).
+	for _, nd := range net.Nodes {
+		if !nd.SkipBitcoinUpdate {
+			_ = nd.Watcher.Update(context.Background()) // fails before the first commit
+		}
+	}
 	// Vote: every validator extends its vote; every node verifies every VE.
 	ves := map[string][]byte{}
 	for _, v := range set {
@@ -353,3 +377,26 @@ func (net *Net) SetAllPrices(usd uint64) {
 
 // LastCommit is the commit info of the last height (the next block's LastCommit).
 func (net *Net) LastCommit() abci.CommitInfo { return net.lastCommit }
+
+// DepositScript is vault id's deposit script on the reference node.
+func (net *Net) DepositScript(id uint64) []byte {
+	net.T.Helper()
+	_, script, _, err := net.Ref().App.CustodyKeeper.DepositAddress(net.Context(), id)
+	require.NoError(net.T, err)
+	return script
+}
+
+// Fund pays sat to vault id on the fake Bitcoin chain, mines a block and steps until
+// the deposit is accepted on the reference node (at most 4 heights).
+func (net *Net) Fund(id uint64, sat int64) {
+	net.T.Helper()
+	txid := net.Bitcoin.Send(net.DepositScript(id), sat)
+	net.Bitcoin.Mine(1)
+	for i := 0; i < 4; i++ {
+		net.Step(StepOpts{})
+		if has, err := net.Ref().App.CustodyKeeper.Deposits.Has(net.Context(), collections.Join(txid[:], uint32(0))); err == nil && has {
+			return
+		}
+	}
+	net.T.Fatalf("deposit of %d sat to vault %d not accepted", sat, id)
+}

@@ -23,10 +23,14 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/sidecar/btcwatch"
+	"github.com/OWNER/keystone/testutil/btcfake"
+	custodytypes "github.com/OWNER/keystone/x/custody/types"
 )
 
-// ChainID is the chain id used by in-process tests.
-const ChainID = "keystone-test-1"
+// ChainID is the chain id used by in-process tests. It is a localnet id, so genesis may
+// carry the dealer's custody epoch.
+const ChainID = "keystone-test-local-1"
 
 // Operator is a test operator: its consensus key and its account key.
 type Operator struct {
@@ -56,6 +60,10 @@ type Chain struct {
 
 	// Price is the price sidecar every Validator reports from (down until Set).
 	Price *PriceFeed
+	// Bitcoin is the fake Bitcoin chain the node's watcher follows; Watcher is that
+	// watcher (updated before every ExtendVote).
+	Bitcoin *btcfake.Chain
+	Watcher *btcwatch.Watcher
 
 	accNums map[string]uint64
 	seqs    map[string]uint64
@@ -94,6 +102,9 @@ func New(t *testing.T, n int) *Chain {
 	c.App = app.New(log.NewNopLogger(), dbm.NewMemDB(), true, simtestutil.EmptyAppOptions{}, baseapp.SetChainID(ChainID))
 	c.Price = &PriceFeed{}
 	c.App.SetPriceSource(c.Price)
+	c.Bitcoin = btcfake.New(10)
+	c.Watcher = btcwatch.New(c.Bitcoin, c.App.BitcoinView(), btcwatch.Config{Network: custodytypes.NetworkRegtest}, nil)
+	c.App.SetBitcoinSource(c.Watcher)
 
 	in := app.GenesisInput{Admin: c.Admin.Addr, FundAmount: sdkmath.NewInt(1_000_000_000)}
 	for i, op := range c.Operators {
@@ -111,6 +122,7 @@ func New(t *testing.T, n int) *Chain {
 	in.Accounts = all
 	gs, err := app.BuildGenesis(c.App.AppCodec(), c.App.DefaultGenesis(), in)
 	require.NoError(t, err)
+	require.NoError(t, DealCustody(c.App.AppCodec(), gs, operatorAddrs(c.Operators)))
 	stateBytes, err := json.Marshal(gs)
 	require.NoError(t, err)
 

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/OWNER/keystone/cmd/keystoned/cmd"
-	"github.com/OWNER/keystone/x/vault"
 )
 
 // Spec M1-T9: autocli commands for every message and query in M1.
@@ -32,10 +31,5 @@ func TestM1Commands(t *testing.T) {
 		require.Equal(t, strings.Fields(p)[len(strings.Fields(p))-1], c.Name(), p)
 	}
 	c, _, err := root.Find([]string{"tx", "vault", "dev", "credit-collateral"})
-	if vault.DevCreditEnabled {
-		require.NoError(t, err)
-		require.Equal(t, "credit-collateral", c.Name())
-	} else {
-		require.True(t, err != nil || c.Name() != "credit-collateral", "dev message only in devcredit builds")
-	}
+	require.True(t, err != nil || c.Name() != "credit-collateral", "the dev credit message was removed in M3")
 }

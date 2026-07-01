@@ -1,12 +1,17 @@
 package multinode
 
 import (
+	"context"
 	"math/rand"
+
+	"github.com/btcsuite/btcd/chainhash/v2"
 
 	sdkmath "cosmossdk.io/math"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	"github.com/OWNER/keystone/testutil/btcfake"
+	custodytypes "github.com/OWNER/keystone/x/custody/types"
 	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
 	oracletypes "github.com/OWNER/keystone/x/oracle/types"
 	stablecointypes "github.com/OWNER/keystone/x/stablecoin/types"
@@ -14,8 +19,9 @@ import (
 	vaulttypes "github.com/OWNER/keystone/x/vault/types"
 )
 
-// Workload is the seeded random workload of spec M2-T2: user txs (open, dev credit,
-// mint, repay, pool deposit/withdraw), per-node price noise (±0.3%), occasional empty
+// Workload is the seeded random workload of spec M2-T2: user txs (open, mint, repay,
+// pool deposit/withdraw), Bitcoin deposits on the shared fake chain with rare reorgs
+// and lagging watchers (M3), per-node price noise (±0.3%), occasional empty
 // oracle payloads, price shocks of up to −30%, and scheduled outages in which 2 of 4
 // nodes report nothing for long enough that the price goes STALE.
 type Workload struct {
@@ -27,12 +33,15 @@ type Workload struct {
 	OutageEvery, OutageLen int64
 
 	Stats WorkloadStats
+	sent  bool // a deposit was sent this height
 }
 
 // WorkloadStats counts what happened.
 type WorkloadStats struct {
 	Txs, Rejected, Liquidations, StaleBlocks, Shocks int
 	Mismatches                                       int
+	// Bitcoin: deposits accepted and reverted on chain, fake-chain reorgs.
+	Deposits, Reverted, BtcReorgs int
 }
 
 // NewWorkload seeds a workload on net.
@@ -112,10 +121,9 @@ func (w *Workload) Txs() [][]byte {
 		switch k := w.rng.Intn(8); {
 		case k == 0 || v == nil:
 			send(a, &vaulttypes.MsgOpenVault{Owner: a.Addr.String()})
-		case k == 1:
-			send(Account{net.Admin.Key, net.Admin.Addr}, &vaulttypes.MsgDevCreditCollateral{
-				Admin: net.Admin.Addr.String(), VaultId: v.Vault.Id, Sat: sdkmath.NewInt(int64(1_000_000 + w.rng.Intn(100_000_000))),
-			})
+		case k == 1: // a Bitcoin deposit on the shared fake chain, credited ~2 heights later
+			net.Bitcoin.Send(net.DepositScript(v.Vault.Id), int64(1_000_000+w.rng.Intn(100_000_000)))
+			w.sent = true
 		case k <= 3: // mint 20–95% of capacity at MCR
 			capacity := v.Vault.CollateralSat.Mul(spot).QuoRaw(150_000_000).Sub(v.Debt)
 			amt := capacity.MulRaw(int64(20 + w.rng.Intn(76))).QuoRaw(100)
@@ -143,6 +151,7 @@ func (w *Workload) Txs() [][]byte {
 func (w *Workload) Step() StepResult {
 	w.setPrices(w.net.Height + 1)
 	txs := w.Txs()
+	w.bitcoin()
 	r := w.net.Step(StepOpts{Txs: txs})
 	w.Stats.Txs += len(txs)
 	for _, tr := range r.Finalize[0].TxResults[min(1, len(r.Finalize[0].TxResults)):] {
@@ -154,9 +163,50 @@ func (w *Workload) Step() StepResult {
 		if e.Type == liqtypes.EventTypeVaultLiquidated {
 			w.Stats.Liquidations++
 		}
+		switch e.Type {
+		case custodytypes.EventTypeDepositAccepted:
+			w.Stats.Deposits++
+		case custodytypes.EventTypeDepositReverted:
+			w.Stats.Reverted++
+		}
 	}
 	if ps, err := w.net.Ref().App.OracleKeeper.GetPriceState(w.net.Context()); err == nil && ps.Status == oracletypes.PRICE_STATUS_STALE {
 		w.Stats.StaleBlocks++
 	}
 	return r
+}
+
+// bitcoin advances the fake Bitcoin chain: it mines the deposits sent this height, and
+// rarely reorgs the last 1–3 blocks (sometimes dropping a transaction). Each watcher
+// misses its update with 3% probability, so nodes attest from different views.
+func (w *Workload) bitcoin() {
+	c := w.net.Bitcoin
+	if w.sent {
+		c.Mine(1)
+		w.sent = false
+	} else if w.rng.Intn(10) == 0 {
+		c.Mine(1)
+	}
+	if w.rng.Intn(250) == 0 {
+		depth := 1 + w.rng.Intn(3)
+		var drop []chainhash.Hash
+		if w.rng.Intn(2) == 0 {
+			if b, err := c.Block(context.Background(), mustHash(c, c.Height())); err == nil && len(b.Transactions) > 1 {
+				drop = append(drop, b.Transactions[1].TxHash())
+			}
+		}
+		c.Reorg(depth, drop...)
+		w.Stats.BtcReorgs++
+	}
+	for _, nd := range w.net.Nodes {
+		nd.SkipBitcoinUpdate = w.rng.Intn(100) < 3
+	}
+}
+
+func mustHash(c *btcfake.Chain, h int64) chainhash.Hash {
+	hash, err := c.BlockHash(context.Background(), h)
+	if err != nil {
+		panic(err)
+	}
+	return hash
 }

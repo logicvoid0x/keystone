@@ -15,7 +15,6 @@ var (
 	_ sdk.HasValidateBasic = (*MsgWithdrawCollateral)(nil)
 	_ sdk.HasValidateBasic = (*MsgCloseVault)(nil)
 	_ sdk.HasValidateBasic = (*MsgDepositClaim)(nil)
-	_ sdk.HasValidateBasic = (*MsgDevCreditCollateral)(nil)
 )
 
 func checkAddr(field, a string) error {
@@ -70,11 +69,4 @@ func (m *MsgDepositClaim) ValidateBasic() error {
 		return err
 	}
 	return checkPositive("amount_sat", m.AmountSat)
-}
-
-func (m *MsgDevCreditCollateral) ValidateBasic() error {
-	if err := checkAddr("admin", m.Admin); err != nil {
-		return err
-	}
-	return checkPositive("sat", m.Sat)
 }

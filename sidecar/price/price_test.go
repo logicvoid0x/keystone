@@ -95,7 +95,25 @@ func feed(t *testing.T, usd string, clk *clock) (*mockfeed.Server, *httptest.Ser
 	require.NoError(t, err)
 	srv := httptest.NewServer(m.Handler())
 	t.Cleanup(srv.Close)
+	warmUp(t, srv.URL+"/ex/"+mockfeed.Exchanges[0]+"/btcusd")
 	return m, srv
+}
+
+// warmUp waits until the server answers. On loaded Windows machines the first
+// localhost connection of a fresh test binary can stall for seconds (endpoint
+// scanning), which would otherwise eat the fetcher's request timeout.
+func warmUp(t *testing.T, url string) {
+	t.Helper()
+	c := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{DisableKeepAlives: true}}
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		resp, err := c.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			return
+		}
+		require.True(t, time.Now().Before(deadline), "mock server never answered: %v", err)
+	}
 }
 
 func post(t *testing.T, url string, body any) {

@@ -1,5 +1,3 @@
-//go:build devcredit
-
 package app_test
 
 import (
@@ -55,14 +53,15 @@ func TestM1Flow(t *testing.T) {
 	require.Equal(t, oracletypes.PRICE_STATUS_ACTIVE, ps.Status)
 	require.Equal(t, sdkmath.NewInt(100_000_000_000), ps.SpotMicroUsd)
 
-	// 1. A opens vault 1; admin dev-credits 0.5 BTC; A mints 30,000 KUSD.
+	// 1. A opens vault 1 and deposits 0.5 BTC (fake regtest chain); A mints 30,000 KUSD.
 	requireOK(t, c.NextBlock([][]byte{c.SignTx(A.Key, &vaulttypes.MsgOpenVault{Owner: A.Addr.String()})}))
-	requireOK(t, c.NextBlock([][]byte{c.SignTx(c.Admin.Key, &vaulttypes.MsgDevCreditCollateral{Admin: c.Admin.Addr.String(), VaultId: 1, Sat: sdkmath.NewInt(50_000_000)})}))
+	c.Fund(1, 50_000_000)
+	require.Equal(t, sdkmath.NewInt(50_000_000), c.Collateral(1))
 	requireOK(t, c.NextBlock([][]byte{c.SignTx(A.Key, &vaulttypes.MsgMint{Owner: A.Addr.String(), VaultId: 1, Amount: kusdAmt(30_000)})}))
 
-	// 2. B opens vault 2; 2 BTC; mints 100,000 KUSD; deposits 50,000 into the pool.
+	// 2. B opens vault 2; deposits 2 BTC; mints 100,000 KUSD; deposits 50,000 into the pool.
 	requireOK(t, c.NextBlock([][]byte{c.SignTx(B.Key, &vaulttypes.MsgOpenVault{Owner: B.Addr.String()})}))
-	requireOK(t, c.NextBlock([][]byte{c.SignTx(c.Admin.Key, &vaulttypes.MsgDevCreditCollateral{Admin: c.Admin.Addr.String(), VaultId: 2, Sat: sdkmath.NewInt(200_000_000)})}))
+	c.Fund(2, 200_000_000)
 	requireOK(t, c.NextBlock([][]byte{
 		c.SignTx(B.Key, &vaulttypes.MsgMint{Owner: B.Addr.String(), VaultId: 2, Amount: kusdAmt(100_000)}),
 		c.SignTx(B.Key, &liqtypes.MsgDepositPool{Depositor: B.Addr.String(), Amount: kusdAmt(50_000)}),

@@ -1,9 +1,8 @@
 SHELL := bash
 GO ?= go
 BUILDDIR ?= build
-# make test builds with these tags (spec M1-T8): invariants run in EndBlock; the dev
-# collateral message is routed.
-TEST_TAGS ?= invariants,devcredit
+# make test builds with these tags (spec M1-T8): invariants run in EndBlock.
+TEST_TAGS ?= invariants
 
 .PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M1 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz clean
 
@@ -25,7 +24,7 @@ test: check-go
 lint: check-go
 	$(GO) vet ./...
 	$(GO) vet -tags $(TEST_TAGS) ./...
-	$(GO) vet -tags byzantine,devcredit ./...
+	$(GO) vet -tags byzantine ./...
 	$(GO) run ./tools/detlint/cmd/detlint ./...
 	$(GO) run ./tools/detlint/cmd/detlint -tags=$(TEST_TAGS) ./...
 	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run ./...; \
@@ -41,10 +40,10 @@ proto:
 proto-lint:
 	cd proto && buf lint
 
-# build-dev builds keystoned with the devcredit message (M1 demo; removed in M3) and mockfeed.
+# build-dev builds keystoned and mockfeed (the demos run mockfeed).
 build-dev: check-go
 	@mkdir -p $(BUILDDIR)
-	$(GO) build -tags devcredit -o $(BUILDDIR)/ ./cmd/keystoned ./cmd/mockfeed
+	$(GO) build -o $(BUILDDIR)/ ./cmd/keystoned ./cmd/mockfeed
 
 # e2e runs the demo of the latest finished milestone (M2: needs Docker).
 e2e: build-dev
@@ -58,7 +57,7 @@ e2e-M0: build
 
 # determinism-long is M2 acceptance 1: 4 nodes, 10,000 heights (about 10 minutes).
 determinism-long: check-go
-	$(GO) test -tags long,devcredit -timeout 60m -run TestDeterminism10k -v ./testutil/multinode
+	$(GO) test -tags long -timeout 60m -run TestDeterminism10k -v ./testutil/multinode
 
 # Docker localnet (spec M2-T1). Homes in $(LOCALNET_HOMES) are kept by localnet-stop.
 LOCALNET_HOMES ?= localnet/homes
@@ -67,8 +66,8 @@ COMPOSE ?= docker compose -f localnet/docker-compose.yml
 # localnet-bin cross-compiles the Linux binaries the localnet image copies.
 localnet-bin: check-go
 	@mkdir -p $(BUILDDIR)/linux
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -tags devcredit -o $(BUILDDIR)/linux/keystoned ./cmd/keystoned
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -tags devcredit,byzantine -o $(BUILDDIR)/linux/keystoned-byz ./cmd/keystoned
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -o $(BUILDDIR)/linux/keystoned ./cmd/keystoned
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -tags byzantine -o $(BUILDDIR)/linux/keystoned-byz ./cmd/keystoned
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -o $(BUILDDIR)/linux/mockfeed ./cmd/mockfeed
 
 localnet-start: build-dev localnet-bin

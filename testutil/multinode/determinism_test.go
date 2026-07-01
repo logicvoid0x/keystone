@@ -1,5 +1,3 @@
-//go:build devcredit
-
 package multinode_test
 
 import (
@@ -33,4 +31,6 @@ func TestDeterminism10k(t *testing.T) {
 	require.Positive(t, w.Stats.Liquidations, "at least one liquidation")
 	require.Positive(t, w.Stats.StaleBlocks, "at least one STALE period")
 	require.Positive(t, w.Stats.Txs)
+	require.Positive(t, w.Stats.Deposits, "deposits are attested and credited")
+	require.Positive(t, w.Stats.BtcReorgs, "the fake chain reorgs")
 }

@@ -91,6 +91,7 @@ func (c *Chain) NextBlock(mempool [][]byte) Block {
 	require.NoError(c.T, err)
 	require.Equal(c.T, abci.ResponseProcessProposal_ACCEPT, proc.Status, "ProcessProposal rejected height %d", h)
 
+	_ = c.Watcher.Update(context.Background()) // fails before the first commit: no Bitcoin payload
 	ext, err := c.App.ExtendVote(context.Background(), &abci.RequestExtendVote{
 		Hash: hash, Height: h, Time: c.Time, Txs: prep.Txs, ProposedLastCommit: c.lastCommit, ProposerAddress: proposer,
 	})

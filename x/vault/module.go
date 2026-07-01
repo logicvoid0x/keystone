@@ -46,7 +46,6 @@ func (AppModule) ConsensusVersion() uint64                      { return consens
 func (AppModule) RegisterLegacyAminoCodec(c *codec.LegacyAmino) { types.RegisterLegacyAminoCodec(c) }
 func (AppModule) RegisterInterfaces(r cdctypes.InterfaceRegistry) {
 	types.RegisterInterfaces(r)
-	registerDevInterfaces(r)
 }
 
 func (AppModule) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *gwruntime.ServeMux) {
@@ -58,7 +57,6 @@ func (AppModule) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *gwrunt
 func (am AppModule) RegisterServices(cfg module.Configurator) {
 	types.RegisterMsgServer(cfg.MsgServer(), keeper.NewMsgServerImpl(am.keeper))
 	types.RegisterQueryServer(cfg.QueryServer(), keeper.NewQuerier(am.keeper))
-	registerDevServices(cfg, am.keeper)
 }
 
 func (AppModule) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {

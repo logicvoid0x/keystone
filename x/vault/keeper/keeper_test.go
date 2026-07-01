@@ -105,7 +105,8 @@ func (f *fixture) open(t *testing.T, owner sdk.AccAddress, sat int64) uint64 {
 	id, _, err := f.k.OpenVault(f.ctx, &types.MsgOpenVault{Owner: owner.String()})
 	require.NoError(t, err)
 	if sat > 0 {
-		require.NoError(t, f.k.DevCreditCollateral(f.ctx, &types.MsgDevCreditCollateral{Admin: admin, VaultId: id, Sat: n(sat)}))
+		_, err := f.k.CreditCollateral(f.ctx, id, n(sat))
+		require.NoError(t, err)
 	}
 	return id
 }
@@ -131,7 +132,7 @@ func (f *fixture) indexed(t *testing.T, id uint64) bool {
 	return found
 }
 
-func TestOpenAndDevCredit(t *testing.T) {
+func TestOpenAndCreditCollateral(t *testing.T) {
 	f := setup(t)
 	id1 := f.open(t, alice, 0)
 	id2 := f.open(t, bob, 0)
@@ -139,10 +140,9 @@ func TestOpenAndDevCredit(t *testing.T) {
 	require.Equal(t, uint64(2), id2)
 	require.Equal(t, types.VAULT_STATUS_OPEN, f.vault(t, id1).Status)
 
-	err := f.k.DevCreditCollateral(f.ctx, &types.MsgDevCreditCollateral{Admin: stranger, VaultId: id1, Sat: n(1)})
-	require.ErrorIs(t, err, errNotAdmin)
-
-	require.NoError(t, f.k.DevCreditCollateral(f.ctx, &types.MsgDevCreditCollateral{Admin: admin, VaultId: id1, Sat: n(50_000_000)}))
+	c, err := f.k.CreditCollateral(f.ctx, id1, n(50_000_000))
+	require.NoError(t, err)
+	require.Equal(t, n(50_000_000), c)
 	v := f.vault(t, id1)
 	require.Equal(t, n(50_000_000), v.CollateralSat)
 	require.Equal(t, types.VAULT_STATUS_ACTIVE, v.Status)
@@ -150,7 +150,9 @@ func TestOpenAndDevCredit(t *testing.T) {
 	require.Equal(t, n(50_000_000), cr)
 
 	// Over the 10 BTC cap: the excess goes to the owner's claimable balance.
-	require.NoError(t, f.k.DevCreditCollateral(f.ctx, &types.MsgDevCreditCollateral{Admin: admin, VaultId: id2, Sat: n(1_000_000_000)}))
+	c, err = f.k.CreditCollateral(f.ctx, id2, n(1_000_000_000))
+	require.NoError(t, err)
+	require.Equal(t, n(950_000_000), c)
 	require.Equal(t, n(950_000_000), f.vault(t, id2).CollateralSat)
 	cl, _ := f.cust.GetClaimable(f.ctx, bob)
 	require.Equal(t, n(50_000_000), cl)

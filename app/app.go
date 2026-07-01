@@ -509,6 +509,10 @@ func (app *App) SetPriceSource(src protocol.PriceSource) {
 	app.voteExt.SetPriceSource(src)
 }
 
+// SetBitcoinSource attaches the Bitcoin watcher to ExtendVote. Call before the node
+// starts.
+func (app *App) SetBitcoinSource(src protocol.BitcoinSource) { app.voteExt.SetBitcoinSource(src) }
+
 // Close stops the sidecars, then closes BaseApp.
 func (app *App) Close() error {
 	if s, ok := app.price.(interface{ Stop() }); ok {

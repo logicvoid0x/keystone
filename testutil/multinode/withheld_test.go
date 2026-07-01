@@ -1,5 +1,3 @@
-//go:build devcredit
-
 package multinode_test
 
 import (
@@ -53,8 +51,7 @@ func TestTwoNodesWithholdPrice(t *testing.T) {
 	user := net.Users[0]
 	r := net.Step(multinode.StepOpts{Txs: [][]byte{net.SignTx(user.Key, &vaulttypes.MsgOpenVault{Owner: user.Addr.String()})}})
 	require.Equal(t, uint32(0), r.Finalize[0].TxResults[1].Code)
-	net.Step(multinode.StepOpts{Txs: [][]byte{net.SignTx(net.Admin.Key, &vaulttypes.MsgDevCreditCollateral{
-		Admin: net.Admin.Addr.String(), VaultId: 1, Sat: sdkmath.NewInt(50_000_000)})}})
+	net.Fund(1, 50_000_000)
 	r = net.Step(multinode.StepOpts{Txs: [][]byte{net.SignTx(user.Key, &vaulttypes.MsgMint{
 		Owner: user.Addr.String(), VaultId: 1, Amount: sdkmath.NewInt(29_500_000_000)})}})
 	require.Equal(t, uint32(0), r.Finalize[0].TxResults[1].Code, r.Finalize[0].TxResults[1].Log)

@@ -112,7 +112,8 @@ func (f *fixture) vaultWithDebt(t *testing.T, owner sdk.AccAddress, sat int64, d
 	t.Helper()
 	id, _, err := f.vault.OpenVault(f.ctx, &vaulttypes.MsgOpenVault{Owner: owner.String()})
 	require.NoError(t, err)
-	require.NoError(t, f.vault.DevCreditCollateral(f.ctx, &vaulttypes.MsgDevCreditCollateral{Admin: admin, VaultId: id, Sat: n(sat)}))
+	_, err = f.vault.CreditCollateral(f.ctx, id, n(sat))
+	require.NoError(t, err)
 	if debt.IsPositive() {
 		require.NoError(t, f.vault.Mint(f.ctx, &vaulttypes.MsgMint{Owner: owner.String(), VaultId: id, Amount: debt}))
 	}
