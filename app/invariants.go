@@ -17,7 +17,7 @@ type invariantState struct {
 }
 
 // CheckInvariants runs every implemented invariant (design Appendix A: 1, 2, 3, 4, 5,
-// 7, 8, 9, 14) and returns the first violation.
+// 6, 7, 8, 9, 14) and returns the first violation.
 func (app *App) CheckInvariants(ctx sdk.Context) error {
 	if err := app.VaultKeeper.AllInvariants(ctx); err != nil {
 		return err
@@ -29,6 +29,13 @@ func (app *App) CheckInvariants(ctx sdk.Context) error {
 		return err
 	}
 	if err := app.CustodyKeeper.TreasuryCapInvariant(ctx); err != nil {
+		return err
+	}
+	held, err := app.LiquidationKeeper.HeldSat(ctx)
+	if err != nil {
+		return err
+	}
+	if err := app.CustodyKeeper.CoverageInvariant(ctx, held); err != nil {
 		return err
 	}
 	rs, err := app.VaultKeeper.RateState.Get(ctx)

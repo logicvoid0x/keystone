@@ -50,3 +50,17 @@ func (k *Keeper) PoolInvariant(ctx context.Context) error {
 	}
 	return nil
 }
+
+// HeldSat is the satoshis x/liquidation owes but has not paid out: collateral in open
+// auctions plus seized satoshis pending for pool depositors (terms of invariant 6).
+func (k *Keeper) HeldSat(ctx context.Context) (sdkmath.Int, error) {
+	total, err := k.PendingSat.Get(ctx)
+	if err != nil {
+		return sdkmath.Int{}, err
+	}
+	err = k.Auctions.Walk(ctx, nil, func(_ uint64, a types.Auction) (bool, error) {
+		total = total.Add(a.CollateralSat)
+		return false, nil
+	})
+	return total, err
+}

@@ -352,3 +352,22 @@ func mustBytes(t *testing.T, d vetypes.DepositSeen) []byte {
 	require.NoError(t, err)
 	return bz
 }
+
+// Invariant 6: UTXOs + deficit cover collateral + claimable + fee reserve + held.
+func TestCoverageInvariant(t *testing.T) {
+	f := newOps(t)
+	require.NoError(t, f.k.CoverageInvariant(f.ctx, i(0)))
+	f.step(t, &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{f.deposit(0x02, 1, 50_000_000), f.deposit(0x03, 2, 5_000)}}, 0, 1, 2)
+	require.NoError(t, f.k.CoverageInvariant(f.ctx, i(0)))
+	// Satoshis owed elsewhere (auction collateral moved out of the vault) still covered.
+	_, err := f.vault.DebitCollateral(f.ctx, 1, i(10_000_000))
+	require.NoError(t, err)
+	require.NoError(t, f.k.CoverageInvariant(f.ctx, i(10_000_000)))
+	require.Error(t, f.k.CoverageInvariant(f.ctx, i(10_000_001)))
+	// A claimable balance with no Bitcoin behind it breaks the invariant.
+	require.NoError(t, f.k.CreditClaimable(f.ctx, alice, i(1)))
+	require.ErrorContains(t, f.k.CoverageInvariant(f.ctx, i(10_000_000)), "invariant 6")
+	// A recorded deficit counts on the covered side.
+	require.NoError(t, f.k.Deficit.Set(f.ctx, i(1)))
+	require.NoError(t, f.k.CoverageInvariant(f.ctx, i(10_000_000)))
+}
