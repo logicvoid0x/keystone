@@ -1549,7 +1549,7 @@ All invariants are checked at the end of every block in test builds and register
 \sum_{u \in \text{UTXO}} a_u + \text{deficit} \ge \sum_v \text{coll}_v + \sum_a \text{claim}_a + \sum_{x} \text{auction}_x + \sum_{r \in \text{pending}} a_r + \text{feeReserve}
 ```
 
-The UTXO sum covers AVAILABLE and LOCKED; pending covers queued and in-flight requests (gross amounts before fee share).
+The UTXO sum covers AVAILABLE and LOCKED; pending covers queued and in-flight requests (gross amounts before fee share). Implemented in M3 in `App.CheckInvariants`: the auction term also includes x/liquidation's seized satoshis still pending for pool depositors (prefix 0x08), and Σ coll_v is the credited counter, which x/vault checks equals Σ collateral. Pending requests join in M4a.
 
 7. **Liquidation index.** A vault is in the index if and only if art\_v > 0, with key exactly as in §8.1.
 8. **Stability pool.** The pool module's KUSD balance ≥ the sum of compounded deposits, and the difference is at most one ukusd per depositor plus a tracked pool slack (`x/liquidation` prefix 0x0A). Corrected in M1: each deposit touch strands up to 1 ukusd of compounding dust (as in Liquity), so the per-depositor bound alone cannot hold. The slack grows by 1 per deposit touch and per liquidation and resets when dust is swept to surplus (pool emptied or epoch reset).
