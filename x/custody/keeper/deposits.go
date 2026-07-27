@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 
 	"cosmossdk.io/collections"
@@ -31,9 +32,9 @@ func (k *Keeper) scriptEpoch(ctx context.Context, vaultID uint64, script []byte)
 }
 
 // creditDeposit is design §9.7 step 5 for an accepted DepositSeen: below MinDepositSat
-// the satoshis go to the fee reserve; otherwise vault.CreditCollateral credits within
-// the treasury-cap headroom and the rest (or all of it, for a closed vault) goes to the
-// owner's claimable balance. The output becomes an AVAILABLE UTXO with its tweak t_v,
+// the satoshis go to the fee reserve; a deposit within the treasury-cap headroom is
+// credited to the vault (vault.CreditCollateral); one that would exceed it, or one to a
+// closed vault, goes entirely to the owner's claimable balance (§3.2). The output becomes an AVAILABLE UTXO with its tweak t_v,
 // and a DepositRecord keeps the split for the reorg path.
 func (k *Keeper) creditDeposit(ctx context.Context, d vetypes.DepositSeen) error {
 	op := collections.Join(d.Txid, d.Vout)
@@ -76,24 +77,41 @@ func (k *Keeper) creditDeposit(ctx context.Context, d vetypes.DepositSeen) error
 
 	amount := sdkmath.NewIntFromUint64(d.AmountSat)
 	rec := types.DepositRecord{VaultId: vaultID, Owner: owner.String(), Block: *d.Block}
+	overCap := false
 	switch {
 	case amount.LT(minDeposit):
 		if err := k.addFeeReserve(ctx, amount); err != nil {
 			return err
 		}
 		rec.FeeReserveSat = d.AmountSat
-	case open:
-		credited, err := k.vault.CreditCollateral(ctx, vaultID, amount)
-		if err != nil {
-			return err
-		}
-		rec.CollateralSat = credited.Uint64()
-		rec.ClaimableSat = d.AmountSat - rec.CollateralSat
-	default:
+	case !open:
 		if err := k.CreditClaimable(ctx, owner, amount); err != nil {
 			return err
 		}
 		rec.ClaimableSat = d.AmountSat
+	default:
+		headroom, err := k.CapHeadroom(ctx)
+		if err != nil {
+			return err
+		}
+		if amount.GT(headroom) {
+			// §3.2: a deposit that would push credited satoshis over the cap is not
+			// credited at all; all of it is claimable (withdraw-only).
+			if err := k.CreditClaimable(ctx, owner, amount); err != nil {
+				return err
+			}
+			rec.ClaimableSat = d.AmountSat
+			overCap = true
+			break
+		}
+		credited, err := k.vault.CreditCollateral(ctx, vaultID, amount)
+		if err != nil {
+			return err
+		}
+		if !credited.Equal(amount) {
+			return fmt.Errorf("vault %d credited %s of %s sat within headroom", vaultID, credited, amount)
+		}
+		rec.CollateralSat = d.AmountSat
 	}
 
 	u := types.Utxo{Txid: d.Txid, Vout: d.Vout, AmountSat: d.AmountSat, Epoch: epochNum, Tweak: tweak, Status: types.UTXO_STATUS_AVAILABLE}
@@ -112,7 +130,7 @@ func (k *Keeper) creditDeposit(ctx context.Context, d vetypes.DepositSeen) error
 		sdk.NewAttribute(types.AttributeKeyCollateral, strconv.FormatUint(rec.CollateralSat, 10)),
 		sdk.NewAttribute(types.AttributeKeyClaimable, strconv.FormatUint(rec.ClaimableSat, 10)),
 		sdk.NewAttribute(types.AttributeKeyFeeReserve, strconv.FormatUint(rec.FeeReserveSat, 10))))
-	if open && rec.ClaimableSat > 0 {
+	if overCap {
 		em.EmitEvent(sdk.NewEvent(types.EventTypeDepositOverCap,
 			sdk.NewAttribute(types.AttributeKeyOutpoint, outpoint),
 			sdk.NewAttribute(types.AttributeKeyVault, strconv.FormatUint(vaultID, 10)),

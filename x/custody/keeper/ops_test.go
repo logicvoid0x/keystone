@@ -262,27 +262,29 @@ func TestCreditDepositRouting(t *testing.T) {
 	require.Len(t, u.Tweak, 32)
 	require.Equal(t, uint64(1), u.Epoch)
 
-	// Over the cap: 1 BTC of headroom left, 2 BTC sent → 1 BTC claimable.
+	// Over the cap (§3.2): 1 BTC of headroom left, 2 BTC sent → none credited, all 2
+	// BTC claimable.
 	f.step(t, &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{f.deposit(0x03, 2, 200_000_000)}}, 1, 2, 3)
-	require.Equal(t, i(100_000_000), f.vault.coll[2])
+	require.True(t, f.vault.coll[2].IsZero())
 	cl, _ := f.k.GetClaimable(f.ctx, bob)
-	require.Equal(t, i(100_000_000), cl)
+	require.Equal(t, i(200_000_000), cl)
 	v, ok := evAttr(f.ctx, types.EventTypeDepositOverCap, types.AttributeKeySat)
 	require.True(t, ok)
-	require.Equal(t, "100000000", v)
+	require.Equal(t, "200000000", v)
 	h, _ := f.k.CapHeadroom(f.ctx)
-	require.True(t, h.IsZero())
+	require.Equal(t, i(100_000_000), h)
 
-	// At the cap, everything goes to claimable.
-	f.step(t, &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{f.deposit(0x04, 1, 50_000)}}, 0, 1, 2)
-	cl, _ = f.k.GetClaimable(f.ctx, alice)
-	require.Equal(t, i(50_000), cl)
+	// A deposit that fits the remaining headroom exactly is credited.
+	f.step(t, &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{f.deposit(0x04, 1, 100_000_000)}}, 0, 1, 2)
+	require.Equal(t, i(1_000_000_000), f.vault.coll[1])
+	h, _ = f.k.CapHeadroom(f.ctx)
+	require.True(t, h.IsZero())
 
 	// Closed vault → claimable; unknown script → skipped.
 	f.vault.shut[2] = true
 	f.step(t, &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{f.deposit(0x05, 2, 70_000)}}, 0, 1, 2)
 	cl, _ = f.k.GetClaimable(f.ctx, bob)
-	require.Equal(t, i(100_070_000), cl)
+	require.Equal(t, i(200_070_000), cl)
 	_, overCap := evAttr(f.ctx, types.EventTypeDepositOverCap, types.AttributeKeySat)
 	require.False(t, overCap)
 	other := f.deposit(0x06, 1, 70_000)
@@ -293,7 +295,7 @@ func TestCreditDepositRouting(t *testing.T) {
 
 	sum, err := f.k.UtxoSum(f.ctx)
 	require.NoError(t, err)
-	require.Equal(t, i(9_999+900_000_000+200_000_000+50_000+70_000), sum)
+	require.Equal(t, i(9_999+900_000_000+200_000_000+100_000_000+70_000), sum)
 	cr, _ := f.k.GetCredited(f.ctx)
 	require.Equal(t, i(1_000_000_000), cr)
 }
