@@ -30,6 +30,7 @@ import (
 
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/crypto/frost/secret"
+	"github.com/OWNER/keystone/sidecar/btcwatch"
 	"github.com/OWNER/keystone/sidecar/price"
 	"github.com/OWNER/keystone/testutil/devdealer"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
@@ -46,6 +47,10 @@ const (
 
 	// DefaultCustodyPassphrase encrypts localnet shares (dev only).
 	DefaultCustodyPassphrase = "keystone-localnet"
+
+	// RPC credentials of the docker localnet bitcoinds (localnet/docker-compose.yml).
+	LocalnetBitcoinRPCUser     = "keystone"
+	LocalnetBitcoinRPCPassword = "keystone"
 
 	// Port layout for nodes on one machine: node i uses base + 10*i.
 	p2pPortBase  = 26656
@@ -373,6 +378,9 @@ func dockerConfig(cfg *cmtcfg.Config, appCfg *AppConfig, args InitFilesArgs, i i
 		url = dockerMockfeedURL
 	}
 	appCfg.Keystone.Price = price.MockConfigOffset(url, DockerPriceOffsetsBps[i%len(DockerPriceOffsetsBps)])
+	// Each node follows its own regtest bitcoind (spec M3-T1).
+	appCfg.Keystone.Bitcoin = btcwatch.RegtestFileConfig(fmt.Sprintf("http://bitcoin%d:18443", i),
+		LocalnetBitcoinRPCUser, LocalnetBitcoinRPCPassword, fmt.Sprintf("tcp://bitcoin%d:28333", i))
 }
 
 const (

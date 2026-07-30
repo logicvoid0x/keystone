@@ -72,13 +72,14 @@ localnet-bin: check-go
 
 localnet-start: build-dev localnet-bin
 	@if [ ! -d $(LOCALNET_HOMES)/node0 ]; then \
-		./$(BUILDDIR)/keystoned testnet init-files --operators 4 --docker --output $(LOCALNET_HOMES) --chain-id keystone-local-1; fi
-	$(COMPOSE) up -d --build mockfeed node0 node1 node2 node3
+		./$(BUILDDIR)/keystoned testnet init-files --operators 4 --docker --dev-dealer --output $(LOCALNET_HOMES) --chain-id keystone-local-1; fi
+	$(COMPOSE) up -d --build mockfeed bitcoin0 bitcoin1 bitcoin2 bitcoin3 node0 node1 node2 node3
 
 localnet-stop:
 	$(COMPOSE) --profile extra down
 
-localnet-clean: localnet-stop
+localnet-clean:
+	$(COMPOSE) --profile extra down -v
 	rm -rf $(LOCALNET_HOMES)
 
 # localnet-byz restarts node3 as a byzantine proposer: make localnet-byz MODE=extra_magic

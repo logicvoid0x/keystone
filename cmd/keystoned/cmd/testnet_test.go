@@ -26,6 +26,7 @@ import (
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/cmd/keystoned/cmd"
 	"github.com/OWNER/keystone/crypto/frost/secret"
+	"github.com/OWNER/keystone/sidecar/btcwatch"
 	"github.com/OWNER/keystone/sidecar/price"
 	"github.com/OWNER/keystone/testutil/devdealer"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
@@ -167,6 +168,11 @@ func TestInitFilesDocker(t *testing.T) {
 		require.Len(t, srcs, 3)
 		require.Equal(t, fmt.Sprintf("mock:http://mockfeed:18080/ex/a/btcusd?offset_bps=%d", bps), srcs[0])
 		require.Equal(t, "0.0.0.0:9090", v.GetString("grpc.address"))
+		require.True(t, v.GetBool(btcwatch.FlagEnabled))
+		require.Equal(t, "regtest", v.GetString(btcwatch.FlagNetwork))
+		require.Equal(t, fmt.Sprintf("http://bitcoin%d:18443", i), v.GetString(btcwatch.FlagRPCURL))
+		require.Equal(t, fmt.Sprintf("tcp://bitcoin%d:28333", i), v.GetString(btcwatch.FlagZMQBlock))
+		require.Equal(t, 2, v.GetInt(btcwatch.FlagFixedFeeRate))
 	}
 }
 

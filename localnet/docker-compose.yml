@@ -1,16 +1,24 @@
-# 4-operator Keystone localnet (spec M2-T1). Homes come from
-#   keystoned testnet init-files --operators 4 --docker --output localnet/homes
+# 4-operator Keystone localnet (specs M2-T1, M3-T1). Homes come from
+#   keystoned testnet init-files --operators 4 --docker --dev-dealer --output localnet/homes
 # and are bind-mounted, so they survive `make localnet-stop`.
 # Host ports per node i: RPC 26657+10i, gRPC 9090+10i, Prometheus 26660+10i.
 # node3 can be restarted as a byzantine proposer: make localnet-byz MODE=extra_magic.
 # node4 (profile "extra") is the 5th operator added by scripts/add-operator.sh.
+# Each node i follows its own regtest bitcoind, bitcoin<i> (RPC 18443, ZMQ hashblock
+# 28333, user/password keystone/keystone); the bitcoinds peer with each other. Chain
+# data lives in named volumes: localnet-stop keeps it, localnet-clean removes it.
+# localnet/mine.sh N mines N blocks to the faucet wallet on bitcoin0.
 name: keystone-localnet
 
 x-node: &node
   image: keystone-localnet:latest
-  depends_on: [mockfeed]
   restart: unless-stopped
   command: ["keystoned", "start", "--home", "/home/keystone"]
+
+x-bitcoind: &bitcoind
+  image: bitcoin/bitcoin:31.1
+  restart: unless-stopped
+  entrypoint: ["bitcoind"]
 
 services:
   mockfeed:
@@ -21,23 +29,64 @@ services:
     command: ["mockfeed", "--listen", "0.0.0.0:18080", "--price", "100000"]
     ports: ["18080:18080"]
 
+  bitcoin0:
+    <<: *bitcoind
+    command: [-regtest, -printtoconsole, -server, -txindex=0, -fallbackfee=0.0002, -rpcbind=0.0.0.0, -rpcallowip=0.0.0.0/0,
+      -rpcuser=keystone, -rpcpassword=keystone, -zmqpubrawblock=tcp://0.0.0.0:28332, -zmqpubhashblock=tcp://0.0.0.0:28333,
+      -addnode=bitcoin1:18444, -addnode=bitcoin2:18444, -addnode=bitcoin3:18444]
+    volumes: ["bitcoin0:/root/.bitcoin"]
+    ports: ["18443:18443"]
+
+  bitcoin1:
+    <<: *bitcoind
+    command: [-regtest, -printtoconsole, -server, -txindex=0, -fallbackfee=0.0002, -rpcbind=0.0.0.0, -rpcallowip=0.0.0.0/0,
+      -rpcuser=keystone, -rpcpassword=keystone, -zmqpubrawblock=tcp://0.0.0.0:28332, -zmqpubhashblock=tcp://0.0.0.0:28333,
+      -addnode=bitcoin0:18444, -addnode=bitcoin2:18444, -addnode=bitcoin3:18444]
+    volumes: ["bitcoin1:/root/.bitcoin"]
+
+  bitcoin2:
+    <<: *bitcoind
+    command: [-regtest, -printtoconsole, -server, -txindex=0, -fallbackfee=0.0002, -rpcbind=0.0.0.0, -rpcallowip=0.0.0.0/0,
+      -rpcuser=keystone, -rpcpassword=keystone, -zmqpubrawblock=tcp://0.0.0.0:28332, -zmqpubhashblock=tcp://0.0.0.0:28333,
+      -addnode=bitcoin0:18444, -addnode=bitcoin1:18444, -addnode=bitcoin3:18444]
+    volumes: ["bitcoin2:/root/.bitcoin"]
+
+  bitcoin3:
+    <<: *bitcoind
+    command: [-regtest, -printtoconsole, -server, -txindex=0, -fallbackfee=0.0002, -rpcbind=0.0.0.0, -rpcallowip=0.0.0.0/0,
+      -rpcuser=keystone, -rpcpassword=keystone, -zmqpubrawblock=tcp://0.0.0.0:28332, -zmqpubhashblock=tcp://0.0.0.0:28333,
+      -addnode=bitcoin0:18444, -addnode=bitcoin1:18444, -addnode=bitcoin2:18444]
+    volumes: ["bitcoin3:/root/.bitcoin"]
+
+  bitcoin4:
+    <<: *bitcoind
+    profiles: [extra]
+    command: [-regtest, -printtoconsole, -server, -txindex=0, -fallbackfee=0.0002, -rpcbind=0.0.0.0, -rpcallowip=0.0.0.0/0,
+      -rpcuser=keystone, -rpcpassword=keystone, -zmqpubrawblock=tcp://0.0.0.0:28332, -zmqpubhashblock=tcp://0.0.0.0:28333,
+      -addnode=bitcoin0:18444, -addnode=bitcoin1:18444, -addnode=bitcoin2:18444, -addnode=bitcoin3:18444]
+    volumes: ["bitcoin4:/root/.bitcoin"]
+
   node0:
     <<: *node
+    depends_on: [mockfeed, bitcoin0]
     volumes: ["./homes/node0:/home/keystone"]
     ports: ["26657:26657", "9090:9090", "26660:26660"]
 
   node1:
     <<: *node
+    depends_on: [mockfeed, bitcoin1]
     volumes: ["./homes/node1:/home/keystone"]
     ports: ["26667:26657", "9100:9090", "26670:26660"]
 
   node2:
     <<: *node
+    depends_on: [mockfeed, bitcoin2]
     volumes: ["./homes/node2:/home/keystone"]
     ports: ["26677:26657", "9110:9090", "26680:26660"]
 
   node3:
     <<: *node
+    depends_on: [mockfeed, bitcoin3]
     command: ["sh", "-c", "exec ${NODE3_BIN:-keystoned} start --home /home/keystone"]
     environment:
       KEYSTONE_BYZ: ${KEYSTONE_BYZ:-}
@@ -47,5 +96,13 @@ services:
   node4:
     <<: *node
     profiles: [extra]
+    depends_on: [mockfeed, bitcoin4]
     volumes: ["./homes/node4:/home/keystone"]
     ports: ["26697:26657", "9130:9090", "26700:26660"]
+
+volumes:
+  bitcoin0:
+  bitcoin1:
+  bitcoin2:
+  bitcoin3:
+  bitcoin4:
