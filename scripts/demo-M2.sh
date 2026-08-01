@@ -6,64 +6,16 @@
 #   3. make localnet-byz MODE=extra_magic for 60 blocks: height keeps increasing and the
 #      honest nodes count rejects;
 #   4. scripts/add-operator.sh: the 5th operator signs blocks.
-# Needs: Docker, curl, jq. Leaves the localnet stopped (homes kept; make localnet-clean).
+# Since M3 the vaults are funded through regtest deposits (the dev credit message is
+# gone). Needs: Docker, curl, jq. Leaves the localnet stopped (homes kept; make
+# localnet-clean).
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
-BIN=${BIN:-$ROOT/build/keystoned}
-[ -x "$BIN" ] || BIN="$BIN.exe"
-H=$ROOT/localnet/homes
-CHAIN=keystone-local-1
-FEED=http://127.0.0.1:18080
-RPCS=(http://127.0.0.1:26657 http://127.0.0.1:26667 http://127.0.0.1:26677 http://127.0.0.1:26687)
-PROMS=(http://127.0.0.1:26660 http://127.0.0.1:26670 http://127.0.0.1:26680 http://127.0.0.1:26690)
 WORK=$ROOT/.demo/M2
-KR=(--keyring-backend test --chain-id "$CHAIN")
-
-fail() { echo "FAIL: $*" >&2; exit 1; }
-pass() { echo "ok:   $*"; }
-height() { curl -fsS -m 3 "${1:-${RPCS[0]}}/status" 2>/dev/null | jq -r '.result.sync_info.latest_block_height' 2>/dev/null || echo 0; }
-wait_height() { # $1 target, $2 timeout seconds
-  local start=$SECONDS h
-  while :; do
-    h=$(height); [[ "$h" =~ ^[0-9]+$ ]] || h=0
-    [ "$h" -ge "$1" ] && return 0
-    [ $((SECONDS - start)) -lt "${2:-300}" ] || fail "timeout waiting for height $1 (at $h)"
-    sleep 2
-  done
-}
-q() { "$BIN" q "$@" --home "$H/node0" -o json; }
-price_field() { q oracle price | jq -r ".price.$1"; }
-feed() { curl -fsS -X POST "$FEED/admin/$1" -H 'Content-Type: application/json' -d "$2" >/dev/null; }
-
-# wait_tx <broadcast-json>: wait for inclusion and require code 0.
-wait_tx() {
-  local out=$1 hash res
-  [ "$(printf '%s' "$out" | jq -r .code)" = "0" ] || fail "CheckTx: $out"
-  hash=$(printf '%s' "$out" | jq -r .txhash)
-  res=$("$BIN" q wait-tx "$hash" --timeout 60s --home "$H/node0" -o json) || fail "not included: $hash"
-  [ "$(printf '%s' "$res" | jq -r .code)" = "0" ] || fail "tx failed: $(printf '%s' "$res" | jq -r .raw_log)"
-}
-
-# utx <node> <key> <module> <cmd> [args...]: user tx from node<N>'s keyring.
-utx() {
-  local n=$1 key=$2; shift 2
-  wait_tx "$("$BIN" tx "$@" --from "$key" --home "$H/node$n" "${KR[@]}" --gas 2000000 --yes -o json)"
-}
-
-# atx <module> <cmd> [args...]: admin tx, signed by the 3-of-4 operator multisig.
-atx() {
-  local admin; admin=$("$BIN" keys show admin -a --home "$H/node0" --keyring-backend test)
-  "$BIN" tx "$@" --from admin --generate-only --home "$H/node0" "${KR[@]}" --gas 2000000 > "$WORK/a.json"
-  for k in 0 1 2; do
-    "$BIN" tx sign "$WORK/a.json" --multisig "$admin" --from operator --sign-mode amino-json \
-      --home "$H/node$k" "${KR[@]}" --output-document "$WORK/s$k.json"
-  done
-  "$BIN" tx multi-sign "$WORK/a.json" admin "$WORK/s0.json" "$WORK/s1.json" "$WORK/s2.json" \
-    --home "$H/node0" "${KR[@]}" --output-document "$WORK/m.json"
-  wait_tx "$("$BIN" tx broadcast "$WORK/m.json" --home "$H/node0" -o json)"
-}
+# shellcheck source=lib/localnet.sh
+. "$ROOT/scripts/lib/localnet.sh"
 
 rm -rf "$WORK"; mkdir -p "$WORK"
 make --no-print-directory localnet-clean >/dev/null 2>&1 || true
@@ -85,14 +37,17 @@ pass "heights 1..30: identical app hashes on all 4 nodes (height 30: ${ref:0:16}
 for _ in $(seq 1 30); do [ "$(price_field status)" = "PRICE_STATUS_ACTIVE" ] && break; sleep 2; done
 [ "$(price_field status)" = "PRICE_STATUS_ACTIVE" ] || fail "oracle not ACTIVE"
 B=$("$BIN" keys show operator -a --home "$H/node1" --keyring-backend test)
+btc_ready
+mine 101 # faucet coins mature
+btc_ready
 utx 0 test vault open-vault
-atx vault dev credit-collateral 1 50000000
+fund_vault 1 0.5
 utx 0 test vault mint 1 30000000000
 utx 1 operator vault open-vault
-atx vault dev credit-collateral 2 200000000
+fund_vault 2 2
 utx 1 operator vault mint 2 100000000000
 utx 1 operator liquidation deposit-pool 50000000000
-pass "vault 1: 0.5 BTC / 30,000 KUSD; vault 2: 2 BTC / 100,000 KUSD; pool 50,000 KUSD (admin txs signed 3-of-4)"
+pass "vault 1: 0.5 BTC / 30,000 KUSD; vault 2: 2 BTC / 100,000 KUSD (regtest deposits); pool 50,000 KUSD"
 
 DROP_H=$(height)
 feed price '{"usd":"76000"}'

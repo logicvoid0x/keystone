@@ -37,7 +37,7 @@ CONS=$(jq -r .cons_address_hex "$WORK/node4.json")
 pass "node4 home: operator $OP, consensus address $CONS"
 
 # 2. Start and sync node4 before it joins.
-"${COMPOSE[@]}" --profile extra up -d --no-deps node4 >/dev/null 2>&1 || fail "start node4"
+"${COMPOSE[@]}" --profile extra up -d --no-deps bitcoin4 node4 >/dev/null 2>&1 || fail "start node4"
 for _ in $(seq 1 60); do
   s=$(curl -fsS -m 2 http://127.0.0.1:26697/status 2>/dev/null | jq -r '.result.sync_info.catching_up' 2>/dev/null || echo true)
   [ "$s" = "false" ] && break

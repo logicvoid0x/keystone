@@ -4,7 +4,7 @@ BUILDDIR ?= build
 # make test builds with these tags (spec M1-T8): invariants run in EndBlock.
 TEST_TAGS ?= invariants
 
-.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M1 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz clean
+.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz clean
 
 all: build
 
@@ -45,12 +45,12 @@ build-dev: check-go
 	@mkdir -p $(BUILDDIR)
 	$(GO) build -o $(BUILDDIR)/ ./cmd/keystoned ./cmd/mockfeed
 
-# e2e runs the demo of the latest finished milestone (M2: needs Docker).
+# e2e runs the demo of the latest finished milestone (M3: needs Docker).
 e2e: build-dev
-	bash scripts/demo-M2.sh
+	bash scripts/demo-M3.sh
 
-e2e-M1: build-dev
-	bash scripts/demo-M1.sh
+e2e-M2: build-dev
+	bash scripts/demo-M2.sh
 
 e2e-M0: build
 	bash scripts/demo-M0.sh
