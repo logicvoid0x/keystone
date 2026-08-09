@@ -10,12 +10,19 @@ require (
 	cosmossdk.io/errors v1.1.0
 	cosmossdk.io/log/v2 v2.1.0
 	cosmossdk.io/math v1.5.3
+	github.com/btcsuite/btcd/address/v2 v2.0.1
+	github.com/btcsuite/btcd/btcec/v2 v2.5.1
+	github.com/btcsuite/btcd/chaincfg/v2 v2.0.0
+	github.com/btcsuite/btcd/chainhash/v2 v2.0.0
+	github.com/btcsuite/btcd/txscript/v2 v2.0.1
+	github.com/btcsuite/btcd/wire/v2 v2.0.2
 	github.com/cometbft/cometbft v0.40.0
 	github.com/cosmos/cosmos-db v1.1.3
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5
 	github.com/cosmos/cosmos-sdk v0.55.0
 	github.com/cosmos/cosmos-sdk/store/v2 v2.0.0
 	github.com/cosmos/gogoproto v1.7.2
+	github.com/go-zeromq/zmq4 v0.17.0
 	github.com/golang/protobuf v1.5.4
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/prometheus/client_golang v1.24.1
@@ -23,6 +30,8 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
+	go.etcd.io/bbolt v1.4.3
+	golang.org/x/crypto v0.57.0
 	golang.org/x/tools v0.49.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa
 	google.golang.org/grpc v1.82.1
@@ -73,12 +82,6 @@ require (
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/bgentry/speakeasy v0.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.24.5 // indirect
-	github.com/btcsuite/btcd/address/v2 v2.0.1 // indirect
-	github.com/btcsuite/btcd/btcec/v2 v2.5.1 // indirect
-	github.com/btcsuite/btcd/chaincfg/v2 v2.0.0 // indirect
-	github.com/btcsuite/btcd/chainhash/v2 v2.0.0 // indirect
-	github.com/btcsuite/btcd/txscript/v2 v2.0.1 // indirect
-	github.com/btcsuite/btcd/wire/v2 v2.0.2 // indirect
 	github.com/btcsuite/btclog v1.0.0 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect
@@ -133,7 +136,6 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/go-zeromq/goczmq/v4 v4.2.2 // indirect
-	github.com/go-zeromq/zmq4 v0.17.0 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -239,7 +241,6 @@ require (
 	github.com/pion/webrtc/v4 v4.1.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.70.1 // indirect
@@ -273,7 +274,6 @@ require (
 	github.com/zondax/golem v0.27.0 // indirect
 	github.com/zondax/hid v0.9.2 // indirect
 	github.com/zondax/ledger-go v1.0.1 // indirect
-	go.etcd.io/bbolt v1.4.3 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.19.0 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.43.0 // indirect
@@ -313,7 +313,6 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/arch v0.26.0 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp v0.0.0-20260527015227-08cc5374adb3 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
@@ -328,7 +327,6 @@ require (
 	google.golang.org/genproto v0.0.0-20260511170946-3700d4141b60 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 	nhooyr.io/websocket v1.8.17 // indirect

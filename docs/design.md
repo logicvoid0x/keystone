@@ -945,7 +945,7 @@ The group key P is normalized to even y: if Y has odd y, every share and verifyi
 
 m\_v takes the place of a Taproot merkle root that has no revealable leaf, so these outputs are key-path only. Each UTXO stores its tweak. Encoding (fixed in M3): chain_id is its UTF-8 bytes, epoch and vault_id are 8-byte big-endian integers, and H_tag is the BIP-340 tagged hash with tag `Keystone/vault`. A tweak that is not below the curve order is rejected (BIP-341). A vault's script is registered when it opens if an epoch is ACTIVE; with no ACTIVE epoch the vault opens without an address (deposits disabled).
 
-**Signing with a tweak t:** let g\_Q = −1 if Q has odd y, else 1. Signers use g\_Q·s\_i as their secret. The aggregator adds c·g\_Q·t to the summed shares. The result is a BIP-340 signature for x(Q). Reference vectors come from the Zcash Foundation `frost-secp256k1-tr` crate, which implements this tweak handling; Keystone's Go code must match it byte for byte. **Flag for audit.**
+**Signing with a tweak t:** let g\_Q = −1 if Q has odd y, else 1. As in `frost-secp256k1-tr` (`sign_with_tweak`, `aggregate_with_tweak`), the tweak is spread over the shares: signer i uses s\_i″ = g\_Q·(s\_i + t) as its secret and is verified against Y\_i″ = g\_Q·(Y\_i + t·G). The Lagrange coefficients of any signing set sum to 1, so Σ λ\_i·s\_i″ = g\_Q·(s + t) and the aggregate z = Σ z\_i is a BIP-340 signature for x(Q); the aggregator adds nothing. (Fixed in M4a: the earlier text had the aggregator add c·g\_Q·t, which gives the same signature but different individual shares, so it could not match the reference shares byte for byte.) Reference vectors come from the Zcash Foundation `frost-secp256k1-tr` crate, which implements this tweak handling; Keystone's Go code must match it byte for byte. **Flag for audit.**
 
 **Emergency script-path leaf: omitted in v1.**
 
@@ -1093,14 +1093,14 @@ for _, s := range k.OpenSessionsSorted(ctx) {
     for _, v := range s.SignerValidators() {             // sorted by operator address
         z, ok := agg.ShareFor(v, s.Id)                  // from injected VEs
         if !ok || s.HasValid(v) { continue }
-        if !frost.VerifyCombined(s, v, z) {              // z·G == Σ_{i∈v}(D_i' + ρ_i·E_i') + c·g_Q·Σ_{i∈v} λ_i·Y_i'
+        if !frost.VerifyCombined(s, v, z) {              // z·G == Σ_{i∈v}(D_i' + ρ_i·E_i') + c·Σ_{i∈v} λ_i·Y_i″
             ops.Add(SessionFailed{Id: s.Id, Blame: v, Reason: INVALID})
             continue sessions
         }
         ops.Add(ShareAccepted{Id: s.Id, Validator: v, Z: z})
     }
     if s.AllValid(ops) {
-        sig := frost.Aggregate(s, ops)                  // s = Σ z_v + c·g_Q·tweak mod n; R from commitments
+        sig := frost.Aggregate(s, ops)                  // z = Σ z_v mod n (tweak is in the shares, §9.6); R from commitments
         if !schnorr.Verify(sig, s.Msg, s.OutputKey()) { panic("frost aggregation bug") } // same on all nodes
         ops.Add(SessionSigned{Id: s.Id, Sig: sig})
     } else if height >= s.Deadline {

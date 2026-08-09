@@ -1,3 +1,5 @@
+// FLAG FOR AUDIT: secret share storage.
+
 package secret
 
 import (

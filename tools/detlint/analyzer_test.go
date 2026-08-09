@@ -15,6 +15,7 @@ func TestAnalyzer(t *testing.T) {
 		"keystone/x/bad",
 		"keystone/x/good",
 		"keystone/x/noreason",
+		"keystone/x/secretimport",
 		"keystone/sidecar/price",
 		"keystone/crypto/frost/secret",
 		"keystone/app/protocol",

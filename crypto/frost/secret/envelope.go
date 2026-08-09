@@ -1,3 +1,5 @@
+// FLAG FOR AUDIT: secret share storage.
+
 // Package secret stores FROST secret shares on disk (design §4.4): JSON envelopes
 // encrypted with AES-256-GCM under a key derived from the operator passphrase with
 // Argon2id. Not state-machine code: it does file I/O and uses crypto/rand.

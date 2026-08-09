@@ -9,7 +9,8 @@
 //  2. calls to (or references of) time.Now, time.Since, time.Until;
 //  3. range over a map, or over maps.Keys / maps.Values / maps.All;
 //  4. go statements;
-//  5. imports of math/rand, math/rand/v2, crypto/rand, net, net/http, os/exec.
+//  5. imports of math/rand, math/rand/v2, crypto/rand, net, net/http, os/exec;
+//  6. imports of .../crypto/frost/secret (FROST secret operations, sidecar only).
 //
 // A line opts out with a trailing `//detlint:allow <reason>`. The reason is required.
 package detlint
@@ -119,6 +120,9 @@ func (c *checker) checkFile(f *ast.File) {
 		path, err := strconv.Unquote(imp.Path.Value)
 		if err == nil && bannedImports[path] {
 			c.report(imp.Pos(), "import", "import of %q is not allowed in state-machine code", path)
+		}
+		if err == nil && strings.HasSuffix(path, "/crypto/frost/secret") {
+			c.report(imp.Pos(), "import", "import of %q (FROST secret operations) is not allowed in state-machine code", path)
 		}
 	}
 

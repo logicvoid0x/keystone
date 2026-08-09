@@ -1,7 +1,7 @@
 // Package devdealer is the localnet-only trusted dealer (spec M3, design §9.3 dev
-// shortcut): one process generates the epoch-1 FROST key with a plain Shamir split and
-// hands each operator its share. M4a replaces the split with crypto/frost keygen.
-// Never used on a non-localnet chain id (see LocalChainID).
+// shortcut): one process generates the epoch-1 FROST key with crypto/frost trusted
+// dealer keygen (spec M4a-T1) and hands each operator its share. Never used on a
+// non-localnet chain id (see LocalChainID).
 package devdealer
 
 import (
@@ -15,6 +15,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	"github.com/OWNER/keystone/crypto/frost"
 	"github.com/OWNER/keystone/crypto/frost/secret"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
 )
@@ -39,29 +40,9 @@ type Dealt struct {
 	Shares    []secret.EpochShares
 }
 
-func randScalar(r io.Reader) (btcec.ModNScalar, error) {
-	var s btcec.ModNScalar
-	var b [32]byte
-	for {
-		if _, err := io.ReadFull(r, b[:]); err != nil {
-			return s, err
-		}
-		if s.SetBytes(&b) == 0 && !s.IsZero() {
-			return s, nil
-		}
-	}
-}
-
-func pubOf(s *btcec.ModNScalar) []byte {
-	var p btcec.JacobianPoint
-	btcec.ScalarBaseMultNonConst(s, &p)
-	p.ToAffine()
-	return btcec.NewPublicKey(&p.X, &p.Y).SerializeCompressed()
-}
-
 // Deal generates a t-of-n key for operators, using randomness from r. Share index =
-// rank by operator address bytes, from 1. If the group key has odd y every coefficient
-// is negated, so the stored key and shares are already even-y normalized (§9.6).
+// rank by operator address bytes, from 1. The key is drawn already even-y normalized
+// (every coefficient negated if the group key had odd y, §9.6).
 func Deal(r io.Reader, operators []sdk.AccAddress) (Dealt, error) {
 	n := len(operators)
 	if n == 0 {
@@ -75,30 +56,23 @@ func Deal(r io.Reader, operators []sdk.AccAddress) (Dealt, error) {
 		}
 	}
 	t := Threshold(n)
-	coeffs := make([]btcec.ModNScalar, t)
-	for j := range coeffs {
-		c, err := randScalar(r)
-		if err != nil {
-			return Dealt{}, err
-		}
-		coeffs[j] = c
+	gk, shares, err := secret.GenerateWithDealer(r, uint32(n), uint32(t), true)
+	if err != nil {
+		return Dealt{}, err
 	}
-	group := pubOf(&coeffs[0])
-	if group[0] == 0x03 {
-		for j := range coeffs {
-			coeffs[j].Negate()
-		}
-		group = pubOf(&coeffs[0])
-	}
+	group := gk[:]
 	d := Dealt{
 		Epoch:     custodytypes.KeyEpoch{Number: Epoch, GroupKey: group, N: uint32(n), T: uint32(t), Status: custodytypes.EPOCH_STATUS_ACTIVE},
 		Operators: ops,
 	}
 	for i, op := range ops {
 		idx := uint32(i + 1)
-		s := eval(coeffs, idx)
-		sb := s.Bytes()
-		y := pubOf(&s)
+		sb := shares[i].Secret.Bytes()
+		yb, err := frost.SerializePoint(shares[i].VerifyingShare)
+		if err != nil {
+			return Dealt{}, err
+		}
+		y := yb[:]
 		d.ShareIndices = append(d.ShareIndices, custodytypes.ShareIndex{Epoch: Epoch, Operator: op.String(), Index: idx})
 		d.VerifyingShares = append(d.VerifyingShares, custodytypes.VerifyingShare{Epoch: Epoch, Index: idx, Pubkey: y})
 		d.Shares = append(d.Shares, secret.EpochShares{
@@ -107,17 +81,6 @@ func Deal(r io.Reader, operators []sdk.AccAddress) (Dealt, error) {
 		})
 	}
 	return d, nil
-}
-
-// eval is f(x) = Σ a_j x^j (Horner).
-func eval(coeffs []btcec.ModNScalar, x uint32) btcec.ModNScalar {
-	var xs btcec.ModNScalar
-	xs.SetInt(x)
-	acc := coeffs[len(coeffs)-1]
-	for j := len(coeffs) - 2; j >= 0; j-- {
-		acc.Mul(&xs).Add(&coeffs[j])
-	}
-	return acc
 }
 
 // Apply puts the dealt epoch into a custody genesis as the ACTIVE epoch.
