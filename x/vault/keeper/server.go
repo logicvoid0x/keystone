@@ -51,17 +51,19 @@ func (m msgServer) Repay(ctx context.Context, msg *types.MsgRepay) (*types.MsgRe
 }
 
 func (m msgServer) WithdrawCollateral(ctx context.Context, msg *types.MsgWithdrawCollateral) (*types.MsgWithdrawCollateralResponse, error) {
-	if err := m.k.WithdrawCollateral(ctx, msg); err != nil {
+	id, err := m.k.WithdrawCollateral(ctx, msg)
+	if err != nil {
 		return nil, err
 	}
-	return &types.MsgWithdrawCollateralResponse{}, nil
+	return &types.MsgWithdrawCollateralResponse{RequestId: id}, nil
 }
 
 func (m msgServer) CloseVault(ctx context.Context, msg *types.MsgCloseVault) (*types.MsgCloseVaultResponse, error) {
-	if err := m.k.CloseVault(ctx, msg); err != nil {
+	id, err := m.k.CloseVault(ctx, msg)
+	if err != nil {
 		return nil, err
 	}
-	return &types.MsgCloseVaultResponse{}, nil
+	return &types.MsgCloseVaultResponse{RequestId: id}, nil
 }
 
 func (m msgServer) DepositClaim(ctx context.Context, msg *types.MsgDepositClaim) (*types.MsgDepositClaimResponse, error) {

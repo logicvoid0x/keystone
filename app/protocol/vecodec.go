@@ -141,7 +141,7 @@ func cmpReorg(a, b vetypes.ReorgSeen) int {
 }
 
 func cmpCommitment(a, b vetypes.NonceCommitment) int {
-	return cmp.Or(cmp.Compare(a.ShareIndex, b.ShareIndex), cmp.Compare(a.Seq, b.Seq))
+	return cmp.Or(cmp.Compare(a.Epoch, b.Epoch), cmp.Compare(a.ShareIndex, b.ShareIndex), cmp.Compare(a.Seq, b.Seq))
 }
 
 func cmpShare(a, b vetypes.CombinedShare) int { return bytes.Compare(a.SessionId, b.SessionId) }

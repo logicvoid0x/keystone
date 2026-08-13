@@ -45,6 +45,9 @@ func TestPropertyInvariants(t *testing.T) {
 // totals counts liquidations by mode across every chain of the run.
 var totals map[string]int
 
+// payout is the P2WPKH script withdrawals pay to.
+var payout = append([]byte{0x00, 0x14}, make([]byte, 20)...)
+
 func envInt(name string, def int) int {
 	if v, err := strconv.Atoi(os.Getenv(name)); err == nil && v > 0 {
 		return v
@@ -137,9 +140,9 @@ func runProperty(t *testing.T, seed int64, blocks int) {
 				send(a, "repay", &vaulttypes.MsgRepay{Sender: a.addr.String(), VaultId: vault.Vault.Id, Amount: amt})
 			case k == 5:
 				sat := sdkmath.NewInt(int64(10_000 + rng.Intn(50_000_000)))
-				send(a, "withdraw", &vaulttypes.MsgWithdrawCollateral{Owner: a.addr.String(), VaultId: vault.Vault.Id, AmountSat: sat})
+				send(a, "withdraw", &vaulttypes.MsgWithdrawCollateral{Owner: a.addr.String(), VaultId: vault.Vault.Id, AmountSat: sat, RecipientScript: payout})
 			case k == 6:
-				send(a, "close", &vaulttypes.MsgCloseVault{Owner: a.addr.String(), VaultId: vault.Vault.Id})
+				send(a, "close", &vaulttypes.MsgCloseVault{Owner: a.addr.String(), VaultId: vault.Vault.Id, RecipientScript: payout})
 			case k == 7 || k == 8 && rng.Intn(2) == 0:
 				bal := c.App.BankKeeper.GetBalance(ctx, a.addr, stablecointypes.Denom).Amount
 				if bal.IsPositive() {

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"slices"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
+
 	"github.com/OWNER/keystone/app/protocol/vetypes"
 )
 
@@ -17,23 +19,75 @@ const TallyTTL = 600
 // Lengths of Bitcoin hashes in attestations (internal byte order, as in wire).
 const HashLen = 32
 
-// BitcoinVote is one verified VE's Bitcoin payload (nil if it had none).
-type BitcoinVote struct {
+// Vote is one verified VE's custody payloads (each nil if absent).
+type Vote struct {
 	ConsAddr []byte
-	Payload  *vetypes.BitcoinPayload
+	Bitcoin  *vetypes.BitcoinPayload
+	Frost    *vetypes.FrostPayload
 }
 
-// CustodyBatch is the result of BuildOps, applied by ApplyOps in field order (§5.9):
-// AcceptAnchor, CreditDeposit, RevertDeposit. Each list is sorted canonically.
+// FrostInput is a voting operator's FROST payload, recorded by RecordCommitments.
+type FrostInput struct {
+	Operator sdk.AccAddress
+	Payload  vetypes.FrostPayload
+}
+
+// ShareAccepted is a combined share that verified (§9.11).
+type ShareAccepted struct {
+	SessionID []byte
+	Validator string
+	Z         []byte
+}
+
+// SessionSigned is a session whose shares aggregated to a valid signature.
+type SessionSigned struct {
+	SessionID []byte
+	Signature []byte
+}
+
+// SessionFailed is a session that failed: Blame sent an invalid share, or Missing did
+// not send one by the deadline.
+type SessionFailed struct {
+	SessionID []byte
+	Blame     string
+	Missing   []string
+}
+
+// OpenBatch asks ApplyOps to build a withdrawal batch at Feerate (§9.8 step 2).
+type OpenBatch struct {
+	Feerate uint64
+}
+
+// CustodyBatch is the result of BuildOps, applied by ApplyOps in the fixed order of
+// §9.11: AcceptAnchor, CreditDeposit, RevertDeposit, RecordCommitments,
+// ShareAccepted, SessionSigned, SessionFailed (with OpenRetry / SessionStalled),
+// ConfirmTx, StartRBF, OpenBatch. Each list is sorted canonically.
 type CustodyBatch struct {
 	Anchors []vetypes.BtcBlockRef
 	Credits []vetypes.DepositSeen
 	Reverts []vetypes.ReorgSeen
+	// Frost is sorted by operator address bytes.
+	Frost []FrostInput
+	// Accepted, Signed and Failed are in session id order.
+	Accepted []ShareAccepted
+	Signed   []SessionSigned
+	Failed   []SessionFailed
+	// Confirms are accepted TxConfirmed attestations, by txid.
+	Confirms []vetypes.TxConfirmed
+	// RBF lists batch ids to fee-bump, ascending.
+	RBF       []uint64
+	OpenBatch *OpenBatch
+	// Voters are the operators whose VE verified this block (signer eligibility,
+	// §9.10), sorted by address bytes.
+	Voters []sdk.AccAddress
 }
 
-// Empty reports whether the batch has no operations.
+// Empty reports whether the batch has nothing to apply. A block with verified voters
+// is never empty: stalled sessions are re-checked every block.
 func (b CustodyBatch) Empty() bool {
-	return len(b.Anchors) == 0 && len(b.Credits) == 0 && len(b.Reverts) == 0
+	return len(b.Anchors) == 0 && len(b.Credits) == 0 && len(b.Reverts) == 0 &&
+		len(b.Frost) == 0 && len(b.Accepted) == 0 && len(b.Signed) == 0 && len(b.Failed) == 0 &&
+		len(b.Confirms) == 0 && len(b.RBF) == 0 && b.OpenBatch == nil && len(b.Voters) == 0
 }
 
 // TallyKey is SHA-256(kind ‖ payload).
@@ -52,6 +106,9 @@ func ValidBlockRef(r *vetypes.BtcBlockRef) bool { return r != nil && len(r.Hash)
 func ValidDeposit(d *vetypes.DepositSeen) bool {
 	return len(d.Txid) == HashLen && d.AmountSat > 0 && IsP2TRScript(d.PkScript) && ValidBlockRef(d.Block)
 }
+
+// ValidConfirm checks a TxConfirmed's shape: 32-byte txid and a block reference.
+func ValidConfirm(c *vetypes.TxConfirmed) bool { return len(c.Txid) == HashLen && ValidBlockRef(c.Block) }
 
 // ValidReorg checks a ReorgSeen's shape: 32-byte txid and old block hash.
 func ValidReorg(r *vetypes.ReorgSeen) bool {
@@ -73,6 +130,9 @@ func OutpointString(txid []byte, vout uint32) string {
 // Sort puts every list in canonical order: anchors by (height, hash), credits
 // and reverts by (txid, vout).
 func (b *CustodyBatch) Sort() {
+	slices.SortFunc(b.Confirms, func(x, y vetypes.TxConfirmed) int {
+		return cmp.Or(bytes.Compare(x.Txid, y.Txid), bytes.Compare(x.Block.Hash, y.Block.Hash))
+	})
 	slices.SortFunc(b.Anchors, func(x, y vetypes.BtcBlockRef) int {
 		return cmp.Or(cmp.Compare(x.Height, y.Height), bytes.Compare(x.Hash, y.Hash))
 	})

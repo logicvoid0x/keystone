@@ -72,19 +72,21 @@ message ReorgSeen {
 
 // FrostPayload carries FROST signer output (design §9.11).
 message FrostPayload {
-  // commitments are sorted by (share_index, seq).
+  // commitments are sorted by (epoch, share_index, seq).
   repeated NonceCommitment commitments = 1 [(gogoproto.nullable) = false];
   // shares are sorted by session_id.
   repeated CombinedShare shares = 2 [(gogoproto.nullable) = false];
   bool revoke_all_nonces = 3;
 }
 
-// NonceCommitment is a preprocessed FROST nonce commitment (33-byte points).
+// NonceCommitment is a preprocessed FROST nonce commitment (33-byte points) for a
+// share of key epoch `epoch` (field 5 added in M4a).
 message NonceCommitment {
   uint32 share_index = 1;
   uint64 seq = 2;
   bytes hiding = 3;
   bytes binding = 4;
+  uint64 epoch = 5;
 }
 
 // CombinedShare is the sum of z_i over this validator's assigned shares (32 bytes).

@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 
 	"cosmossdk.io/collections"
@@ -24,6 +25,14 @@ func (m msgServer) UpdateParams(ctx context.Context, msg *types.MsgUpdateParams)
 		return nil, err
 	}
 	return &types.MsgUpdateParamsResponse{}, nil
+}
+
+func (m msgServer) WithdrawClaim(ctx context.Context, msg *types.MsgWithdrawClaim) (*types.MsgWithdrawClaimResponse, error) {
+	id, err := m.k.WithdrawClaim(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+	return &types.MsgWithdrawClaimResponse{RequestId: id}, nil
 }
 
 type querier struct{ k *Keeper }
@@ -107,4 +116,76 @@ func (q querier) Treasury(ctx context.Context, _ *types.QueryTreasuryRequest) (*
 	}
 	res.Anchor = anchor
 	return res, nil
+}
+
+func (q querier) Withdrawal(ctx context.Context, req *types.QueryWithdrawalRequest) (*types.QueryWithdrawalResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "empty request")
+	}
+	r, err := q.k.Requests.Get(ctx, req.Id)
+	if errors.Is(err, collections.ErrNotFound) {
+		return nil, status.Errorf(codes.NotFound, "withdrawal request %d", req.Id)
+	} else if err != nil {
+		return nil, err
+	}
+	return &types.QueryWithdrawalResponse{Request: r}, nil
+}
+
+func (q querier) Batch(ctx context.Context, req *types.QueryBatchRequest) (*types.QueryBatchResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "empty request")
+	}
+	b, err := q.k.Batches.Get(ctx, req.Id)
+	if errors.Is(err, collections.ErrNotFound) {
+		return nil, status.Errorf(codes.NotFound, "batch %d", req.Id)
+	} else if err != nil {
+		return nil, err
+	}
+	cur := b.Txs[len(b.Txs)-1]
+	return &types.QueryBatchResponse{Batch: b, Txid: types.TxidString(cur.Txid), SignedTxHex: hex.EncodeToString(cur.SignedTx)}, nil
+}
+
+func (q querier) Batches(ctx context.Context, _ *types.QueryBatchesRequest) (*types.QueryBatchesResponse, error) {
+	res := &types.QueryBatchesResponse{}
+	err := q.k.Batches.Walk(ctx, nil, func(_ uint64, b types.WithdrawalBatch) (bool, error) {
+		res.Batches = append(res.Batches, b)
+		return false, nil
+	})
+	return res, err
+}
+
+func (q querier) Session(ctx context.Context, req *types.QuerySessionRequest) (*types.QuerySessionResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "empty request")
+	}
+	id, err := hex.DecodeString(req.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	s, err := q.k.Sessions.Get(ctx, id)
+	if errors.Is(err, collections.ErrNotFound) {
+		return nil, status.Errorf(codes.NotFound, "session %s", req.Id)
+	} else if err != nil {
+		return nil, err
+	}
+	return &types.QuerySessionResponse{Session: s}, nil
+}
+
+func (q querier) ActiveSessions(ctx context.Context, _ *types.QueryActiveSessionsRequest) (*types.QueryActiveSessionsResponse, error) {
+	ss, err := q.k.GetActiveSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &types.QueryActiveSessionsResponse{Sessions: ss}, nil
+}
+
+func (q querier) NoncePool(ctx context.Context, req *types.QueryNoncePoolRequest) (*types.QueryNoncePoolResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "empty request")
+	}
+	last, cs, err := q.k.NoncePool(ctx, req.Epoch, req.ShareIndex)
+	if err != nil {
+		return nil, err
+	}
+	return &types.QueryNoncePoolResponse{LastRecorded: last, Commitments: cs}, nil
 }

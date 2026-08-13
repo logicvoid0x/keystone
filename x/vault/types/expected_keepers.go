@@ -43,4 +43,7 @@ type CustodyKeeper interface {
 	AddCredited(ctx context.Context, sat sdkmath.Int) error
 	SubCredited(ctx context.Context, sat sdkmath.Int) error
 	GetCredited(ctx context.Context) (sdkmath.Int, error)
+	// ValidateWithdrawal and QueueWithdrawal are the M4a withdrawal queue (§9.8).
+	ValidateWithdrawal(ctx context.Context, script []byte, sat sdkmath.Int) error
+	QueueWithdrawal(ctx context.Context, owner sdk.AccAddress, script []byte, sat sdkmath.Int) (uint64, error)
 }

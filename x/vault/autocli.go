@@ -25,12 +25,12 @@ func (AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 				PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "vault_id"}, {ProtoField: "amount"}},
 			},
 			{
-				RpcMethod: "WithdrawCollateral", Use: "withdraw-collateral [vault-id] [amount-sat]", Short: "Withdraw collateral (M1: to your claimable balance)",
-				PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "vault_id"}, {ProtoField: "amount_sat"}},
+				RpcMethod: "WithdrawCollateral", Use: "withdraw-collateral [vault-id] [amount-sat] [recipient-script-hex]", Short: "Withdraw collateral to a Bitcoin script (P2TR, P2WPKH or P2WSH, hex scriptPubKey)",
+				PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "vault_id"}, {ProtoField: "amount_sat"}, {ProtoField: "recipient_script"}},
 			},
 			{
-				RpcMethod: "CloseVault", Use: "close-vault [vault-id]", Short: "Close a vault with no debt and withdraw all collateral",
-				PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "vault_id"}},
+				RpcMethod: "CloseVault", Use: "close-vault [vault-id] [recipient-script-hex]", Short: "Close a vault with no debt and withdraw all collateral to a Bitcoin script",
+				PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "vault_id"}, {ProtoField: "recipient_script"}},
 			},
 			{
 				RpcMethod: "DepositClaim", Use: "deposit-claim [vault-id] [amount-sat]", Short: "Move claimable BTC into a vault",

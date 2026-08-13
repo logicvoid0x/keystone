@@ -64,7 +64,7 @@ func (r *recorder) Select(ctx context.Context, price sdkmath.Int) (liqtypes.Liqu
 func (r *recorder) Execute(ctx context.Context, _ liqtypes.LiquidationBatch, _ sdkmath.Int) error {
 	return r.step(ctx, "execute")
 }
-func (r *recorder) BuildOps(ctx context.Context, _ []custodytypes.BitcoinVote) (custodytypes.CustodyBatch, error) {
+func (r *recorder) BuildOps(ctx context.Context, _ []custodytypes.Vote) (custodytypes.CustodyBatch, error) {
 	return custodytypes.CustodyBatch{Anchors: make([]vetypes.BtcBlockRef, 1)}, r.step(ctx, "custody_build")
 }
 func (r *recorder) ApplyOps(ctx context.Context, _ custodytypes.CustodyBatch) error {

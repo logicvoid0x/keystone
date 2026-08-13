@@ -19,8 +19,8 @@ import (
 // Keeper owns all satoshi accounting (design §10): key epochs, the deposit script
 // registry, Bitcoin attestation tallies, UTXOs, claimable balances, the fee reserve, the
 // custody deficit and the credited counter for the treasury cap. Credited = satoshis
-// currently credited as vault collateral (docs/decisions.md). Withdrawals and signing
-// arrive in M4a.
+// currently credited as vault collateral (docs/decisions.md). Since M4a it also holds the
+// withdrawal queue, batches, FROST signing sessions and nonce pools.
 type Keeper struct {
 	Schema          collections.Schema
 	Params          collections.Item[types.Params]
@@ -40,6 +40,18 @@ type Keeper struct {
 	FeeReserve      collections.Item[sdkmath.Int]
 	Deficit         collections.Item[sdkmath.Int]
 	Credited        collections.Item[sdkmath.Int]
+	Requests        collections.Map[uint64, types.WithdrawalRequest]
+	NextRequest     collections.Sequence
+	Queue           collections.KeySet[uint64]
+	Batches         collections.Map[uint64, types.WithdrawalBatch]
+	NextBatch       collections.Sequence
+	TxBatch         collections.Map[[]byte, uint64]
+	InFlight        collections.Map[uint64, uint64]
+	Sessions        collections.Map[[]byte, types.SigningSession]
+	ActiveSessions  collections.KeySet[[]byte]
+	Commitments     collections.Map[collections.Triple[uint64, uint32, uint64], types.StoredCommitment]
+	PoolHead        collections.Map[collections.Pair[uint64, uint32], uint64]
+	SignerStats     collections.Map[collections.Pair[uint64, sdk.AccAddress], types.SignerStats]
 
 	admin types.AdminKeeper
 	vals  types.ValidatorSet
@@ -74,6 +86,21 @@ func NewKeeper(cdc codec.BinaryCodec, storeService store.KVStoreService, admin t
 		FeeReserve: collections.NewItem(sb, types.FeeReserveKey, "fee_reserve", sdk.IntValue),
 		Deficit:    collections.NewItem(sb, types.DeficitKey, "deficit", sdk.IntValue),
 		Credited:   collections.NewItem(sb, types.CreditedKey, "credited", sdk.IntValue),
+		Requests:   collections.NewMap(sb, types.RequestsKey, "requests", collections.Uint64Key, codec.CollValue[types.WithdrawalRequest](cdc)),
+		NextRequest: collections.NewSequence(sb, types.NextRequestKey, "next_request"),
+		Queue:      collections.NewKeySet(sb, types.QueueKey, "queue", collections.Uint64Key),
+		Batches:    collections.NewMap(sb, types.BatchesKey, "batches", collections.Uint64Key, codec.CollValue[types.WithdrawalBatch](cdc)),
+		NextBatch:  collections.NewSequence(sb, types.NextBatchKey, "next_batch"),
+		TxBatch:    collections.NewMap(sb, types.TxBatchKey, "tx_batch", collections.BytesKey, collections.Uint64Value),
+		InFlight:   collections.NewMap(sb, types.InFlightKey, "in_flight", collections.Uint64Key, collections.Uint64Value),
+		Sessions:   collections.NewMap(sb, types.SessionsKey, "sessions", collections.BytesKey, codec.CollValue[types.SigningSession](cdc)),
+		ActiveSessions: collections.NewKeySet(sb, types.ActiveSessionsKey, "active_sessions", collections.BytesKey),
+		Commitments: collections.NewMap(sb, types.CommitmentsKey, "commitments",
+			collections.TripleKeyCodec(collections.Uint64Key, collections.Uint32Key, collections.Uint64Key), codec.CollValue[types.StoredCommitment](cdc)),
+		PoolHead: collections.NewMap(sb, types.PoolHeadKey, "pool_head",
+			collections.PairKeyCodec(collections.Uint64Key, collections.Uint32Key), collections.Uint64Value),
+		SignerStats: collections.NewMap(sb, types.SignerStatsKey, "signer_stats",
+			collections.PairKeyCodec(collections.Uint64Key, sdk.AccAddressKey), codec.CollValue[types.SignerStats](cdc)),
 		admin:      admin,
 		vals:       vals,
 	}

@@ -36,6 +36,8 @@ var (
 	admin       = adminAddr.String()
 	stranger    = sdk.AccAddress(bytes.Repeat([]byte{0x05}, 20)).String()
 	alice       = sdk.AccAddress(bytes.Repeat([]byte{0xA1}, 20))
+	// wpkh is a P2WPKH withdrawal script.
+	wpkh = append([]byte{0x00, 0x14}, bytes.Repeat([]byte{0x77}, 20)...)
 	bob         = sdk.AccAddress(bytes.Repeat([]byte{0xB0}, 20))
 	errNotAdmin = errors.New("not admin")
 )
@@ -243,11 +245,14 @@ func TestWithdrawAndClose(t *testing.T) {
 	id := f.open(t, alice, 50_000_000)
 	require.NoError(t, f.mint(alice, id, kusd(30_000)))
 	w := func(owner sdk.AccAddress, sat int64) error {
-		return f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: owner.String(), VaultId: id, AmountSat: n(sat)})
+		_, err := f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: owner.String(), VaultId: id, AmountSat: n(sat), RecipientScript: wpkh})
+		return err
 	}
-	require.ErrorIs(t, w(alice, 9_999), types.ErrInvalidAmount, "below MinWithdrawSat")
+	require.ErrorIs(t, w(alice, 9_999), custodytypes.ErrInvalidAmount, "below MinWithdrawSat")
 	require.ErrorIs(t, w(alice, 6_000_000), types.ErrBelowMCR)
 	require.ErrorIs(t, w(bob, 10_000), types.ErrNotOwner)
+	_, err := f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: alice.String(), VaultId: id, AmountSat: n(10_000), RecipientScript: []byte{0x6a}})
+	require.ErrorIs(t, err, custodytypes.ErrInvalidScript)
 	f.oracle.status = oracletypes.PRICE_STATUS_STALE
 	require.ErrorIs(t, w(alice, 10_000), types.ErrPriceStatus)
 	f.oracle.status = oracletypes.PRICE_STATUS_ACTIVE
@@ -255,21 +260,46 @@ func TestWithdrawAndClose(t *testing.T) {
 	require.NoError(t, w(alice, 4_000_000)) // CR stays ≥ 150%
 	require.Equal(t, n(46_000_000), f.vault(t, id).CollateralSat)
 	cl, _ := f.cust.GetClaimable(f.ctx, alice)
-	require.Equal(t, n(4_000_000), cl)
+	require.True(t, cl.IsZero(), "the withdrawal is queued, not made claimable")
 	cr, _ := f.cust.GetCredited(f.ctx)
 	require.Equal(t, n(46_000_000), cr)
+	req, err := f.cust.Requests.Get(f.ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, custodytypes.WithdrawalRequest{Id: 1, Owner: alice.String(), RecipientScript: wpkh, AmountSat: 4_000_000,
+		Status: custodytypes.REQUEST_STATUS_QUEUED, CreatedHeight: f.ctx.BlockHeight()}, req)
 
-	err := f.k.CloseVault(f.ctx, &types.MsgCloseVault{Owner: alice.String(), VaultId: id})
+	_, err = f.k.CloseVault(f.ctx, &types.MsgCloseVault{Owner: alice.String(), VaultId: id, RecipientScript: wpkh})
 	require.ErrorIs(t, err, types.ErrHasDebt)
 	_, err = f.k.Repay(f.ctx, &types.MsgRepay{Sender: alice.String(), VaultId: id, Amount: kusd(30_000)})
 	require.NoError(t, err)
-	require.NoError(t, f.k.CloseVault(f.ctx, &types.MsgCloseVault{Owner: alice.String(), VaultId: id}))
+	_, err = f.k.CloseVault(f.ctx, &types.MsgCloseVault{Owner: alice.String(), VaultId: id, RecipientScript: []byte{0x6a}})
+	require.ErrorIs(t, err, custodytypes.ErrInvalidScript)
+	rid, err := f.k.CloseVault(f.ctx, &types.MsgCloseVault{Owner: alice.String(), VaultId: id, RecipientScript: wpkh})
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), rid)
 	v := f.vault(t, id)
 	require.Equal(t, types.VAULT_STATUS_CLOSED, v.Status)
 	require.True(t, v.CollateralSat.IsZero())
-	cl, _ = f.cust.GetClaimable(f.ctx, alice)
-	require.Equal(t, n(50_000_000), cl)
+	req, err = f.cust.Requests.Get(f.ctx, 2)
+	require.NoError(t, err)
+	require.Equal(t, uint64(46_000_000), req.AmountSat)
+	q, err := f.cust.QueuedSat(f.ctx)
+	require.NoError(t, err)
+	require.Equal(t, n(50_000_000), q)
+	cr, _ = f.cust.GetCredited(f.ctx)
+	require.True(t, cr.IsZero())
 	require.ErrorIs(t, f.mint(alice, id, kusd(100)), types.ErrVaultStatus)
+}
+
+// A vault holding less than MinWithdrawSat closes into the owner's claimable balance.
+func TestCloseDustVault(t *testing.T) {
+	f := setup(t)
+	id := f.open(t, alice, 9_000)
+	rid, err := f.k.CloseVault(f.ctx, &types.MsgCloseVault{Owner: alice.String(), VaultId: id})
+	require.NoError(t, err)
+	require.Zero(t, rid)
+	cl, _ := f.cust.GetClaimable(f.ctx, alice)
+	require.Equal(t, n(9_000), cl)
 }
 
 func TestDepositClaim(t *testing.T) {
@@ -366,7 +396,8 @@ func TestLiquidationIndexAndIterate(t *testing.T) {
 	require.Equal(t, []uint64{a}, first)
 
 	// Withdrawing collateral rewrites the key.
-	require.NoError(t, f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: bob.String(), VaultId: b, AmountSat: n(50_000_000)}))
+	_, err = f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: bob.String(), VaultId: b, AmountSat: n(50_000_000), RecipientScript: wpkh})
+	require.NoError(t, err)
 	order = nil
 	require.NoError(t, f.k.LiqIndex.Walk(f.ctx, nil, func(key collections.Pair[[]byte, uint64], _ bool) (bool, error) {
 		order = append(order, key.K2())
@@ -503,11 +534,12 @@ func TestWithdrawBlockedByDeficit(t *testing.T) {
 	f := setup(t)
 	id := f.open(t, alice, 50_000_000)
 	require.NoError(t, f.cust.Deficit.Set(f.ctx, n(1)))
-	err := f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: alice.String(), VaultId: id, AmountSat: n(1_000_000)})
+	_, err := f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: alice.String(), VaultId: id, AmountSat: n(1_000_000), RecipientScript: wpkh})
 	require.ErrorIs(t, err, custodytypes.ErrDeficit)
-	err = f.k.CloseVault(f.ctx, &types.MsgCloseVault{Owner: alice.String(), VaultId: id})
+	_, err = f.k.CloseVault(f.ctx, &types.MsgCloseVault{Owner: alice.String(), VaultId: id, RecipientScript: wpkh})
 	require.ErrorIs(t, err, custodytypes.ErrDeficit)
 
 	require.NoError(t, f.cust.Deficit.Set(f.ctx, n(0)))
-	require.NoError(t, f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: alice.String(), VaultId: id, AmountSat: n(1_000_000)}))
+	_, err = f.k.WithdrawCollateral(f.ctx, &types.MsgWithdrawCollateral{Owner: alice.String(), VaultId: id, AmountSat: n(1_000_000), RecipientScript: wpkh})
+	require.NoError(t, err)
 }

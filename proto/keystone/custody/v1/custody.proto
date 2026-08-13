@@ -67,6 +67,8 @@ enum AttestationKind {
   ATTESTATION_KIND_ANCHOR = 1;
   ATTESTATION_KIND_DEPOSIT = 2;
   ATTESTATION_KIND_REORG = 3;
+  // CONFIRM tallies TxConfirmed (added in M4a).
+  ATTESTATION_KIND_CONFIRM = 4;
 }
 
 // Tally accumulates identical attestations across heights (design §9.7 step 3). Key =
@@ -93,4 +95,150 @@ message VerifyingShare {
   uint64 epoch = 1;
   uint32 index = 2;
   bytes pubkey = 3;
+}
+
+// RequestStatus is a withdrawal request's lifecycle (design §9.8).
+enum RequestStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+  REQUEST_STATUS_UNSPECIFIED = 0;
+  REQUEST_STATUS_QUEUED = 1;
+  REQUEST_STATUS_BATCHED = 2;
+  REQUEST_STATUS_COMPLETED = 3;
+}
+
+// WithdrawalRequest is one queued payout (design §9.8 step 1). amount_sat was debited
+// from the owner's collateral or claimable balance when the request was made; the
+// recipient receives amount_sat − fee_sat.
+message WithdrawalRequest {
+  uint64 id = 1;
+  string owner = 2;
+  bytes recipient_script = 3;
+  uint64 amount_sat = 4;
+  RequestStatus status = 5;
+  uint64 batch_id = 6;
+  int64 created_height = 7;
+  // fee_sat is the request's fee share, set when it is batched.
+  uint64 fee_sat = 8;
+}
+
+// BatchKind is why a batch spends treasury UTXOs.
+enum BatchKind {
+  option (gogoproto.goproto_enum_prefix) = false;
+  BATCH_KIND_UNSPECIFIED = 0;
+  BATCH_KIND_WITHDRAW = 1;
+  BATCH_KIND_SWEEP = 2;
+  BATCH_KIND_CONSOLIDATE = 3;
+}
+
+// BatchStatus is a batch's lifecycle.
+enum BatchStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+  BATCH_STATUS_UNSPECIFIED = 0;
+  BATCH_STATUS_SIGNING = 1;
+  BATCH_STATUS_SIGNED = 2;
+  BATCH_STATUS_CONFIRMED = 3;
+}
+
+// BatchTx is one version of a batch's transaction: the first, then one per RBF bump
+// (design §9.8 step 7). The change output, if any, is the last output and pays Q0.
+message BatchTx {
+  // txid in internal byte order.
+  bytes txid = 1;
+  bytes unsigned_tx = 2;
+  // signed_tx is set when every input is signed.
+  bytes signed_tx = 3;
+  uint64 feerate_sat_vb = 4;
+  uint64 fee_sat = 5;
+  uint64 change_sat = 6;
+  // session_ids are the current signing session of each input, in input order.
+  repeated bytes session_ids = 7;
+}
+
+// WithdrawalBatch is one deterministic Bitcoin transaction and its RBF versions
+// (design §9.8; fields differ from the §10.2 sketch, see docs/decisions.md).
+message WithdrawalBatch {
+  uint64 id = 1;
+  uint64 epoch = 2;
+  BatchKind kind = 3;
+  // inputs are outpoints (txid ‖ vout big-endian), in input order.
+  repeated bytes inputs = 4;
+  repeated uint64 input_amounts = 5;
+  repeated uint64 request_ids = 6;
+  BatchStatus status = 7;
+  int64 opened_height = 8;
+  // anchor_height_at_sign is the accepted BTC anchor height when the current tx
+  // version was signed (RBF timing).
+  uint32 anchor_height_at_sign = 9;
+  uint32 rbf_count = 10;
+  // txs are the versions, oldest first; the last is current.
+  repeated BatchTx txs = 11 [(gogoproto.nullable) = false];
+  // confirmed_txid is the version that confirmed.
+  bytes confirmed_txid = 12;
+}
+
+// SessionState is a FROST signing session's state (design §9.11).
+enum SessionState {
+  option (gogoproto.goproto_enum_prefix) = false;
+  SESSION_STATE_UNSPECIFIED = 0;
+  SESSION_STATE_OPEN = 1;
+  SESSION_STATE_SIGNED = 2;
+  SESSION_STATE_FAILED = 3;
+  SESSION_STATE_STALLED = 4;
+}
+
+// SignerAssignment is one share's role in a session: the operator holding it, the
+// nonce commitment the chain assigned (copied from the pool, which it leaves).
+message SignerAssignment {
+  uint32 share_index = 1;
+  string validator = 2;
+  uint64 nonce_seq = 3;
+  bytes hiding = 4;
+  bytes binding = 5;
+}
+
+// ValidatorShare is an operator's accepted combined share.
+message ValidatorShare {
+  string validator = 1;
+  bytes z = 2;
+}
+
+// SigningSession signs one input of a batch (design §9.11). validator fields are
+// operator account addresses.
+message SigningSession {
+  bytes id = 1;
+  uint64 epoch = 2;
+  uint32 attempt = 3;
+  // msg is the BIP-341 SIGHASH_DEFAULT digest of the input.
+  bytes msg = 4;
+  bytes tweak = 5;
+  // signers are sorted by share_index; empty while STALLED.
+  repeated SignerAssignment signers = 6 [(gogoproto.nullable) = false];
+  SessionState state = 7;
+  int64 opened_height = 8;
+  int64 deadline = 9;
+  // received are sorted by validator.
+  repeated ValidatorShare received = 10 [(gogoproto.nullable) = false];
+  bytes signature = 11;
+  uint64 batch_id = 12;
+  uint32 input_index = 13;
+  // tx_version is the index into the batch's txs.
+  uint32 tx_version = 14;
+  // excluded are operators left out of this attempt (missing at the previous
+  // deadline), sorted.
+  repeated string excluded = 15;
+}
+
+// StoredCommitment is a recorded, unconsumed nonce commitment (33-byte points).
+message StoredCommitment {
+  bytes hiding = 1;
+  bytes binding = 2;
+}
+
+// SignerStats counts an operator's signing record in an epoch (design §9.10).
+message SignerStats {
+  uint64 assigned = 1;
+  uint64 missed = 2;
+  uint64 invalid = 3;
+  // flagged is set once signer_flagged has been emitted.
+  bool flagged = 4;
 }

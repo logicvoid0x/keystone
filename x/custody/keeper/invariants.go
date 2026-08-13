@@ -29,8 +29,9 @@ func (k *Keeper) TreasuryCapInvariant(ctx context.Context) error {
 // CoverageInvariant is invariant 6 (custody coverage) with the M3 terms: the satoshis
 // in Keystone UTXOs plus the recorded deficit cover credited collateral (= Σ vault
 // collateral, checked by x/vault), claimable balances, the fee reserve and held, the
-// satoshis owed by other modules (auction collateral and pending pool gains). Pending
-// withdrawal requests join in M4a.
+// satoshis owed by other modules (auction collateral and pending pool gains), plus
+// (M4a) queued withdrawal requests and what in-flight batches will pay out (recipient
+// outputs and fee: inputs minus change of the current version).
 func (k *Keeper) CoverageInvariant(ctx context.Context, held sdkmath.Int) error {
 	utxos, err := k.UtxoSum(ctx)
 	if err != nil {
@@ -52,10 +53,18 @@ func (k *Keeper) CoverageInvariant(ctx context.Context, held sdkmath.Int) error 
 	if err != nil {
 		return err
 	}
-	have, owed := utxos.Add(deficit), credited.Add(claim).Add(fee).Add(held)
+	queued, err := k.QueuedSat(ctx)
+	if err != nil {
+		return err
+	}
+	inflight, err := k.InFlightSat(ctx)
+	if err != nil {
+		return err
+	}
+	have, owed := utxos.Add(deficit), credited.Add(claim).Add(fee).Add(held).Add(queued).Add(inflight)
 	if have.LT(owed) {
-		return fmt.Errorf("invariant 6: UTXOs %s + deficit %s < collateral %s + claimable %s + fee reserve %s + held %s",
-			utxos, deficit, credited, claim, fee, held)
+		return fmt.Errorf("invariant 6: UTXOs %s + deficit %s < collateral %s + claimable %s + fee reserve %s + held %s + queued %s + in flight %s",
+			utxos, deficit, credited, claim, fee, held, queued, inflight)
 	}
 	return nil
 }

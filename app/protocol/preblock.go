@@ -64,7 +64,7 @@ type LiquidationKeeper interface {
 
 // CustodyKeeper is x/custody as used by the PreBlocker (design §9.7).
 type CustodyKeeper interface {
-	BuildOps(ctx context.Context, votes []custodytypes.BitcoinVote) (custodytypes.CustodyBatch, error)
+	BuildOps(ctx context.Context, votes []custodytypes.Vote) (custodytypes.CustodyBatch, error)
 	ApplyOps(ctx context.Context, batch custodytypes.CustodyBatch) error
 }
 
@@ -160,7 +160,7 @@ func (p *PreBlocker) PreBlock(ctx sdk.Context, req *abci.RequestFinalizeBlock) {
 	}
 	var cb custodytypes.CustodyBatch
 	if runStep(ctx, StepCustodyBuild, func(c sdk.Context) (err error) {
-		cb, err = k.Custody.BuildOps(c, agg.Bitcoin)
+		cb, err = k.Custody.BuildOps(c, agg.Custody)
 		return err
 	}) && !cb.Empty() {
 		runStep(ctx, StepCustodyOps, func(c sdk.Context) error { return k.Custody.ApplyOps(c, cb) })

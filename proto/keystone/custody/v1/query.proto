@@ -39,6 +39,36 @@ service Query {
     option (cosmos.query.v1.module_query_safe) = true;
     option (google.api.http).get = "/keystone/custody/v1/treasury";
   }
+  // Withdrawal returns a withdrawal request.
+  rpc Withdrawal(QueryWithdrawalRequest) returns (QueryWithdrawalResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/withdrawal/{id}";
+  }
+  // Batch returns a withdrawal batch.
+  rpc Batch(QueryBatchRequest) returns (QueryBatchResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/batch/{id}";
+  }
+  // Batches returns every withdrawal batch, by id.
+  rpc Batches(QueryBatchesRequest) returns (QueryBatchesResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/batches";
+  }
+  // Session returns a signing session (id in hex).
+  rpc Session(QuerySessionRequest) returns (QuerySessionResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/session/{id}";
+  }
+  // ActiveSessions returns the OPEN and STALLED signing sessions, by id.
+  rpc ActiveSessions(QueryActiveSessionsRequest) returns (QueryActiveSessionsResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/active_sessions";
+  }
+  // NoncePool returns the recorded, unconsumed nonce commitments of a share.
+  rpc NoncePool(QueryNoncePoolRequest) returns (QueryNoncePoolResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/nonce_pool/{epoch}/{share_index}";
+  }
 }
 
 // QueryParamsRequest is the request for Query/Params.
@@ -98,4 +128,66 @@ message QueryTreasuryResponse {
   string fee_reserve_sat = 4 [(cosmos_proto.scalar) = "cosmos.Int", (gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
   string deficit_sat = 5 [(cosmos_proto.scalar) = "cosmos.Int", (gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
   keystone.ve.v1.BtcBlockRef anchor = 6 [(gogoproto.nullable) = false];
+}
+
+// QueryWithdrawalRequest is the request for Query/Withdrawal.
+message QueryWithdrawalRequest {
+  uint64 id = 1;
+}
+
+// QueryWithdrawalResponse is the response for Query/Withdrawal.
+message QueryWithdrawalResponse {
+  WithdrawalRequest request = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryBatchRequest is the request for Query/Batch.
+message QueryBatchRequest {
+  uint64 id = 1;
+}
+
+// QueryBatchResponse is the response for Query/Batch. txid and signed_tx_hex are of
+// the current version, txid in conventional (reversed) hex.
+message QueryBatchResponse {
+  WithdrawalBatch batch = 1 [(gogoproto.nullable) = false];
+  string txid = 2;
+  string signed_tx_hex = 3;
+}
+
+// QueryBatchesRequest is the request for Query/Batches.
+message QueryBatchesRequest {}
+
+// QueryBatchesResponse is the response for Query/Batches.
+message QueryBatchesResponse {
+  repeated WithdrawalBatch batches = 1 [(gogoproto.nullable) = false];
+}
+
+// QuerySessionRequest is the request for Query/Session.
+message QuerySessionRequest {
+  // id is the session id in hex.
+  string id = 1;
+}
+
+// QuerySessionResponse is the response for Query/Session.
+message QuerySessionResponse {
+  SigningSession session = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryActiveSessionsRequest is the request for Query/ActiveSessions.
+message QueryActiveSessionsRequest {}
+
+// QueryActiveSessionsResponse is the response for Query/ActiveSessions.
+message QueryActiveSessionsResponse {
+  repeated SigningSession sessions = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryNoncePoolRequest is the request for Query/NoncePool.
+message QueryNoncePoolRequest {
+  uint64 epoch = 1;
+  uint32 share_index = 2;
+}
+
+// QueryNoncePoolResponse is the response for Query/NoncePool.
+message QueryNoncePoolResponse {
+  uint64 last_recorded = 1;
+  repeated keystone.ve.v1.NonceCommitment commitments = 2 [(gogoproto.nullable) = false];
 }

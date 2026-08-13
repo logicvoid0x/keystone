@@ -13,4 +13,5 @@ var (
 	ErrNoEpoch        = errorsmod.Register(ModuleName, 9, "no active custody epoch")
 	ErrNotFound       = errorsmod.Register(ModuleName, 10, "not found")
 	ErrDeficit        = errorsmod.Register(ModuleName, 11, "custody deficit outstanding")
+	ErrInvalidScript  = errorsmod.Register(ModuleName, 12, "invalid recipient script")
 )

@@ -27,7 +27,7 @@ type pending struct {
 // carries (anchor, deposits, reorgs), and accepts every touched tally whose voters hold
 // more than 2/3 of the current power. Accepted tallies are deleted; the batch lists
 // their payloads in canonical order. Malformed attestations are ignored.
-func (k *Keeper) BuildOps(ctx context.Context, votes []types.BitcoinVote) (types.CustodyBatch, error) {
+func (k *Keeper) BuildOps(ctx context.Context, votes []types.Vote) (types.CustodyBatch, error) {
 	var batch types.CustodyBatch
 	height := sdk.UnwrapSDKContext(ctx).BlockHeight()
 	if err := k.expireTallies(ctx, height); err != nil {
@@ -59,7 +59,7 @@ func (k *Keeper) BuildOps(ctx context.Context, votes []types.BitcoinVote) (types
 		return nil
 	}
 	for _, v := range votes {
-		b := v.Payload
+		b := v.Bitcoin
 		if b == nil {
 			continue
 		}
@@ -78,6 +78,13 @@ func (k *Keeper) BuildOps(ctx context.Context, votes []types.BitcoinVote) (types
 		for i := range b.Reorgs {
 			if types.ValidReorg(&b.Reorgs[i]) {
 				if err := add(types.ATTESTATION_KIND_REORG, mustMarshal(&b.Reorgs[i]), v.ConsAddr); err != nil {
+					return batch, err
+				}
+			}
+		}
+		for i := range b.Confirms {
+			if types.ValidConfirm(&b.Confirms[i]) {
+				if err := add(types.ATTESTATION_KIND_CONFIRM, mustMarshal(&b.Confirms[i]), v.ConsAddr); err != nil {
 					return batch, err
 				}
 			}
@@ -107,6 +114,9 @@ func (k *Keeper) BuildOps(ctx context.Context, votes []types.BitcoinVote) (types
 		}
 	}
 	batch.Sort()
+	if err := k.buildFrost(ctx, votes, &batch); err != nil {
+		return batch, err
+	}
 	return batch, nil
 }
 
@@ -169,6 +179,12 @@ func (k *Keeper) acceptTally(ctx context.Context, p *pending, batch *types.Custo
 			return err
 		}
 		batch.Reverts = append(batch.Reverts, r)
+	case types.ATTESTATION_KIND_CONFIRM:
+		var c vetypes.TxConfirmed
+		if err := c.Unmarshal(p.tally.Payload); err != nil {
+			return err
+		}
+		batch.Confirms = append(batch.Confirms, c)
 	}
 	return nil
 }
@@ -197,8 +213,10 @@ func (k *Keeper) expireTallies(ctx context.Context, height int64) error {
 	return nil
 }
 
-// ApplyOps applies a batch in order: AcceptAnchor, CreditDeposit, RevertDeposit
-// (§5.9). Totality: an operation that cannot apply is skipped with its writes
+// ApplyOps applies a batch in the fixed order of §9.11: AcceptAnchor, CreditDeposit,
+// RevertDeposit, RecordCommitments, ShareAccepted, SessionSigned, SessionFailed (each
+// opening its retry, or stalling), the stalled-session re-check, ConfirmTx, StartRBF,
+// OpenBatch. Totality: an operation that cannot apply is skipped with its writes
 // discarded and a custody_op_skipped{op, reason} event; ApplyOps itself only fails on
 // a store error.
 func (k *Keeper) ApplyOps(ctx context.Context, batch types.CustodyBatch) error {
@@ -210,6 +228,28 @@ func (k *Keeper) ApplyOps(ctx context.Context, batch types.CustodyBatch) error {
 	}
 	for _, r := range batch.Reverts {
 		k.runOp(ctx, types.OpRevertDeposit, func(c context.Context) error { return k.revertDeposit(c, r) })
+	}
+	for _, f := range batch.Frost {
+		k.runOp(ctx, types.OpRecordCommitments, func(c context.Context) error { return k.recordCommitments(c, f) })
+	}
+	for _, a := range batch.Accepted {
+		k.runOp(ctx, types.OpShareAccepted, func(c context.Context) error { return k.applyShareAccepted(c, a) })
+	}
+	for _, s := range batch.Signed {
+		k.runOp(ctx, types.OpSessionSigned, func(c context.Context) error { return k.applySessionSigned(c, s) })
+	}
+	for _, f := range batch.Failed {
+		k.runOp(ctx, types.OpSessionFailed, func(c context.Context) error { return k.applySessionFailed(c, f, batch.Voters) })
+	}
+	k.runOp(ctx, types.OpSessionStalled, func(c context.Context) error { return k.recheckStalled(c, batch.Voters) })
+	for _, cf := range batch.Confirms {
+		k.runOp(ctx, types.OpConfirmTx, func(c context.Context) error { return k.confirmTx(c, cf) })
+	}
+	for _, id := range batch.RBF {
+		k.runOp(ctx, types.OpStartRBF, func(c context.Context) error { return k.startRBF(c, id, batch.Voters) })
+	}
+	if ob := batch.OpenBatch; ob != nil {
+		k.runOp(ctx, types.OpOpenBatch, func(c context.Context) error { return k.applyOpenBatch(c, *ob, batch.Voters) })
 	}
 	return nil
 }
@@ -249,5 +289,56 @@ func (k *Keeper) acceptAnchor(ctx context.Context, a vetypes.BtcBlockRef) error 
 	sdk.UnwrapSDKContext(ctx).EventManager().EmitEvent(sdk.NewEvent(types.EventTypeAnchorAccepted,
 		sdk.NewAttribute(types.AttributeKeyHeight, strconv.FormatUint(uint64(a.Height), 10)),
 		sdk.NewAttribute(types.AttributeKeyHash, types.TxidString(a.Hash))))
+	return nil
+}
+
+// buildFrost is the FROST part of BuildOps (§9.11): it maps each verified vote to its
+// operator (only active operators count), collects the FROST payloads for
+// RecordCommitments, verifies the shares of every OPEN session, picks the batches due
+// for RBF and decides whether a withdrawal batch opens.
+func (k *Keeper) buildFrost(ctx context.Context, votes []types.Vote, batch *types.CustodyBatch) error {
+	ops, err := k.operators(ctx)
+	if err != nil {
+		return err
+	}
+	shares := map[string]map[string][]byte{}
+	for _, v := range votes {
+		op, ok := ops[string(v.ConsAddr)]
+		if !ok {
+			continue
+		}
+		i, found := slices.BinarySearchFunc(batch.Voters, op, func(a, b sdk.AccAddress) int { return bytes.Compare(a, b) })
+		if found {
+			continue // one vote per operator
+		}
+		batch.Voters = slices.Insert(batch.Voters, i, op)
+		if v.Frost == nil {
+			continue
+		}
+		batch.Frost = append(batch.Frost, types.FrostInput{Operator: op, Payload: *v.Frost})
+		m := map[string][]byte{}
+		for _, s := range v.Frost.Shares {
+			m[string(s.SessionId)] = s.Z
+		}
+		shares[op.String()] = m
+	}
+	slices.SortFunc(batch.Frost, func(a, b types.FrostInput) int { return bytes.Compare(a.Operator, b.Operator) })
+	if err := k.buildSigning(ctx, shares, batch); err != nil {
+		return err
+	}
+	if batch.RBF, err = k.dueForRBF(ctx); err != nil {
+		return err
+	}
+	p, err := k.Params.Get(ctx)
+	if err != nil {
+		return err
+	}
+	if due, err := k.shouldOpenBatch(ctx, p); err != nil {
+		return err
+	} else if due {
+		if f, ok := medianFeerate(votes, p); ok {
+			batch.OpenBatch = &types.OpenBatch{Feerate: f}
+		}
+	}
 	return nil
 }

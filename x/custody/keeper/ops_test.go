@@ -110,9 +110,9 @@ func (f *opsFixture) deposit(txid byte, vault uint64, sat uint64) vetypes.Deposi
 func (f *opsFixture) step(t *testing.T, payload *vetypes.BitcoinPayload, voters ...int) types.CustodyBatch {
 	t.Helper()
 	f.ctx = f.ctx.WithBlockHeight(f.ctx.BlockHeight() + 1).WithEventManager(sdk.NewEventManager())
-	var votes []types.BitcoinVote
+	var votes []types.Vote
 	for _, v := range voters {
-		votes = append(votes, types.BitcoinVote{ConsAddr: f.vals[v], Payload: payload})
+		votes = append(votes, types.Vote{ConsAddr: f.vals[v], Bitcoin: payload})
 	}
 	b, err := f.k.BuildOps(f.ctx, votes)
 	require.NoError(t, err)
@@ -140,8 +140,8 @@ func TestTallyQuorumAcrossHeights(t *testing.T) {
 	pl := &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{d}}
 
 	// 2 of 4 is not > 2/3; the same voter again adds nothing.
-	require.True(t, f.step(t, pl, 0, 1).Empty())
-	require.True(t, f.step(t, pl, 0, 1).Empty())
+	require.True(t, noAttestations(f.step(t, pl, 0, 1)))
+	require.True(t, noAttestations(f.step(t, pl, 0, 1)))
 	n := 0
 	require.NoError(t, f.k.Tallies.Walk(f.ctx, nil, func([]byte, types.Tally) (bool, error) { n++; return false, nil }))
 	require.Equal(t, 1, n)
@@ -172,17 +172,17 @@ func TestTallyDisagreementAndNonOperators(t *testing.T) {
 	b := a
 	b.AmountSat = 60_000_000
 	f.ctx = f.ctx.WithBlockHeight(20)
-	votes := []types.BitcoinVote{
-		{ConsAddr: f.vals[0], Payload: &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{a}}},
-		{ConsAddr: f.vals[1], Payload: &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{a}}},
-		{ConsAddr: f.vals[2], Payload: &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{b}}},
-		{ConsAddr: f.vals[3], Payload: &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{b}}},
+	votes := []types.Vote{
+		{ConsAddr: f.vals[0], Bitcoin: &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{a}}},
+		{ConsAddr: f.vals[1], Bitcoin: &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{a}}},
+		{ConsAddr: f.vals[2], Bitcoin: &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{b}}},
+		{ConsAddr: f.vals[3], Bitcoin: &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{b}}},
 		// A non-operator adds no power.
-		{ConsAddr: bytes.Repeat([]byte{0xEE}, 20), Payload: &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{a}}},
+		{ConsAddr: bytes.Repeat([]byte{0xEE}, 20), Bitcoin: &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{a}}},
 	}
 	batch, err := f.k.BuildOps(f.ctx, votes)
 	require.NoError(t, err)
-	require.True(t, batch.Empty(), "a lying minority cannot change the amount")
+	require.True(t, noAttestations(batch), "a lying minority cannot change the amount")
 }
 
 func TestTallyExpiry(t *testing.T) {
@@ -190,12 +190,12 @@ func TestTallyExpiry(t *testing.T) {
 	pl := &vetypes.BitcoinPayload{Deposits: []vetypes.DepositSeen{f.deposit(0xA1, 1, 50_000_000)}}
 	f.step(t, pl, 0, 1) // height 11
 	f.ctx = f.ctx.WithBlockHeight(11 + types.TallyTTL - 2)
-	require.True(t, f.step(t, nil).Empty()) // height 11+TTL-1: still alive
+	require.True(t, noAttestations(f.step(t, nil))) // height 11+TTL-1: still alive
 	has, err := f.k.TallyExpiry.Has(f.ctx, collections.Join(int64(11), types.TallyKey(types.ATTESTATION_KIND_DEPOSIT, mustBytes(t, pl.Deposits[0]))))
 	require.NoError(t, err)
 	require.True(t, has)
-	require.True(t, f.step(t, nil).Empty()) // height 11+TTL: expired
-	require.True(t, f.step(t, pl, 2).Empty(), "the expired voters no longer count")
+	require.True(t, noAttestations(f.step(t, nil))) // height 11+TTL: expired
+	require.True(t, noAttestations(f.step(t, pl, 2)), "the expired voters no longer count")
 	b := f.step(t, pl, 0, 1)
 	require.Len(t, b.Credits, 1)
 }
@@ -372,4 +372,9 @@ func TestCoverageInvariant(t *testing.T) {
 	// A recorded deficit counts on the covered side.
 	require.NoError(t, f.k.Deficit.Set(f.ctx, i(1)))
 	require.NoError(t, f.k.CoverageInvariant(f.ctx, i(10_000_000)))
+}
+
+// noAttestations reports whether a batch accepted no Bitcoin attestation.
+func noAttestations(b types.CustodyBatch) bool {
+	return len(b.Anchors) == 0 && len(b.Credits) == 0 && len(b.Reverts) == 0 && len(b.Confirms) == 0
 }

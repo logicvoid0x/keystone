@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"encoding/binary"
 	"math"
 
 	"cosmossdk.io/collections"
@@ -49,4 +50,12 @@ func (k *Keeper) UtxoSum(ctx context.Context) (sdkmath.Int, error) {
 		return false, nil
 	})
 	return total, err
+}
+
+// SplitOutpoint is the inverse of OutpointBytes.
+func SplitOutpoint(op []byte) ([]byte, uint32, bool) {
+	if len(op) != types.HashLen+4 {
+		return nil, 0, false
+	}
+	return op[:types.HashLen], binary.BigEndian.Uint32(op[types.HashLen:]), true
 }

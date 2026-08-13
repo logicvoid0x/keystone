@@ -112,12 +112,14 @@ message MsgWithdrawCollateral {
     (gogoproto.nullable) = false,
     (amino.dont_omitempty) = true
   ];
-  // recipient_script is the Bitcoin output script (used from M4a; ignored in M1).
+  // recipient_script is the Bitcoin output script: P2TR, P2WPKH or P2WSH.
   bytes recipient_script = 4;
 }
 
-// MsgWithdrawCollateralResponse is the response to MsgWithdrawCollateral.
-message MsgWithdrawCollateralResponse {}
+// MsgWithdrawCollateralResponse carries the queued withdrawal request id.
+message MsgWithdrawCollateralResponse {
+  uint64 request_id = 1;
+}
 
 // MsgCloseVault closes a vault with no debt, withdrawing all collateral.
 message MsgCloseVault {
@@ -126,12 +128,15 @@ message MsgCloseVault {
 
   string owner = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
   uint64 vault_id = 2;
-  // recipient_script is the Bitcoin output script (used from M4a; ignored in M1).
+  // recipient_script is the Bitcoin output script: P2TR, P2WPKH or P2WSH.
   bytes recipient_script = 3;
 }
 
-// MsgCloseVaultResponse is the response to MsgCloseVault.
-message MsgCloseVaultResponse {}
+// MsgCloseVaultResponse carries the withdrawal request id (0 when the vault held no
+// collateral).
+message MsgCloseVaultResponse {
+  uint64 request_id = 1;
+}
 
 // MsgDepositClaim moves amount_sat of the owner's claimable BTC into a vault.
 message MsgDepositClaim {

@@ -1028,6 +1028,16 @@ message ReorgSeen   { bytes txid = 1; uint32 vout = 2; bytes old_block_hash = 3;
 
 **Latency:** batch opens executing block B → signers see it at ExtendVote(B+1) → shares are aggregated executing B+2 → broadcast. That is 3 blocks, about 9 s, with preprocessed nonces.
 
+**Implementation notes (M4a).**
+
+- Requests: `MsgWithdrawCollateral`, `MsgCloseVault` (x/vault) and `MsgWithdrawClaim` (x/custody) check the script kind, `MinWithdrawSat` and the deficit, debit the balance, and queue `WithdrawalRequest{id, owner, recipient_script, amount_sat, status, batch_id, created_height, fee_sat}`. Request and batch ids start at 1. A vault closed with less than `MinWithdrawSat` of collateral sends it to the owner's claimable balance instead.
+- Batch trigger: an ACTIVE epoch, no batch of that epoch in flight (0x21), and either ≥ `BatchMinRequests` queued or the oldest queued request created `BatchMaxWait` or more blocks ago. The feerate is the upper median of the positive VE feerates of the block (element ⌊n/2⌋ of the sorted list), clamped; no feerate, no batch.
+- Construction (default assumptions — review): fee shares are equal, f = ceil(2·F·vsize ÷ k) for k requests, with vsize counting the k recipient outputs plus a change output. The fee is ceil(F·vsize). Inputs must cover Σ(amount − f) + fee + 330, so there is always a change output of at least 330 sat to Q₀ (the "change below 330 goes to fee" case never arises, and Σf − fee ≥ 0 always goes to the fee reserve). Every recipient output must keep at least 546 sat after its share. At most 64 requests per batch (`MaxBatchRequests`); the largest prefix k that fits wins, then the fewest inputs. If no prefix fits, the batch waits (`custody_op_skipped`).
+- Each input's sighash is BIP-341 `SIGHASH_DEFAULT` over all prevouts; the prevout script of a UTXO is OP_1 x(P + t·G) with its stored tweak. The witness is the 64-byte signature. Change is the last output; its UTXO (tweak t₀) is created on confirmation.
+- `WithdrawalBatch` keeps every transaction version (`BatchTx{txid, unsigned_tx, signed_tx, feerate, fee, change, session_ids}`); the last is current. RBF (step 7): when the current version was signed at anchor height a and the accepted anchor reaches a + `RbfAfterBtcBlocks`, a new version is built at max(ceil(1.5·F), F + 1), capped at `FeerateMax`. The extra fee comes out of the change and is charged to the fee reserve; the bump is skipped if change would drop below 330 or the reserve cannot pay. If an older version confirms, the reserve gets the difference back.
+- Confirmation: `TxConfirmed{txid, block}` is tallied like a deposit (kind CONFIRM); on acceptance the inputs are deleted, the change UTXO is added, requests become COMPLETED and the batch CONFIRMED. A confirmed withdrawal that a Bitcoin reorg later removes is not handled (k-deep confirmations; default assumption — review).
+- Invariant 6 adds queued requests and, per in-flight batch, inputs − change of the current version.
+
 ### 9.9 Nonce safety
 
 **Why reuse is fatal:** a signature share is z = d + e·ρ + λ·s·c. Two shares from the same (d, e) on different messages have different ρ and c. An attacker who controls the other commitments in a session can steer ρ, so a few such equations reveal s. Any reuse is treated as a full share leak.
@@ -1139,6 +1149,16 @@ sessions:
 
 **Custody ops** applied by the PreBlocker in this fixed order: `AcceptAnchor`, `CreditDeposit`, `RevertDeposit`, `RecordCommitments`, `ShareAccepted`, `SessionSigned`, `SessionFailed`, `OpenRetry`, `SessionStalled`, `ConfirmTx`, `StartRBF`, `OpenBatch`, `DKGPhaseAdvance`.
 
+**Implementation notes (M4a).**
+
+- Wire changes: `NonceCommitment` gains `uint64 epoch = 5` (VE commitments are sorted by (epoch, share_index, seq)); `SignerAssignment` gains `hiding = 4`, `binding = 5` (the assigned commitment, copied out of the pool); `SigningSession` gains `batch_id = 12`, `input_index = 13`, `tx_version = 14` (index into the batch's tx versions) and `excluded = 15`. `validator` fields hold operator account addresses. `SessionState` is OPEN, SIGNED, FAILED, STALLED.
+- Session id = SHA-256(chain_id ‖ epoch (8 bytes BE) ‖ txid (internal order) ‖ input_index (4 bytes BE) ‖ attempt (4 bytes BE)).
+- RecordCommitments: for each voting operator (one vote per operator, by consensus address → operator), `revoke_all_nonces` first deletes every unconsumed commitment of its shares; then a commitment is recorded only for the operator's own share of an ACTIVE or RETIRING epoch, with seq above the last recorded, at most 2 per share per block, while the share holds fewer than `NoncePool`, and with both points valid.
+- Signer selection takes the operators of this block's verified votes that hold a share of the epoch, are not blamed (`invalid > 0` this epoch), are not excluded and have a commitment; sorted by (missed, operator address bytes); the first t get their lowest-seq commitment, which leaves the pool, and `assigned` is counted. With fewer than t the session is STALLED and consumes nothing. When a STALLED session is re-checked its exclusions are cleared (they applied to the attempt that stalled), so a session whose missing signers return can open again.
+- Shares are verified per operator in operator-address order; z must be a canonical 32-byte scalar. The aggregate is Σ z over the operators (the tweak is in the shares, §9.6) and is checked with BIP-340 verification; a failure there panics. A session whose commitments cannot form a signing set fails without blame.
+- `signer_flagged` is emitted once per (epoch, operator) when invalid > 3 or missed × 5 > assigned.
+- A batch confirmed while sessions of a later version are still open closes them (FAILED, no charge).
+
 ## 10. State and data model
 
 All state uses `cosmossdk.io/collections` with one-byte prefixes per module; there are no protobuf maps. Amounts are `cosmos.Int` strings in protobuf and `sdkmath.Int` in Go.
@@ -1172,15 +1192,17 @@ All state uses `cosmossdk.io/collections` with one-byte prefixes per module; the
 | custody | 0x07 | `BtcAnchor{height, hash}` |
 | custody | 0x08 / 0x09 | outpoint → `Utxo`; (status, inverted amount, outpoint) → empty (coin-selection index) |
 | custody | 0x0A / 0x0B | request id → `WithdrawalRequest`; next id |
-| custody | 0x0C / 0x0D / 0x0E | batch id → `WithdrawalBatch`; session id → `SigningSession`; session id → empty (open-session index) |
-| custody | 0x0F / 0x10 | (epoch, share, seq) → `NonceCommitment`; (epoch, share) → `PoolHead{next_unconsumed, last_recorded}` |
+| custody | 0x0C / 0x0D / 0x0E | batch id → `WithdrawalBatch`; session id → `SigningSession`; session id → empty (index of OPEN and STALLED sessions; M4a) |
+| custody | 0x0F / 0x10 | (epoch, share, seq) → `StoredCommitment{hiding, binding}`, unconsumed only (an assigned commitment is copied into the session and deleted); (epoch, share) → last recorded seq (M4a: the pool is the stored entries, so `next_unconsumed` is implicit) |
 | custody | 0x11 / 0x12 | (epoch, operator) → share index; (epoch, share) → verifying share Y\_i |
 | custody | 0x13 / 0x14 | epoch → `DKGState`; (epoch, phase, dealer) → DKG message |
 | custody | 0x15 / 0x16 / 0x17 | address → claimable sat; fee reserve sat; custody deficit sat |
-| custody | 0x18 / 0x19 | operator → custody encryption pubkey; (epoch, operator) → `SignerStats{missed, invalid}` |
+| custody | 0x18 / 0x19 | operator → custody encryption pubkey; (epoch, operator) → `SignerStats{assigned, missed, invalid, flagged}` |
 | custody | 0x1A / 0x1B | credited sat (for the cap); `PendingMembership{set_hash, since_height}` |
 | custody | 0x1C | outpoint → `DepositRecord{vault_id, owner, block, collateral_sat, claimable_sat, fee_reserve_sat}`: how an accepted deposit was credited, for the reorg path (added in M3) |
 | custody | 0x1D | (first height, attestation hash) → empty: tally expiry index (added in M3) |
+| custody | 0x1E / 0x1F | queued request id → empty (FIFO queue); txid → batch id, for every version of a batch tx (added in M4a) |
+| custody | 0x20 / 0x21 | next batch id; epoch → id of the batch in flight (not yet confirmed) (added in M4a) |
 | poa | 0x01 / 0x02 / 0x03 | Params{admin}; operator address → Operator{consensus\_pubkey, moniker, power}; consensus address → operator address |
 | poa | 0x04 / 0x05 | used consensus pubkeys → empty; operator address → power last sent to CometBFT |
 
@@ -1199,13 +1221,16 @@ message Utxo {
   UtxoStatus status = 6;    // AVAILABLE, LOCKED
   uint64 locked_by_batch = 7;
 }
-message WithdrawalRequest { uint64 id = 1; string owner = 2; bytes recipient_script = 3; uint64 amount_sat = 4; RequestStatus status = 5; uint64 batch_id = 6; }
+message WithdrawalRequest { uint64 id = 1; string owner = 2; bytes recipient_script = 3; uint64 amount_sat = 4; RequestStatus status = 5; uint64 batch_id = 6; int64 created_height = 7; uint64 fee_sat = 8; } // 7, 8 added in M4a
+// As implemented in M4a: per-version fields moved into BatchTx so RBF versions keep
+// their own tx, sessions and fee (§9.8 implementation notes).
+message BatchTx { bytes txid = 1; bytes unsigned_tx = 2; bytes signed_tx = 3; uint64 feerate_sat_vb = 4; uint64 fee_sat = 5; uint64 change_sat = 6; repeated bytes session_ids = 7; }
 message WithdrawalBatch {
   uint64 id = 1; uint64 epoch = 2; BatchKind kind = 3; // WITHDRAW, SWEEP, CONSOLIDATE
-  repeated bytes inputs = 4;  repeated uint64 request_ids = 5;
-  uint64 feerate_sat_vb = 6;  bytes unsigned_tx = 7; repeated bytes session_ids = 8;
-  bytes signed_tx = 9;        BatchStatus status = 10; // SIGNING, SIGNED, CONFIRMED
-  int64 opened_height = 11;   uint32 anchor_height_at_sign = 12; uint32 rbf_count = 13;
+  repeated bytes inputs = 4;  repeated uint64 input_amounts = 5; repeated uint64 request_ids = 6;
+  BatchStatus status = 7;     // SIGNING, SIGNED, CONFIRMED
+  int64 opened_height = 8;    uint32 anchor_height_at_sign = 9; uint32 rbf_count = 10;
+  repeated BatchTx txs = 11;  bytes confirmed_txid = 12;  // txs: oldest first, last is current
 }
 message KeyEpoch { uint64 number = 1; bytes group_key = 2; uint32 n = 3; uint32 t = 4; EpochStatus status = 5; int64 start_height = 6; }
 message Auction { uint64 id = 1; uint64 vault_id = 2; string tab = 3; string raised = 4; string collateral_sat = 5; string start_price = 6; int64 start_height = 7; string sin_owed = 8; } // M1: collateral_sat as cosmos.Int; sin_owed added
@@ -1280,7 +1305,7 @@ func (m msgServer) Mint(ctx context.Context, msg *vaulttypes.MsgMint) (*vaulttyp
 | vault | `vault_opened{id, owner, address}`, `mint{id, amount}`, `repay{id, amount}`, `collateral_credited{id, sat}`, `collateral_withdrawn{id, sat, request_id}` |
 | liquidation | `vault_liquidated{id, mode, debt, seized_sat, price}`, `auction_started{id, tab}`, `auction_taken{id, sat, price}`, `auction_reset{id}` |
 | stablecoin | `bad_debt{amount, source}`, `healed{amount}`, `mints_paused{sin}` |
-| custody | `deposit_accepted{outpoint, vault, sat}`, `deposit_over_cap{outpoint}`, `deposit_reverted{outpoint, deficit}`, `batch_opened{id, txid}`, `session_opened{id, attempt}`, `session_signed{id}`, `session_failed{id, blamed, missing}`, `signer_flagged{operator, reason}`, `withdrawal_signed{batch, txid, raw_tx}`, `tx_confirmed{txid}`, `rbf_started{batch, feerate}`, `custody_membership_pending{added, removed, effective_height}`, `dkg_phase{epoch, phase}`, `epoch_activated{n, group_key}`, `epoch_retired{n}` |
+| custody | `deposit_accepted{outpoint, vault, sat}`, `deposit_over_cap{outpoint}`, `deposit_reverted{outpoint, deficit}`, `batch_opened{id, txid}`, `session_opened{id, attempt}`, `session_signed{id}`, `session_failed{id, blamed, missing}`, `signer_flagged{operator, reason}`, `withdrawal_requested{id, owner, sat, script}` (M4a), `withdrawal_signed{batch, txid}` (M4a: the raw tx is in state, query `Batch`), `tx_confirmed{batch, txid, height}`, `rbf_started{batch, txid, feerate, fee_sat}`, `session_stalled{session, batch, input}` and `nonces_revoked{operator, id}` (M4a), `custody_membership_pending{added, removed, effective_height}`, `dkg_phase{epoch, phase}`, `epoch_activated{n, group_key}`, `epoch_retired{n}` |
 
 ## 12. Failure modes and recovery
 
@@ -1549,7 +1574,7 @@ All invariants are checked at the end of every block in test builds and register
 \sum_{u \in \text{UTXO}} a_u + \text{deficit} \ge \sum_v \text{coll}_v + \sum_a \text{claim}_a + \sum_{x} \text{auction}_x + \sum_{r \in \text{pending}} a_r + \text{feeReserve}
 ```
 
-The UTXO sum covers AVAILABLE and LOCKED; pending covers queued and in-flight requests (gross amounts before fee share). Implemented in M3 in `App.CheckInvariants`: the auction term also includes x/liquidation's seized satoshis still pending for pool depositors (prefix 0x08), and Σ coll_v is the credited counter, which x/vault checks equals Σ collateral. Pending requests join in M4a.
+The UTXO sum covers AVAILABLE and LOCKED; pending covers queued and in-flight requests (gross amounts before fee share). Implemented in M3 in `App.CheckInvariants`: the auction term also includes x/liquidation's seized satoshis still pending for pool depositors (prefix 0x08), and Σ coll_v is the credited counter, which x/vault checks equals Σ collateral. M4a: queued requests count at their gross amount; a batch in flight counts as inputs − change of its current version (recipient outputs plus the fee), because at batch opening Σ fee shares − fee moves into the fee reserve.
 
 7. **Liquidation index.** A vault is in the index if and only if art\_v > 0, with key exactly as in §8.1.
 8. **Stability pool.** The pool module's KUSD balance ≥ the sum of compounded deposits, and the difference is at most one ukusd per depositor plus a tracked pool slack (`x/liquidation` prefix 0x0A). Corrected in M1: each deposit touch strands up to 1 ukusd of compounding dust (as in Liquity), so the per-depositor bound alone cannot hold. The slack grows by 1 per deposit touch and per liquidation and resets when dust is swept to surplus (pool emptied or epoch reset).

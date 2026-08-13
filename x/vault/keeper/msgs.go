@@ -200,92 +200,108 @@ func (k *Keeper) Repay(ctx context.Context, msg *types.MsgRepay) (sdkmath.Int, e
 	return repaid, nil
 }
 
-// WithdrawCollateral debits collateral (design §7.2): owner; price not STALE; CR after
-// ≥ MCR at min(spot, TWAP) or debt = 0; amount ≥ MinWithdrawSat; no custody deficit
-// (spec M3-T6). Until M4a the satoshis go to the owner's claimable balance.
-func (k *Keeper) WithdrawCollateral(ctx context.Context, msg *types.MsgWithdrawCollateral) error {
+// WithdrawCollateral debits collateral (design §7.2, §9.8 step 1): owner; price not
+// STALE; CR after ≥ MCR at min(spot, TWAP) or debt = 0; amount ≥ MinWithdrawSat; a
+// P2TR, P2WPKH or P2WSH recipient; no custody deficit (spec M3-T6). The satoshis leave
+// the vault at once and a withdrawal request is queued; it returns the request id.
+func (k *Keeper) WithdrawCollateral(ctx context.Context, msg *types.MsgWithdrawCollateral) (uint64, error) {
 	if err := msg.ValidateBasic(); err != nil {
-		return err
+		return 0, err
 	}
-	if err := k.custody.CheckNoDeficit(ctx); err != nil {
-		return err
+	if err := k.custody.ValidateWithdrawal(ctx, msg.RecipientScript, msg.AmountSat); err != nil {
+		return 0, err
 	}
 	v, err := k.ownedVault(ctx, msg.VaultId, msg.Owner)
 	if err != nil {
-		return err
-	}
-	cp, err := k.custody.GetParams(ctx)
-	if err != nil {
-		return err
-	}
-	if msg.AmountSat.LT(cp.MinWithdrawSat) {
-		return errorsmod.Wrapf(types.ErrInvalidAmount, "minimum withdrawal is %s sat", cp.MinWithdrawSat)
+		return 0, err
 	}
 	if msg.AmountSat.GT(v.CollateralSat) {
-		return errorsmod.Wrapf(types.ErrInsufficient, "vault %d has %s sat", v.Id, v.CollateralSat)
+		return 0, errorsmod.Wrapf(types.ErrInsufficient, "vault %d has %s sat", v.Id, v.CollateralSat)
 	}
 	price, ok, err := k.oracle.CollateralPrice(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !ok {
-		return errorsmod.Wrap(types.ErrPriceStatus, "price is stale")
+		return 0, errorsmod.Wrap(types.ErrPriceStatus, "price is stale")
 	}
 	p, err := k.Params.Get(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	debt, err := k.Debt(ctx, v)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	next := v
 	next.CollateralSat = v.CollateralSat.Sub(msg.AmountSat)
 	if !types.MeetsMCR(next.CollateralSat, debt, price, p.McrBps) {
-		return errorsmod.Wrapf(types.ErrBelowMCR, "vault %d", v.Id)
+		return 0, errorsmod.Wrapf(types.ErrBelowMCR, "vault %d", v.Id)
 	}
-	return k.moveCollateralToClaimable(ctx, v, next, msg.AmountSat)
+	return k.withdrawCollateral(ctx, v, next, msg.AmountSat, msg.RecipientScript)
 }
 
-func (k *Keeper) moveCollateralToClaimable(ctx context.Context, prev, next types.Vault, sat sdkmath.Int) error {
+// withdrawCollateral takes sat out of the vault and the credited counter and queues
+// a withdrawal request to script.
+func (k *Keeper) withdrawCollateral(ctx context.Context, prev, next types.Vault, sat sdkmath.Int, script []byte) (uint64, error) {
 	if err := k.setVault(ctx, &prev, next); err != nil {
-		return err
+		return 0, err
 	}
 	if err := k.custody.SubCredited(ctx, sat); err != nil {
-		return err
+		return 0, err
 	}
-	if err := k.custody.CreditClaimable(ctx, sdk.MustAccAddressFromBech32(prev.Owner), sat); err != nil {
-		return err
+	id, err := k.custody.QueueWithdrawal(ctx, sdk.MustAccAddressFromBech32(prev.Owner), script, sat)
+	if err != nil {
+		return 0, err
 	}
 	emit(ctx, types.EventTypeCollateralWithdrawn,
 		sdk.NewAttribute(types.AttributeKeyID, uintStr(prev.Id)),
 		sdk.NewAttribute(types.AttributeKeySat, sat.String()),
-		sdk.NewAttribute(types.AttributeKeyRequestID, "")) // withdrawal requests arrive in M4a
-	return nil
+		sdk.NewAttribute(types.AttributeKeyRequestID, uintStr(id)))
+	return id, nil
 }
 
-// CloseVault closes a vault with no debt and withdraws all its collateral.
-func (k *Keeper) CloseVault(ctx context.Context, msg *types.MsgCloseVault) error {
+// CloseVault closes a vault with no debt and withdraws all its collateral to
+// recipient_script. Collateral below MinWithdrawSat cannot be paid out on its own and
+// goes to the owner's claimable balance instead (docs/decisions.md). It returns the
+// request id (0 if none).
+func (k *Keeper) CloseVault(ctx context.Context, msg *types.MsgCloseVault) (uint64, error) {
 	if err := msg.ValidateBasic(); err != nil {
-		return err
+		return 0, err
 	}
 	v, err := k.ownedVault(ctx, msg.VaultId, msg.Owner)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if v.Art.IsPositive() {
-		return errorsmod.Wrapf(types.ErrHasDebt, "vault %d", v.Id)
+		return 0, errorsmod.Wrapf(types.ErrHasDebt, "vault %d", v.Id)
 	}
 	next := v
 	next.CollateralSat = sdkmath.ZeroInt()
 	next.Status = types.VAULT_STATUS_CLOSED
-	if v.CollateralSat.IsPositive() {
-		if err := k.custody.CheckNoDeficit(ctx); err != nil {
-			return err
-		}
-		return k.moveCollateralToClaimable(ctx, v, next, v.CollateralSat)
+	if !v.CollateralSat.IsPositive() {
+		return 0, k.setVault(ctx, &v, next)
 	}
-	return k.setVault(ctx, &v, next)
+	if err := k.custody.CheckNoDeficit(ctx); err != nil {
+		return 0, err
+	}
+	cp, err := k.custody.GetParams(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if v.CollateralSat.LT(cp.MinWithdrawSat) {
+		if err := k.setVault(ctx, &v, next); err != nil {
+			return 0, err
+		}
+		if err := k.custody.SubCredited(ctx, v.CollateralSat); err != nil {
+			return 0, err
+		}
+		return 0, k.custody.CreditClaimable(ctx, sdk.MustAccAddressFromBech32(v.Owner), v.CollateralSat)
+	}
+	if err := k.custody.ValidateWithdrawal(ctx, msg.RecipientScript, v.CollateralSat); err != nil {
+		return 0, err
+	}
+	return k.withdrawCollateral(ctx, v, next, v.CollateralSat, msg.RecipientScript)
 }
 
 // DepositClaim moves claimable BTC into a vault. It counts as a credit: allowed only
