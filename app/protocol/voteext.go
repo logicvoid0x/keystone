@@ -14,17 +14,24 @@ type PriceSource interface {
 	Snapshot() (*vetypes.OraclePayload, bool)
 }
 
+// FrostSource is the FROST signer (design §9.11). Payload may do local file I/O (the
+// nonce store fsyncs) but no network I/O.
+type FrostSource interface {
+	Payload(height int64) (*vetypes.FrostPayload, error)
+}
+
 // BitcoinSource is the Bitcoin watcher's snapshot (design §9.7). Snapshot must not
 // block on network I/O.
 type BitcoinSource interface {
 	Snapshot() (*vetypes.BitcoinPayload, bool)
 }
 
-// VoteExtHandler implements ExtendVote and VerifyVoteExtension (design §5.2). The
-// FROST signer arrives in M4a.
+// VoteExtHandler implements ExtendVote and VerifyVoteExtension (design §5.2).
 type VoteExtHandler struct {
 	price   PriceSource
 	bitcoin BitcoinSource
+	frost   FrostSource
+	onFrost func(error)
 }
 
 // NewVoteExtHandler returns a handler with no sidecars attached.
@@ -36,8 +43,15 @@ func (h *VoteExtHandler) SetPriceSource(p PriceSource) { h.price = p }
 // SetBitcoinSource attaches the Bitcoin watcher. Call before the node starts.
 func (h *VoteExtHandler) SetBitcoinSource(b BitcoinSource) { h.bitcoin = b }
 
+// SetFrostSource attaches the FROST signer; errors are passed to onErr (may be nil).
+// Call before the node starts.
+func (h *VoteExtHandler) SetFrostSource(f FrostSource, onErr func(error)) {
+	h.frost, h.onFrost = f, onErr
+}
+
 // ExtendVote returns VoteExtension{version: 1, height, oracle from the price snapshot,
-// bitcoin from the watcher snapshot}. It never returns an error.
+// bitcoin from the watcher snapshot, frost from the signer}. It never returns an error;
+// a signer error leaves the FROST payload out.
 func (h *VoteExtHandler) ExtendVote(_ sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
 	ve := vetypes.VoteExtension{Version: VEVersion, Height: req.Height}
 	if h.price != nil {
@@ -50,11 +64,27 @@ func (h *VoteExtHandler) ExtendVote(_ sdk.Context, req *abci.RequestExtendVote) 
 			ve.Bitcoin = b
 		}
 	}
+	if h.frost != nil {
+		f, err := h.frost.Payload(req.Height)
+		switch {
+		case err != nil:
+			if h.onFrost != nil {
+				h.onFrost(err)
+			}
+		case f != nil && (len(f.Commitments) > 0 || len(f.Shares) > 0 || f.RevokeAllNonces):
+			ve.Frost = f
+		}
+	}
 	if bz, ok := encodeVE(&ve); ok {
 		return &abci.ResponseExtendVote{VoteExtension: bz}, nil
 	}
-	// A Bitcoin payload that breaks a limit must not cost the node its price vote.
+	// A Bitcoin or FROST payload that breaks a limit must not cost the node its price
+	// vote: drop Bitcoin first, then FROST.
 	ve.Bitcoin = nil
+	if bz, ok := encodeVE(&ve); ok {
+		return &abci.ResponseExtendVote{VoteExtension: bz}, nil
+	}
+	ve.Frost = nil
 	if bz, ok := encodeVE(&ve); ok {
 		return &abci.ResponseExtendVote{VoteExtension: bz}, nil
 	}

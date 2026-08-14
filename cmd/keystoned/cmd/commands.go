@@ -7,12 +7,14 @@ import (
 
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
 
 	"cosmossdk.io/log/v2"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/debug"
+	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/client/keys"
 	"github.com/cosmos/cosmos-sdk/client/rpc"
 	"github.com/cosmos/cosmos-sdk/server"
@@ -23,6 +25,7 @@ import (
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/sidecar/btcwatch"
 	"github.com/OWNER/keystone/sidecar/price"
+	"github.com/OWNER/keystone/sidecar/signer"
 )
 
 func initRootCmd(rootCmd *cobra.Command, tempApp *app.App) {
@@ -32,7 +35,11 @@ func initRootCmd(rootCmd *cobra.Command, tempApp *app.App) {
 		debugCommand(),
 	)
 
-	server.AddCommandsWithStartCmdOptions(rootCmd, app.DefaultNodeHome, newApp, appExport, server.StartCmdOptions{})
+	server.AddCommandsWithStartCmdOptions(rootCmd, app.DefaultNodeHome, newApp, appExport, server.StartCmdOptions{
+		AddFlags: func(cmd *cobra.Command) {
+			cmd.Flags().Bool(signer.FlagRevokeNonces, false, "Set revoke_all_nonces in the next vote extension (after restoring shares from a backup, design §9.5)")
+		},
+	})
 
 	rootCmd.AddCommand(
 		server.StatusCommand(),
@@ -128,6 +135,20 @@ func newApp(logger log.Logger, db dbm.DB, appOpts servertypes.AppOptions) server
 		logger.Info("bitcoin watcher started")
 	} else {
 		logger.Warn("[keystone.bitcoin] disabled; vote extensions carry no Bitcoin attestations")
+	}
+
+	// FROST signer: signs custody sessions at ExtendVote with the node's share.
+	home := cast.ToString(appOpts.Get(flags.FlagHome))
+	s, closeStore, err := signer.FromAppOptions(home, appOpts, a.FrostView(), logger.With("module", "signer"))
+	if err != nil {
+		panic(fmt.Errorf("[keystone.signer]: %w", err))
+	}
+	if s != nil {
+		a.SetFrostSource(s)
+		a.OnClose(closeStore)
+		logger.Info("frost signer started")
+	} else {
+		logger.Warn("[keystone.signer] disabled; this node signs no custody sessions")
 	}
 	return a
 }

@@ -32,12 +32,12 @@ import (
 )
 
 var (
-	adminAddr   = sdk.AccAddress(bytes.Repeat([]byte{0xAD}, 20))
-	admin       = adminAddr.String()
-	stranger    = sdk.AccAddress(bytes.Repeat([]byte{0x05}, 20)).String()
-	alice       = sdk.AccAddress(bytes.Repeat([]byte{0xA1}, 20))
+	adminAddr = sdk.AccAddress(bytes.Repeat([]byte{0xAD}, 20))
+	admin     = adminAddr.String()
+	stranger  = sdk.AccAddress(bytes.Repeat([]byte{0x05}, 20)).String()
+	alice     = sdk.AccAddress(bytes.Repeat([]byte{0xA1}, 20))
 	// wpkh is a P2WPKH withdrawal script.
-	wpkh = append([]byte{0x00, 0x14}, bytes.Repeat([]byte{0x77}, 20)...)
+	wpkh        = append([]byte{0x00, 0x14}, bytes.Repeat([]byte{0x77}, 20)...)
 	bob         = sdk.AccAddress(bytes.Repeat([]byte{0xB0}, 20))
 	errNotAdmin = errors.New("not admin")
 )

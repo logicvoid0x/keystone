@@ -23,6 +23,7 @@ import (
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/sidecar/btcwatch"
 	"github.com/OWNER/keystone/sidecar/price"
+	"github.com/OWNER/keystone/sidecar/signer"
 )
 
 // TimeoutCommit targets ~3 s blocks. In CometBFT v0.40 this is config.toml
@@ -92,6 +93,7 @@ func initCometBFTConfig() *cmtcfg.Config {
 type KeystoneConfig struct {
 	Price   price.Config        `mapstructure:"price"`
 	Bitcoin btcwatch.FileConfig `mapstructure:"bitcoin"`
+	Signer  signer.FileConfig   `mapstructure:"signer"`
 }
 
 // AppConfig is app.toml: the SDK server config plus [keystone.*].
@@ -101,7 +103,7 @@ type AppConfig struct {
 }
 
 // AppConfigTemplate is the SDK template plus the Keystone sections.
-const AppConfigTemplate = serverconfig.DefaultConfigTemplate + price.ConfigTemplate + btcwatch.ConfigTemplate
+const AppConfigTemplate = serverconfig.DefaultConfigTemplate + price.ConfigTemplate + btcwatch.ConfigTemplate + signer.ConfigTemplate
 
 // initAppConfig is the default app.toml: zero gas price, sequential executor, no
 // app-side mempool (CometBFT FIFO order), real-exchange price sources.
@@ -115,5 +117,5 @@ func DefaultAppConfig() *AppConfig {
 	cfg.MinGasPrices = "0" + app.Denom
 	cfg.BlockExecutor = serverconfig.BlockExecutorSequential
 	cfg.Mempool.MaxTxs = -1
-	return &AppConfig{Config: *cfg, Keystone: KeystoneConfig{Price: price.DefaultConfig(), Bitcoin: btcwatch.DefaultFileConfig()}}
+	return &AppConfig{Config: *cfg, Keystone: KeystoneConfig{Price: price.DefaultConfig(), Bitcoin: btcwatch.DefaultFileConfig(), Signer: signer.DefaultFileConfig()}}
 }

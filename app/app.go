@@ -6,6 +6,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -144,6 +145,7 @@ type App struct {
 	protocol  *protocol.PreBlocker
 	voteExt   *protocol.VoteExtHandler
 	price     protocol.PriceSource
+	closers   []func() error
 	invState  invariantState
 	metrics   *Metrics
 	proposals *protocol.ProposalHandler
@@ -513,13 +515,27 @@ func (app *App) SetPriceSource(src protocol.PriceSource) {
 // starts.
 func (app *App) SetBitcoinSource(src protocol.BitcoinSource) { app.voteExt.SetBitcoinSource(src) }
 
+// SetFrostSource attaches the FROST signer to ExtendVote; signer errors are logged.
+// Call before the node starts.
+func (app *App) SetFrostSource(src protocol.FrostSource) {
+	app.voteExt.SetFrostSource(src, func(err error) { app.Logger().Error("frost signer: no FROST payload this vote", "err", err) })
+}
+
 // Close stops the sidecars, then closes BaseApp.
 func (app *App) Close() error {
 	if s, ok := app.price.(interface{ Stop() }); ok {
 		s.Stop()
 	}
-	return app.BaseApp.Close()
+	err := app.BaseApp.Close()
+	for _, f := range app.closers {
+		err = errors.Join(err, f())
+	}
+	return err
 }
+
+// OnClose registers f to run after BaseApp closes (sidecar resources such as the
+// signer's nonce store).
+func (app *App) OnClose(f func() error) { app.closers = append(app.closers, f) }
 
 // KVStoreKeyNames returns the names of every KV store, sorted (tests: state diffs).
 func (app *App) KVStoreKeyNames() []string {

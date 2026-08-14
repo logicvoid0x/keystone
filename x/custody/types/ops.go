@@ -108,7 +108,9 @@ func ValidDeposit(d *vetypes.DepositSeen) bool {
 }
 
 // ValidConfirm checks a TxConfirmed's shape: 32-byte txid and a block reference.
-func ValidConfirm(c *vetypes.TxConfirmed) bool { return len(c.Txid) == HashLen && ValidBlockRef(c.Block) }
+func ValidConfirm(c *vetypes.TxConfirmed) bool {
+	return len(c.Txid) == HashLen && ValidBlockRef(c.Block)
+}
 
 // ValidReorg checks a ReorgSeen's shape: 32-byte txid and old block hash.
 func ValidReorg(r *vetypes.ReorgSeen) bool {
