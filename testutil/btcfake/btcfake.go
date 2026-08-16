@@ -5,6 +5,7 @@
 package btcfake
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -24,6 +25,10 @@ type Chain struct {
 	blocks  []*wire.MsgBlock // blocks[h] is height h; blocks[0] is genesis
 	mempool []*wire.MsgTx
 	nonce   uint32
+	// Sent lists every txid accepted by SendRawTransaction, in order; Submissions
+	// counts every call (resubmissions included).
+	Sent        []chainhash.Hash
+	Submissions int
 	// Fail, if set, is returned by every call (bitcoind unreachable).
 	Fail error
 }
@@ -163,3 +168,62 @@ func (c *Chain) Block(_ context.Context, hash chainhash.Hash) (*wire.MsgBlock, e
 
 // FeeRate implements btcwatch.Source.
 func (c *Chain) FeeRate(context.Context) (uint64, error) { return FeeRate, nil }
+
+// SendRawTransaction implements btcwatch.Source: it decodes raw and puts it in the
+// mempool unless it is already there or in a block. A transaction spending an input of
+// a mempool transaction replaces it (RBF). Scripts are not checked.
+func (c *Chain) SendRawTransaction(_ context.Context, raw []byte) error {
+	var tx wire.MsgTx
+	if err := tx.Deserialize(bytes.NewReader(raw)); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.Fail != nil {
+		return c.Fail
+	}
+	c.Submissions++
+	id := tx.TxHash()
+	for _, b := range c.blocks {
+		for _, t := range b.Transactions {
+			if t.TxHash() == id {
+				return nil
+			}
+		}
+	}
+	keep := c.mempool[:0]
+	for _, t := range c.mempool {
+		if t.TxHash() == id {
+			return nil
+		}
+		if !conflicts(t, &tx) {
+			keep = append(keep, t)
+		}
+	}
+	c.mempool = append(keep, &tx)
+	c.Sent = append(c.Sent, id)
+	return nil
+}
+
+func conflicts(a, b *wire.MsgTx) bool {
+	for _, x := range a.TxIn {
+		for _, y := range b.TxIn {
+			if x.PreviousOutPoint == y.PreviousOutPoint {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// InMempool reports whether txid is in the mempool.
+func (c *Chain) InMempool(txid chainhash.Hash) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, t := range c.mempool {
+		if t.TxHash() == txid {
+			return true
+		}
+	}
+	return false
+}

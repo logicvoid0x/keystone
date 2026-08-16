@@ -33,6 +33,9 @@ type Source interface {
 	Block(ctx context.Context, hash chainhash.Hash) (*wire.MsgBlock, error)
 	// FeeRate is the current estimate in sat/vB.
 	FeeRate(ctx context.Context) (uint64, error)
+	// SendRawTransaction submits a signed transaction (one it already has is not an
+	// error).
+	SendRawTransaction(ctx context.Context, raw []byte) error
 }
 
 // Outpoint identifies a Bitcoin output (txid in internal byte order).
@@ -56,7 +59,25 @@ type View struct {
 	Scripts map[string]bool
 	// Deposits are the accepted deposits whose UTXO Keystone still holds.
 	Deposits map[Outpoint]Record
+	// Height is the committed Keystone height the view was read at.
+	Height int64
+	// Signed are the current signed versions of in-flight withdrawal batches, to
+	// broadcast (design §9.8 step 5).
+	Signed []SignedTx
+	// Watched are the txids of every version of every in-flight batch, to attest
+	// TxConfirmed for (step 6).
+	Watched []chainhash.Hash
 }
+
+// SignedTx is a signed withdrawal transaction.
+type SignedTx struct {
+	Txid chainhash.Hash
+	Raw  []byte
+}
+
+// RebroadcastBlocks is how often (in Keystone blocks) a signed, unconfirmed
+// transaction is submitted again.
+const RebroadcastBlocks = 10
 
 // ChainView loads a View from the latest committed state (read-only).
 type ChainView interface {
@@ -102,6 +123,8 @@ type Watcher struct {
 	mu     sync.Mutex
 	blocks []block // contiguous, ascending, ending at the best tip
 	snap   *vetypes.BitcoinPayload
+	// sent is the Keystone height each signed tx was last submitted at.
+	sent map[chainhash.Hash]int64
 }
 
 // New returns a watcher; call Update (or Run) to start following src.
@@ -115,7 +138,7 @@ func New(src Source, view ChainView, cfg Config, logger log.Logger) *Watcher {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
-	return &Watcher{src: src, view: view, cfg: cfg, logger: logger}
+	return &Watcher{src: src, view: view, cfg: cfg, logger: logger, sent: map[chainhash.Hash]int64{}}
 }
 
 // Snapshot returns the latest payload for ExtendVote. It never blocks on I/O; ok is
@@ -148,6 +171,7 @@ func (w *Watcher) Update(ctx context.Context) error {
 		w.setSnap(nil)
 		return fmt.Errorf("fee rate: %w", err)
 	}
+	w.broadcast(ctx, v)
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.snap = w.build(v, fee)
@@ -319,7 +343,9 @@ func (w *Watcher) build(v View, fee uint64) *vetypes.BitcoinPayload {
 	for op := range v.Deposits {
 		ops = append(ops, op)
 	}
-	slices.SortFunc(ops, func(x, y Outpoint) int { return cmp.Or(bytes.Compare(x.Txid[:], y.Txid[:]), cmp.Compare(x.Vout, y.Vout)) })
+	slices.SortFunc(ops, func(x, y Outpoint) int {
+		return cmp.Or(bytes.Compare(x.Txid[:], y.Txid[:]), cmp.Compare(x.Vout, y.Vout))
+	})
 	for _, op := range ops {
 		if len(p.Reorgs) == protocol.MaxReorgs {
 			break
@@ -331,7 +357,59 @@ func (w *Watcher) build(v View, fee uint64) *vetypes.BitcoinPayload {
 		}
 		p.Reorgs = append(p.Reorgs, vetypes.ReorgSeen{Txid: slices.Clone(op.Txid[:]), Vout: op.Vout, OldBlockHash: slices.Clone(rec.Hash[:])})
 	}
+	// TxConfirmed for our transactions at depth ≥ k (§9.8 step 6). Every Keystone
+	// transaction pays change to a P2TR output, so the scan's P2TR outputs find it.
+	watched := slices.Clone(v.Watched)
+	slices.SortFunc(watched, func(x, y chainhash.Hash) int { return bytes.Compare(x[:], y[:]) })
+	for _, id := range watched {
+		if len(p.Confirms) == protocol.MaxConfirms {
+			break
+		}
+		if b := w.blockWith(id); b != nil && b.height <= tip-k+1 {
+			p.Confirms = append(p.Confirms, vetypes.TxConfirmed{Txid: slices.Clone(id[:]), Block: ref(b.height, b.hash)})
+		}
+	}
 	ve := vetypes.VoteExtension{Bitcoin: p}
 	protocol.Canonicalize(&ve)
 	return p
+}
+
+// broadcast submits each signed withdrawal the first time it is seen and again every
+// RebroadcastBlocks Keystone blocks until it confirms (design §9.8 step 5). A failure
+// is logged and retried on the next update.
+func (w *Watcher) broadcast(ctx context.Context, v View) {
+	live := make(map[chainhash.Hash]bool, len(v.Signed))
+	for _, s := range v.Signed {
+		live[s.Txid] = true
+		last, ok := w.sent[s.Txid]
+		if ok && v.Height-last < RebroadcastBlocks {
+			continue
+		}
+		if err := w.src.SendRawTransaction(ctx, s.Raw); err != nil {
+			w.logger.Error("broadcast of withdrawal failed", "txid", s.Txid.String(), "err", err)
+			continue
+		}
+		if !ok {
+			w.logger.Info("broadcast withdrawal", "txid", s.Txid.String())
+		}
+		w.sent[s.Txid] = v.Height
+	}
+	for id := range w.sent {
+		if !live[id] {
+			delete(w.sent, id)
+		}
+	}
+}
+
+// blockWith returns the stored block containing a P2TR output of txid, or nil.
+// Caller holds w.mu.
+func (w *Watcher) blockWith(txid chainhash.Hash) *block {
+	for i := range w.blocks {
+		for _, o := range w.blocks[i].outs {
+			if o.txid == txid {
+				return &w.blocks[i]
+			}
+		}
+	}
+	return nil
 }

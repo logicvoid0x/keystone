@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/btcsuite/btcd/chainhash/v2"
+	"github.com/btcsuite/btcd/wire/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/OWNER/keystone/app/protocol"
@@ -205,4 +206,38 @@ func TestRPCClient(t *testing.T) {
 	_, err = r.Chain(context.Background())
 	require.ErrorContains(t, err, "Method not found")
 	require.Equal(t, []string{"getblockcount", "estimatesmartfee", "getblockchaininfo"}, seen)
+}
+
+// Signed withdrawals are submitted on first sight and every RebroadcastBlocks Keystone
+// blocks; once mined at depth k the watcher attests TxConfirmed.
+func TestBroadcastAndConfirm(t *testing.T) {
+	c, v, w := setup(2)
+	tx := wire.NewMsgTx(2)
+	tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(&chainhash.Hash{7}, 0), nil, nil))
+	tx.AddTxOut(wire.NewTxOut(10_000, script(5))) // change to a P2TR output
+	var buf bytes.Buffer
+	require.NoError(t, tx.Serialize(&buf))
+	id := tx.TxHash()
+	v.v.Height = 100
+	v.v.Signed = []btcwatch.SignedTx{{Txid: id, Raw: buf.Bytes()}}
+	v.v.Watched = []chainhash.Hash{id}
+
+	snap(t, w)
+	require.True(t, c.InMempool(id))
+	require.Equal(t, 1, c.Submissions)
+	snap(t, w)
+	require.Equal(t, 1, c.Submissions, "not resubmitted within RebroadcastBlocks")
+	v.v.Height = 100 + btcwatch.RebroadcastBlocks
+	snap(t, w)
+	require.Equal(t, 2, c.Submissions, "resubmitted after RebroadcastBlocks")
+	require.Len(t, c.Sent, 1)
+
+	c.Mine(1)
+	p := snap(t, w)
+	require.Empty(t, p.Confirms, "1 confirmation < k = 2")
+	c.Mine(1)
+	p = snap(t, w)
+	require.Len(t, p.Confirms, 1)
+	require.Equal(t, id[:], p.Confirms[0].Txid)
+	require.Equal(t, uint32(c.Height()-1), p.Confirms[0].Block.Height)
 }

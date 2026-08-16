@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -164,4 +166,15 @@ func (r *RPC) Chain(ctx context.Context) (string, error) {
 	}
 	err := r.Call(ctx, "getblockchaininfo", &res)
 	return res.Chain, err
+}
+
+// SendRawTransaction is sendrawtransaction <hex>. A transaction bitcoind already has
+// (in the mempool or the chain) is not an error.
+func (r *RPC) SendRawTransaction(ctx context.Context, raw []byte) error {
+	err := r.Call(ctx, "sendrawtransaction", nil, hex.EncodeToString(raw))
+	var re *rpcError
+	if errors.As(err, &re) && (re.Code == -27 || strings.Contains(re.Message, "already")) {
+		return nil // RPC_VERIFY_ALREADY_IN_UTXO_SET, txn-already-in-mempool / -known
+	}
+	return err
 }

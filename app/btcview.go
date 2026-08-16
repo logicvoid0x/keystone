@@ -10,8 +10,8 @@ import (
 )
 
 // BitcoinView is the Bitcoin watcher's read-only view of the latest committed state
-// (spec M3-T3): network, confirmation depth, the deposit script registry and the
-// accepted deposits still held. It is safe to call from the watcher's goroutine.
+// (spec M3-T3): network, confirmation depth, the deposit script registry, the accepted
+// deposits still held and (M4a) the in-flight withdrawal transactions. It is safe to call from the watcher's goroutine.
 func (app *App) BitcoinView() btcwatch.ChainView { return bitcoinView{app} }
 
 type bitcoinView struct{ app *App }
@@ -32,7 +32,7 @@ func LoadBitcoinView(ctx sdk.Context, app *App) (btcwatch.View, error) {
 		return btcwatch.View{}, err
 	}
 	view := btcwatch.View{
-		Network: p.BitcoinNetwork, ConfirmDepth: p.ConfirmDepth,
+		Network: p.BitcoinNetwork, ConfirmDepth: p.ConfirmDepth, Height: ctx.BlockHeight(),
 		Scripts: map[string]bool{}, Deposits: map[btcwatch.Outpoint]btcwatch.Record{},
 	}
 	err = k.ScriptVault.Walk(ctx, nil, func(script []byte, _ uint64) (bool, error) {
@@ -51,6 +51,32 @@ func LoadBitcoinView(ctx sdk.Context, app *App) (btcwatch.View, error) {
 		copy(bh[:], rec.Block.Hash)
 		view.Deposits[btcwatch.Outpoint{Txid: id, Vout: vout}] = btcwatch.Record{Height: rec.Block.Height, Hash: bh}
 		return false
+	})
+	if err != nil {
+		return btcwatch.View{}, err
+	}
+	err = k.InFlight.Walk(ctx, nil, func(_ uint64, id uint64) (bool, error) {
+		b, err := k.Batches.Get(ctx, id)
+		if err != nil {
+			return true, err
+		}
+		for _, v := range b.Txs {
+			h, err := chainhash.NewHash(v.Txid)
+			if err != nil {
+				return true, err
+			}
+			view.Watched = append(view.Watched, *h)
+		}
+		if cur := b.Txs[len(b.Txs)-1]; cur.SignedTx != nil {
+			h, _ := chainhash.NewHash(cur.Txid)
+			view.Signed = append(view.Signed, btcwatch.SignedTx{Txid: *h, Raw: cur.SignedTx})
+		} else if len(b.Txs) > 1 {
+			// An RBF version is being signed: keep the previous signed one out there.
+			prev := b.Txs[len(b.Txs)-2]
+			h, _ := chainhash.NewHash(prev.Txid)
+			view.Signed = append(view.Signed, btcwatch.SignedTx{Txid: *h, Raw: prev.SignedTx})
+		}
+		return false, nil
 	})
 	if err != nil {
 		return btcwatch.View{}, err
