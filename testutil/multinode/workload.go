@@ -42,6 +42,8 @@ type WorkloadStats struct {
 	Mismatches                                       int
 	// Bitcoin: deposits accepted and reverted on chain, fake-chain reorgs.
 	Deposits, Reverted, BtcReorgs int
+	// Withdrawals: requests queued, batches signed and confirmed (M4a).
+	Withdrawals, Signed, Confirmed int
 }
 
 // NewWorkload seeds a workload on net.
@@ -118,6 +120,14 @@ func (w *Workload) Txs() [][]byte {
 		if len(own.Vaults) > 0 {
 			v = &own.Vaults[w.rng.Intn(len(own.Vaults))]
 		}
+		if v != nil && v.Vault.CollateralSat.GT(sdkmath.NewInt(2_000_000)) && w.rng.Intn(10) == 0 {
+			// A collateral withdrawal to a P2WPKH script: queued, batched, FROST-signed by
+			// the nodes' signers, broadcast and confirmed on the fake chain (M4a).
+			amt := v.Vault.CollateralSat.MulRaw(int64(2 + w.rng.Intn(9))).QuoRaw(100)
+			send(a, &vaulttypes.MsgWithdrawCollateral{Owner: a.Addr.String(), VaultId: v.Vault.Id, AmountSat: amt,
+				RecipientScript: append([]byte{0x00, 0x14}, make([]byte, 20)...)})
+			continue
+		}
 		switch k := w.rng.Intn(8); {
 		case k == 0 || v == nil:
 			send(a, &vaulttypes.MsgOpenVault{Owner: a.Addr.String()})
@@ -158,6 +168,11 @@ func (w *Workload) Step() StepResult {
 		if tr.Code != 0 {
 			w.Stats.Rejected++
 		}
+		for _, e := range tr.Events {
+			if e.Type == custodytypes.EventTypeWithdrawalRequested {
+				w.Stats.Withdrawals++
+			}
+		}
 	}
 	for _, e := range r.Finalize[0].Events {
 		if e.Type == liqtypes.EventTypeVaultLiquidated {
@@ -168,6 +183,10 @@ func (w *Workload) Step() StepResult {
 			w.Stats.Deposits++
 		case custodytypes.EventTypeDepositReverted:
 			w.Stats.Reverted++
+		case custodytypes.EventTypeWithdrawalSigned:
+			w.Stats.Signed++
+		case custodytypes.EventTypeTxConfirmed:
+			w.Stats.Confirmed++
 		}
 	}
 	if ps, err := w.net.Ref().App.OracleKeeper.GetPriceState(w.net.Context()); err == nil && ps.Status == oracletypes.PRICE_STATUS_STALE {

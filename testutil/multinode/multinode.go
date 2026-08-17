@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -35,7 +36,9 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/app/protocol/vetypes"
 	"github.com/OWNER/keystone/sidecar/btcwatch"
+	"github.com/OWNER/keystone/sidecar/signer"
 	"github.com/OWNER/keystone/testutil/apptest"
 	"github.com/OWNER/keystone/testutil/btcfake"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
@@ -59,6 +62,26 @@ type Node struct {
 	// before each ExtendVote unless SkipBitcoinUpdate is set (a lagging watcher).
 	Watcher           *btcwatch.Watcher
 	SkipBitcoinUpdate bool
+	// Signer is this node's FROST signer (its nonce store in a temp dir). StopSigner
+	// leaves the FROST payload out of its VEs (a stopped signer); FrostHook, if set,
+	// rewrites the payload (e.g. an invalid share).
+	Signer     *signer.Signer
+	StopSigner bool
+	FrostHook  func(p *vetypes.FrostPayload)
+}
+
+// nodeFrost is the FrostSource a node's App uses: its signer, unless stopped or hooked.
+type nodeFrost struct{ n *Node }
+
+func (f nodeFrost) Payload(h int64) (*vetypes.FrostPayload, error) {
+	if f.n.StopSigner || f.n.Signer == nil {
+		return nil, nil
+	}
+	p, err := f.n.Signer.Payload(h)
+	if err == nil && f.n.FrostHook != nil {
+		f.n.FrostHook(p)
+	}
+	return p, err
 }
 
 // ConsAddr is the node's consensus address.
@@ -139,7 +162,12 @@ func New(t testing.TB, n int) *Net {
 	for i, nd := range net.Nodes {
 		ops[i] = nd.Addr
 	}
-	require.NoError(t, apptest.DealCustody(ref.AppCodec(), gs, ops))
+	dealt, err := apptest.DealCustody(ref.AppCodec(), gs, ops)
+	require.NoError(t, err)
+	for _, nd := range net.Nodes {
+		nd.Signer = apptest.NewSigner(t, dealt, nd.Addr, nd.App.FrostView(), filepath.Join(t.TempDir(), fmt.Sprintf("node%d", nd.Index)))
+		nd.App.SetFrostSource(nodeFrost{nd})
+	}
 	state, err := json.Marshal(gs)
 	require.NoError(t, err)
 	cp := app.DefaultConsensusParams().ToProto()

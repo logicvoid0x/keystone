@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"slices"
+	"testing"
 	"time"
 
 	abci "github.com/cometbft/cometbft/abci/types"
@@ -12,6 +13,8 @@ import (
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	cmttypes "github.com/cometbft/cometbft/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/OWNER/keystone/app/protocol"
 )
 
 // Validator is one entry of a simulated CometBFT validator set.
@@ -96,9 +99,14 @@ func (c *Chain) NextBlock(mempool [][]byte) Block {
 		Hash: hash, Height: h, Time: c.Time, Txs: prep.Txs, ProposedLastCommit: c.lastCommit, ProposerAddress: proposer,
 	})
 	require.NoError(c.T, err)
+	ves := map[string][]byte{}
 	for _, v := range set {
+		ves[string(v.Addr)] = ext.VoteExtension
+		if s, ok := c.Signers[string(v.Addr)]; ok {
+			ves[string(v.Addr)] = WithFrost(c.T, ext.VoteExtension, h, s)
+		}
 		vr, err := c.App.VerifyVoteExtension(&abci.RequestVerifyVoteExtension{
-			Hash: hash, ValidatorAddress: v.Addr, Height: h, VoteExtension: ext.VoteExtension,
+			Hash: hash, ValidatorAddress: v.Addr, Height: h, VoteExtension: ves[string(v.Addr)],
 		})
 		require.NoError(c.T, err)
 		require.Equal(c.T, abci.ResponseVerifyVoteExtension_ACCEPT, vr.Status)
@@ -118,14 +126,14 @@ func (c *Chain) NextBlock(mempool [][]byte) Block {
 	c.Height = h
 	c.syncSequences()
 
-	c.lastExt, c.lastCommit = c.signCommit(h, set, ext.VoteExtension)
+	c.lastExt, c.lastCommit = c.signCommit(h, set, ves)
 	c.valsets[h+2] = ApplyUpdates(c.valsets[h+1], fin.ValidatorUpdates)
 	return Block{Height: h, Txs: prep.Txs, Finalize: fin}
 }
 
 // signCommit builds the extended commit and commit info for height h (round 0). Every
-// Validator whose key is registered votes for the block with the same VE bytes.
-func (c *Chain) signCommit(h int64, set []Validator, ve []byte) (abci.ExtendedCommitInfo, abci.CommitInfo) {
+// Validator whose key is registered votes for the block with its VE bytes from ves.
+func (c *Chain) signCommit(h int64, set []Validator, ves map[string][]byte) (abci.ExtendedCommitInfo, abci.CommitInfo) {
 	var ext abci.ExtendedCommitInfo
 	var last abci.CommitInfo
 	for _, v := range set {
@@ -136,6 +144,7 @@ func (c *Chain) signCommit(h int64, set []Validator, ve []byte) (abci.ExtendedCo
 			last.Votes = append(last.Votes, abci.VoteInfo{Validator: val, BlockIdFlag: cmtproto.BlockIDFlagAbsent})
 			continue
 		}
+		ve := ves[string(v.Addr)]
 		sb := cmttypes.VoteExtensionSignBytes(ChainID, &cmtproto.Vote{Height: h, Round: 0, Extension: ve})
 		sig, err := key.Sign(sb)
 		require.NoError(c.T, err)
@@ -145,4 +154,24 @@ func (c *Chain) signCommit(h int64, set []Validator, ve []byte) (abci.ExtendedCo
 		last.Votes = append(last.Votes, abci.VoteInfo{Validator: val, BlockIdFlag: cmtproto.BlockIDFlagCommit})
 	}
 	return ext, last
+}
+
+// WithFrost returns ve (the encoded VE of height h) with s's FROST payload in it. A
+// signer error leaves the payload out, as ExtendVote does (before the first commit the
+// signer cannot read state).
+func WithFrost(t testing.TB, ve []byte, h int64, s protocol.FrostSource) []byte {
+	t.Helper()
+	dec, err := protocol.DecodeVE(ve, h)
+	require.NoError(t, err)
+	p, err := s.Payload(h)
+	if err != nil || p == nil {
+		return ve
+	}
+	if len(p.Commitments) > 0 || len(p.Shares) > 0 || p.RevokeAllNonces {
+		dec.Frost = p
+	}
+	protocol.Canonicalize(&dec)
+	bz, err := dec.Marshal()
+	require.NoError(t, err)
+	return bz
 }

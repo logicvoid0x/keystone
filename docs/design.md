@@ -1051,6 +1051,8 @@ message ReorgSeen   { bytes txid = 1; uint32 vout = 2; bytes old_block_hash = 3;
 5. **Never restore nonce state** (§9.5). A lost database triggers `revoke_all_nonces`.
 6. **Preprocessing:** each share keeps 8 unconsumed commitments on-chain. VEs replenish up to 2 per share per block, so a session needs one VE round, not two.
 
+**Implementation notes (M4a).** The signer persists each commitment before returning it and offers seqs last_recorded + 1, + 2 (re-offering the same stored commitments until the chain records them). It sends `revoke_all_nonces` once after a missing or corrupt database or `--revoke-nonces`, and whenever the chain holds an unconsumed commitment of its share that the store does not have. Before computing a share it binds every assigned nonce with fsync; a nonce bound to another session aborts that session's share and raises an alarm. The crash test kills the signer process at each step between binding and the VE and checks that every restart sends the same share.
+
 ### 9.10 Robustness: retry-and-blame
 
 - **Signer selection** for each new session: epoch operators that are in the active validator set, not blamed for an invalid share this epoch, included a VE in the previous block, and have an unconsumed nonce commitment. They are sorted by (missed sessions this epoch asc, operator address asc), and the first t are taken. FROST allows any signer set of size ≥ t; Lagrange coefficients are computed over the chosen indices.

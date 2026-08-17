@@ -1,7 +1,11 @@
 package apptest
 
 import (
+	"fmt"
 	"math/rand"
+	"path/filepath"
+	"slices"
+	"testing"
 
 	"github.com/btcsuite/btcd/chainhash/v2"
 	"github.com/stretchr/testify/require"
@@ -14,20 +18,24 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/OWNER/keystone/app"
+	"github.com/OWNER/keystone/crypto/frost"
+	"github.com/OWNER/keystone/sidecar/signer"
+	"github.com/OWNER/keystone/sidecar/signer/noncestore"
 	"github.com/OWNER/keystone/testutil/devdealer"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
 )
 
 // DealCustody puts a dealer epoch for operators into gs (seeded, so every test run
-// derives the same addresses), with the localnet custody params: regtest, k = 1.
-func DealCustody(cdc codec.JSONCodec, gs app.GenesisState, operators []sdk.AccAddress) error {
+// derives the same addresses), with the localnet custody params: regtest, k = 1. It
+// returns the dealt shares.
+func DealCustody(cdc codec.JSONCodec, gs app.GenesisState, operators []sdk.AccAddress) (devdealer.Dealt, error) {
 	var cg custodytypes.GenesisState
 	if err := cdc.UnmarshalJSON(gs[custodytypes.ModuleName], &cg); err != nil {
-		return err
+		return devdealer.Dealt{}, err
 	}
 	d, err := devdealer.Deal(rand.New(rand.NewSource(7)), operators)
 	if err != nil {
-		return err
+		return devdealer.Dealt{}, err
 	}
 	d.Apply(&cg)
 	cg.Params.BitcoinNetwork = custodytypes.NetworkRegtest
@@ -35,10 +43,25 @@ func DealCustody(cdc codec.JSONCodec, gs app.GenesisState, operators []sdk.AccAd
 	cg.Params.MembershipDelayBlocks = 100
 	bz, err := cdc.MarshalJSON(&cg)
 	if err != nil {
-		return err
+		return devdealer.Dealt{}, err
 	}
 	gs[custodytypes.ModuleName] = bz
-	return nil
+	return d, nil
+}
+
+// NewSigner returns a FROST signer for operator op of d, reading view, with its nonce
+// store in dir. The store is closed when t ends.
+func NewSigner(t testing.TB, d devdealer.Dealt, op sdk.AccAddress, view signer.ChainView, dir string) *signer.Signer {
+	t.Helper()
+	i := slices.IndexFunc(d.Operators, func(a sdk.AccAddress) bool { return a.Equals(op) })
+	require.GreaterOrEqual(t, i, 0, "operator %s has no share", op)
+	sh := d.Shares[i].Shares[0]
+	s, err := frost.ParseScalar(sh.Secret)
+	require.NoError(t, err)
+	store, err := noncestore.Open(noncestore.Path(dir))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = store.Close() })
+	return signer.New(signer.Config{View: view, Store: store, Shares: signer.StaticShares{devdealer.Epoch: {Index: sh.Index, Secret: s}}})
 }
 
 func operatorAddrs(ops []Operator) []sdk.AccAddress {
@@ -86,4 +109,15 @@ func (c *Chain) Collateral(id uint64) sdkmath.Int {
 	v, err := c.App.VaultKeeper.GetVault(c.Context(), id)
 	require.NoError(c.T, err)
 	return v.CollateralSat
+}
+
+// EnableSigners gives every operator a FROST signer (nonce stores in a temp dir), so
+// custody sessions sign.
+func (c *Chain) EnableSigners() {
+	c.T.Helper()
+	c.Signers = map[string]*signer.Signer{}
+	for i, op := range c.Operators {
+		dir := filepath.Join(c.T.TempDir(), fmt.Sprintf("op%d", i))
+		c.Signers[string(op.ConsKey.PubKey().Address())] = NewSigner(c.T, c.Dealt, op.Addr, c.App.FrostView(), dir)
+	}
 }

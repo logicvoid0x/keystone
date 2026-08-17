@@ -17,6 +17,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/OWNER/keystone/testutil/apptest"
+	custodytypes "github.com/OWNER/keystone/x/custody/types"
 	liqkeeper "github.com/OWNER/keystone/x/liquidation/keeper"
 	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
 	stablecointypes "github.com/OWNER/keystone/x/stablecoin/types"
@@ -35,10 +36,11 @@ func TestPropertyInvariants(t *testing.T) {
 	for seed := 1; seed <= chains; seed++ {
 		t.Run(fmt.Sprintf("seed=%d", seed), func(t *testing.T) { runProperty(t, int64(seed), blocks) })
 	}
-	t.Logf("%d sequences (blocks) in %s; liquidations %v", chains*blocks, time.Since(start), totals)
+	t.Logf("%d sequences (blocks) in %s; liquidations and withdrawals %v", chains*blocks, time.Since(start), totals)
 	if chains*blocks >= 5_000 {
 		require.Positive(t, totals["liq_POOL"], "the run must exercise pool liquidations")
 		require.Positive(t, totals["liq_AUCTION"], "the run must exercise auction liquidations")
+		require.Positive(t, totals[custodytypes.EventTypeTxConfirmed], "withdrawals must be signed, broadcast and confirmed")
 	}
 }
 
@@ -62,6 +64,7 @@ type actor struct {
 
 func runProperty(t *testing.T, seed int64, blocks int) {
 	c := apptest.New(t, 1)
+	c.EnableSigners() // withdrawals are FROST-signed, broadcast to the fake chain and confirmed
 	rng := rand.New(rand.NewSource(seed))
 	actors := []actor{
 		{c.Users[0].Key, c.Users[0].Addr},
@@ -193,6 +196,9 @@ func runProperty(t *testing.T, seed int64, blocks int) {
 			}
 		}
 		for _, e := range blk.Finalize.Events {
+			if e.Type == custodytypes.EventTypeWithdrawalSigned || e.Type == custodytypes.EventTypeTxConfirmed {
+				totals[e.Type]++
+			}
 			if e.Type == liqtypes.EventTypeVaultLiquidated {
 				for _, a := range e.Attributes {
 					if a.Key == liqtypes.AttributeKeyMode {

@@ -33,4 +33,5 @@ func TestDeterminism10k(t *testing.T) {
 	require.Positive(t, w.Stats.Txs)
 	require.Positive(t, w.Stats.Deposits, "deposits are attested and credited")
 	require.Positive(t, w.Stats.BtcReorgs, "the fake chain reorgs")
+	require.Positive(t, w.Stats.Confirmed, "withdrawals are signed, broadcast and confirmed")
 }

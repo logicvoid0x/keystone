@@ -24,7 +24,9 @@ import (
 
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/sidecar/btcwatch"
+	"github.com/OWNER/keystone/sidecar/signer"
 	"github.com/OWNER/keystone/testutil/btcfake"
+	"github.com/OWNER/keystone/testutil/devdealer"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
 )
 
@@ -64,6 +66,11 @@ type Chain struct {
 	// watcher (updated before every ExtendVote).
 	Bitcoin *btcfake.Chain
 	Watcher *btcwatch.Watcher
+	// Dealt is the genesis custody key. Signers, when set (EnableSigners), are one FROST
+	// signer per operator, keyed by consensus address: each Validator's VE then carries
+	// its own FROST payload.
+	Dealt   devdealer.Dealt
+	Signers map[string]*signer.Signer
 
 	accNums map[string]uint64
 	seqs    map[string]uint64
@@ -122,7 +129,8 @@ func New(t *testing.T, n int) *Chain {
 	in.Accounts = all
 	gs, err := app.BuildGenesis(c.App.AppCodec(), c.App.DefaultGenesis(), in)
 	require.NoError(t, err)
-	require.NoError(t, DealCustody(c.App.AppCodec(), gs, operatorAddrs(c.Operators)))
+	c.Dealt, err = DealCustody(c.App.AppCodec(), gs, operatorAddrs(c.Operators))
+	require.NoError(t, err)
 	stateBytes, err := json.Marshal(gs)
 	require.NoError(t, err)
 
