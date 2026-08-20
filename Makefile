@@ -4,7 +4,7 @@ BUILDDIR ?= build
 # make test builds with these tags (spec M1-T8): invariants run in EndBlock.
 TEST_TAGS ?= invariants
 
-.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz clean
+.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz localnet-signer3 e2e-M3 clean
 
 all: build
 
@@ -45,8 +45,11 @@ build-dev: check-go
 	@mkdir -p $(BUILDDIR)
 	$(GO) build -o $(BUILDDIR)/ ./cmd/keystoned ./cmd/mockfeed
 
-# e2e runs the demo of the latest finished milestone (M3: needs Docker).
+# e2e runs the demo of the latest finished milestone (M4a: needs Docker).
 e2e: build-dev
+	bash scripts/demo-M4a.sh
+
+e2e-M3: build-dev
 	bash scripts/demo-M3.sh
 
 e2e-M2: build-dev
@@ -86,6 +89,10 @@ localnet-clean:
 # (drop_tx0, extra_magic, corrupt_one_ve, corrupt_two_ve; MODE= restores honest).
 localnet-byz:
 	KEYSTONE_BYZ=$(MODE) NODE3_BIN=$(if $(MODE),keystoned-byz,keystoned) $(COMPOSE) up -d --no-deps --force-recreate node3
+
+# localnet-signer3 restarts node3 with its FROST signer on or off: make localnet-signer3 SIGNER=false
+localnet-signer3:
+	NODE3_SIGNER=$(if $(SIGNER),$(SIGNER),true) $(COMPOSE) up -d --no-deps --force-recreate node3
 
 clean:
 	rm -rf $(BUILDDIR)

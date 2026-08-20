@@ -242,6 +242,14 @@ func TestInitFilesDevDealer(t *testing.T) {
 		require.GreaterOrEqual(t, idx, 0)
 		require.Equal(t, cg.ShareIndices[idx].Index, s.Shares[0].Index)
 		shares[s.Shares[0].Index] = s.Shares[0].Secret
+
+		// The signer is enabled and finds its passphrase (spec M4a-T6).
+		toml, err := os.ReadFile(filepath.Join(home, "config", "app.toml"))
+		require.NoError(t, err)
+		require.Contains(t, string(toml), "[keystone.signer]\n\n# Sign custody sessions with the shares in <home>/custody/epoch_<n>/shares.json.\nenabled = true")
+		pw, err := os.ReadFile(filepath.Join(home, cmd.DevPassphraseFile))
+		require.NoError(t, err)
+		require.Equal(t, cmd.DefaultCustodyPassphrase+"\n", string(pw))
 	}
 	delete(shares, 2)
 	sum, err := devdealer.Combine(shares)

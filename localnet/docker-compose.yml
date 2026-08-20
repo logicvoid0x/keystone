@@ -90,6 +90,8 @@ services:
     command: ["sh", "-c", "exec ${NODE3_BIN:-keystoned} start --home /home/keystone"]
     environment:
       KEYSTONE_BYZ: ${KEYSTONE_BYZ:-}
+      # make localnet-signer3 SIGNER=false stops node3's FROST signer (demo-M4a).
+      KEYSTONED_KEYSTONE_SIGNER_ENABLED: ${NODE3_SIGNER:-true}
     volumes: ["./homes/node3:/home/keystone"]
     ports: ["26687:26657", "9120:9090", "26690:26660"]
 

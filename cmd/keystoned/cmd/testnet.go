@@ -32,6 +32,7 @@ import (
 	"github.com/OWNER/keystone/crypto/frost/secret"
 	"github.com/OWNER/keystone/sidecar/btcwatch"
 	"github.com/OWNER/keystone/sidecar/price"
+	"github.com/OWNER/keystone/sidecar/signer"
 	"github.com/OWNER/keystone/testutil/devdealer"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
 )
@@ -47,6 +48,9 @@ const (
 
 	// DefaultCustodyPassphrase encrypts localnet shares (dev only).
 	DefaultCustodyPassphrase = "keystone-localnet"
+	// DevPassphraseFile is where --dev-dealer writes the share passphrase, relative to
+	// the node home (localnet only).
+	DevPassphraseFile = "custody/passphrase"
 
 	// RPC credentials of the docker localnet bitcoinds (localnet/docker-compose.yml).
 	LocalnetBitcoinRPCUser     = "keystone"
@@ -222,6 +226,10 @@ func InitFiles(cdc codec.Codec, defaults app.GenesisState, args InitFilesArgs, i
 		appCfg.API.Address = fmt.Sprintf("tcp://127.0.0.1:%d", apiPortBase+portStride*i)
 		if args.MockfeedURL != "" {
 			appCfg.Keystone.Price = price.MockConfig(args.MockfeedURL)
+		}
+		if args.DevDealer {
+			// Each node signs custody sessions with its dealt share (spec M4a-T6).
+			appCfg.Keystone.Signer = signer.FileConfig{Enabled: true, PassphraseFile: DevPassphraseFile}
 		}
 		if args.Docker {
 			dockerConfig(nf.cfg, appCfg, args, i)
@@ -527,6 +535,10 @@ func localCustodyGenesis(cdc codec.Codec, appState app.GenesisState, args InitFi
 		for i, op := range d.Operators {
 			j := slices.IndexFunc(ops, func(a sdk.AccAddress) bool { return a.Equals(op) })
 			if err := secret.WriteShares(nodes[j].home, []byte(pw), d.Shares[i]); err != nil {
+				return err
+			}
+			// Localnet only: the passphrase sits next to the share for the signer.
+			if err := os.WriteFile(filepath.Join(nodes[j].home, DevPassphraseFile), []byte(pw+"\n"), 0o600); err != nil {
 				return err
 			}
 		}
