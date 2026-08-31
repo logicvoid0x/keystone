@@ -908,6 +908,16 @@ At genesis the custody state is empty: the epoch-1 DKG starts at height 2, and d
 
 **Dev shortcut (milestone M4a only):** a `--dev-dealer` genesis flag where one process generates and distributes shares. It is rejected by the binary when the chain id is not a localnet id.
 
+**Implementation notes (M4b).**
+
+- Custody keys: each operator has a secp256k1 encryption key (`<home>/custody/enc_key.json`, Argon2id + AES-256-GCM) and a custody hot key (keyring name `custody`), created by `keystoned custody init` or `testnet init-files`. Genesis carries `custody_keys{operator, enc_pubkey, hot_key}`; operators added later send `MsgRegisterCustodyKey`. The hot key is accepted directly by x/custody (state 0x18 operator → key, 0x22 hot key → operator); x/authz is not added (default assumption — review). A hot key serves one operator.
+- Participants are the active operators with custody keys, share index = rank by operator address; t = ⌊2n/3⌋ + 1. With no epoch at all, x/custody's EndBlock of height 1 opens the epoch-1 run at height 2: commit [2, 22), deal [22, 42), complain [42, 62); finalization runs in the EndBlock of height 61.
+- Commit: t coefficient commitments and a proof of knowledge (frost-core's Schnorr proof, Taproot encoding) whose challenge is HDKG(chain_id ‖ epoch (8 bytes BE) ‖ id ‖ C₀ ‖ R): bound to chain, epoch and dealer index (A9). A bad proof is rejected on submission; one commitment per dealer.
+- Deal: one ciphertext per other participant, by recipient index; ciphertext = nonce (12 random bytes) ‖ AES-256-GCM(share), key = HKDF-SHA256(ikm = ECDH point S = x_dealer·X_recipient compressed, info = "Keystone/dkg-share" ‖ ad), ad = epoch (8) ‖ dealer index (4) ‖ recipient index (4).
+- Complaint: S with a DLEQ proof (c ‖ z, challenge H_tag("Keystone/dleq", X ‖ D ‖ S ‖ R1 ‖ R2)) that log_G(X_complainer) = log_D(S) for the dealer's key D; an invalid proof is rejected. The chain derives the key, decrypts and checks f_v(i)·G = Σ iʲ·C_v,j: failure (or no ciphertext) disqualifies the dealer, success disqualifies the complainer. One complaint per (complainer, dealer).
+- Finalize: Q = participants that committed and dealt and are not disqualified; if 3·|Q| < 2n the run restarts once (attempt 1, new windows from the next height, messages cleared), then `dkg_failed`. Otherwise Y and C_j are summed over Q, negated together if Y has odd y, Y_i = Σ_j iʲ·C_j for every participant (disqualified ones included: they still receive valid shares from Q), the epoch becomes ACTIVE, and vaults opened before it get their deposit scripts. `epoch_activated{epoch, group_key, qualified, t}`.
+- The participant (`sidecar/dkg`) runs inside `keystoned start` when the signer is enabled and the node has an encryption key and `[keystone.signer] operator`; it persists its polynomial (fsynced) before sending its commitment, sends its messages in one tx signed by the hot key through the in-process client, and after finalization derives s_i = Σ_{v∈Q} f_v(i) (negated with Y), checks s_i·G = Y_i and writes `epoch_<n>/shares.json`, which the signer then loads.
+
 ### 9.4 Membership changes: new key and sweep
 
 Custody follows the PoA validator set with a delay. When the set of validators with power > 0 differs from the current custody set and has stayed unchanged for `MembershipDelayBlocks`, custody starts a new epoch:
@@ -1197,14 +1207,15 @@ All state uses `cosmossdk.io/collections` with one-byte prefixes per module; the
 | custody | 0x0C / 0x0D / 0x0E | batch id → `WithdrawalBatch`; session id → `SigningSession`; session id → empty (index of OPEN and STALLED sessions; M4a) |
 | custody | 0x0F / 0x10 | (epoch, share, seq) → `StoredCommitment{hiding, binding}`, unconsumed only (an assigned commitment is copied into the session and deleted); (epoch, share) → last recorded seq (M4a: the pool is the stored entries, so `next_unconsumed` is implicit) |
 | custody | 0x11 / 0x12 | (epoch, operator) → share index; (epoch, share) → verifying share Y\_i |
-| custody | 0x13 / 0x14 | epoch → `DKGState`; (epoch, phase, dealer) → DKG message |
+| custody | 0x13 / 0x14 | epoch → `DKGState`; (epoch, kind, dealer or complainer ‖ dealer) → `DKGCommitment` / `DKGDealing` / `DKGComplaint` (M4b) |
 | custody | 0x15 / 0x16 / 0x17 | address → claimable sat; fee reserve sat; custody deficit sat |
-| custody | 0x18 / 0x19 | operator → custody encryption pubkey; (epoch, operator) → `SignerStats{assigned, missed, invalid, flagged}` |
+| custody | 0x18 / 0x19 | operator → `CustodyKey{operator, enc_pubkey, hot_key}` (M4b); (epoch, operator) → `SignerStats{assigned, missed, invalid, flagged}` |
 | custody | 0x1A / 0x1B | credited sat (for the cap); `PendingMembership{set_hash, since_height}` |
 | custody | 0x1C | outpoint → `DepositRecord{vault_id, owner, block, collateral_sat, claimable_sat, fee_reserve_sat}`: how an accepted deposit was credited, for the reorg path (added in M3) |
 | custody | 0x1D | (first height, attestation hash) → empty: tally expiry index (added in M3) |
 | custody | 0x1E / 0x1F | queued request id → empty (FIFO queue); txid → batch id, for every version of a batch tx (added in M4a) |
 | custody | 0x20 / 0x21 | next batch id; epoch → id of the batch in flight (not yet confirmed) (added in M4a) |
+| custody | 0x22 | custody hot key → operator (added in M4b) |
 | poa | 0x01 / 0x02 / 0x03 | Params{admin}; operator address → Operator{consensus\_pubkey, moniker, power}; consensus address → operator address |
 | poa | 0x04 / 0x05 | used consensus pubkeys → empty; operator address → power last sent to CometBFT |
 
@@ -1453,7 +1464,7 @@ Each node exports Prometheus metrics for the protocol segment and every sidecar;
 1. Sign the operating agreement with the existing operators.
 2. Run `keystoned` and its own bitcoind (pruning allowed, txindex not required), and configure ≥ 3 price sources.
 3. Create the consensus key, custody encryption key and custody hot key: `keystoned custody init`.
-4. Send the consensus pubkey to the admin signers off-chain, submit `MsgRegisterCustodyKey`, and grant the custody hot key authz for DKG messages.
+4. Send the consensus pubkey to the admin signers off-chain and submit `MsgRegisterCustodyKey{enc_pubkey, hot_key}` (M4b: the hot key is registered in x/custody directly; no authz grant).
 5. The admin multisig sends `MsgSetValidators` adding the operator at power 1. It joins consensus two heights later and the custody set after `MembershipDelayBlocks` (§9.4).
 6. Check the health endpoint: price snapshot fresh, bitcoind synced, nonce store writable.
 

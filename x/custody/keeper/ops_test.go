@@ -63,6 +63,16 @@ func (f *fakeVault) VaultOwner(_ context.Context, id uint64) (sdk.AccAddress, bo
 
 func (f *fakeVault) MinDepositSat(context.Context) (sdkmath.Int, error) { return i(10_000), nil }
 
+func (f *fakeVault) OpenVaultIDs(context.Context) ([]uint64, error) {
+	var ids []uint64
+	for id := uint64(1); id <= uint64(len(f.owner)); id++ {
+		if !f.shut[id] {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
 type opsFixture struct {
 	ctx   sdk.Context
 	k     *keeper.Keeper

@@ -407,3 +407,16 @@ func (k *Keeper) MinDepositSat(ctx context.Context) (sdkmath.Int, error) {
 	}
 	return p.MinDepositSat, nil
 }
+
+// OpenVaultIDs returns the ids of every vault that is not CLOSED, ascending (custody
+// registers their deposit scripts when a new key epoch becomes ACTIVE).
+func (k *Keeper) OpenVaultIDs(ctx context.Context) ([]uint64, error) {
+	var ids []uint64
+	err := k.Vaults.Walk(ctx, nil, func(id uint64, v types.Vault) (bool, error) {
+		if v.Status != types.VAULT_STATUS_CLOSED {
+			ids = append(ids, id)
+		}
+		return false, nil
+	})
+	return ids, err
+}

@@ -52,6 +52,10 @@ type Keeper struct {
 	Commitments     collections.Map[collections.Triple[uint64, uint32, uint64], types.StoredCommitment]
 	PoolHead        collections.Map[collections.Pair[uint64, uint32], uint64]
 	SignerStats     collections.Map[collections.Pair[uint64, sdk.AccAddress], types.SignerStats]
+	CustodyKeys     collections.Map[sdk.AccAddress, types.CustodyKey]
+	HotKeys         collections.Map[sdk.AccAddress, []byte]
+	DKGStates       collections.Map[uint64, types.DKGState]
+	DKGMessages     collections.Map[collections.Triple[uint64, uint32, []byte], []byte]
 
 	admin types.AdminKeeper
 	vals  types.ValidatorSet
@@ -101,6 +105,11 @@ func NewKeeper(cdc codec.BinaryCodec, storeService store.KVStoreService, admin t
 			collections.PairKeyCodec(collections.Uint64Key, collections.Uint32Key), collections.Uint64Value),
 		SignerStats: collections.NewMap(sb, types.SignerStatsKey, "signer_stats",
 			collections.PairKeyCodec(collections.Uint64Key, sdk.AccAddressKey), codec.CollValue[types.SignerStats](cdc)),
+		CustodyKeys: collections.NewMap(sb, types.CustodyKeysKey, "custody_keys", sdk.AccAddressKey, codec.CollValue[types.CustodyKey](cdc)),
+		HotKeys:     collections.NewMap(sb, types.HotKeysKey, "hot_keys", sdk.AccAddressKey, collections.BytesValue),
+		DKGStates:   collections.NewMap(sb, types.DKGStatesKey, "dkg_states", collections.Uint64Key, codec.CollValue[types.DKGState](cdc)),
+		DKGMessages: collections.NewMap(sb, types.DKGMessagesKey, "dkg_messages",
+			collections.TripleKeyCodec(collections.Uint64Key, collections.Uint32Key, collections.BytesKey), collections.BytesValue),
 		admin: admin,
 		vals:  vals,
 	}
@@ -262,8 +271,8 @@ func (k *Keeper) UpdateParams(ctx context.Context, msg *types.MsgUpdateParams) e
 	return k.Params.Set(ctx, msg.Params)
 }
 
-// InitGenesis stores the params and any genesis key epochs (localnet chain ids only);
-// the counters start at zero.
+// InitGenesis stores the params, any genesis key epochs (localnet chain ids only) and
+// the custody keys; the counters start at zero.
 func (k *Keeper) InitGenesis(ctx context.Context, gs *types.GenesisState) error {
 	if err := gs.Validate(); err != nil {
 		return err
@@ -294,6 +303,11 @@ func (k *Keeper) InitGenesis(ctx context.Context, gs *types.GenesisState) error 
 	}
 	for _, v := range gs.VerifyingShares {
 		if err := k.VerifyingShares.Set(ctx, collections.Join(v.Epoch, v.Index), v.Pubkey); err != nil {
+			return err
+		}
+	}
+	for _, ck := range gs.CustodyKeys {
+		if err := k.setCustodyKey(ctx, ck); err != nil {
 			return err
 		}
 	}
@@ -332,5 +346,9 @@ func (k *Keeper) ExportGenesis(ctx context.Context) (*types.GenesisState, error)
 		return nil, err
 	}
 	sortShareIndices(gs.ShareIndices)
-	return gs, nil
+	err = k.CustodyKeys.Walk(ctx, nil, func(_ sdk.AccAddress, ck types.CustodyKey) (bool, error) {
+		gs.CustodyKeys = append(gs.CustodyKeys, ck)
+		return false, nil
+	})
+	return gs, err
 }

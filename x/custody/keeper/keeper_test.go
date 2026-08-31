@@ -137,6 +137,15 @@ type fakeVals struct{ ops []poatypes.Operator }
 
 func (f *fakeVals) ActiveValidators(context.Context) ([]poatypes.Operator, error) { return f.ops, nil }
 
+func (f *fakeVals) GetOperator(_ context.Context, addr sdk.AccAddress) (poatypes.Operator, error) {
+	for _, op := range f.ops {
+		if op.OperatorAddress == addr.String() {
+			return op, nil
+		}
+	}
+	return poatypes.Operator{}, errors.New("unknown operator")
+}
+
 func setupWith(t *testing.T, gs *types.GenesisState) (sdk.Context, *keeper.Keeper) {
 	t.Helper()
 	return setupWithVals(t, gs, &fakeVals{})

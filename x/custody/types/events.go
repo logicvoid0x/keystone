@@ -20,6 +20,14 @@ const (
 	EventTypeSignerFlagged       = "signer_flagged"
 	EventTypeNoncesRevoked       = "nonces_revoked"
 
+	EventTypeDKGPhase       = "dkg_phase"
+	EventTypeDKGCommit      = "dkg_commit"
+	EventTypeDKGDeal        = "dkg_deal"
+	EventTypeDKGComplaint   = "dkg_complaint"
+	EventTypeDKGRestarted   = "dkg_restarted"
+	EventTypeDKGFailed      = "dkg_failed"
+	EventTypeEpochActivated = "epoch_activated"
+
 	AttributeKeyOutpoint   = "outpoint"
 	AttributeKeyVault      = "vault"
 	AttributeKeySat        = "sat"
@@ -52,6 +60,12 @@ const (
 	AttributeKeyInvalid    = "invalid"
 	AttributeKeyMissed     = "missed"
 	AttributeKeyAssigned   = "assigned"
+	AttributeKeyPhase      = "phase"
+	AttributeKeyDealer     = "dealer"
+	AttributeKeyUpheld     = "upheld"
+	AttributeKeyQualified  = "qualified"
+	AttributeKeyGroupKey   = "group_key"
+	AttributeKeyThreshold  = "t"
 
 	OpAcceptAnchor       = "accept_anchor"
 	OpCreditDeposit      = "credit_deposit"

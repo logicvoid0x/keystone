@@ -19,4 +19,7 @@ message GenesisState {
   uint64 active_epoch = 3;
   repeated ShareIndex share_indices = 4 [(gogoproto.nullable) = false];
   repeated VerifyingShare verifying_shares = 5 [(gogoproto.nullable) = false];
+  // custody_keys are the operators' DKG encryption and hot keys (M4b), sorted by
+  // operator.
+  repeated CustodyKey custody_keys = 6 [(gogoproto.nullable) = false];
 }

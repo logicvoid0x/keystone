@@ -106,7 +106,34 @@ func WriteFile(path string, passphrase []byte, v any, ad []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, bz, 0o600)
+	return writeSynced(path, bz)
+}
+
+// writeSynced writes bz to path atomically: a temp file in the same directory, fsync,
+// rename (DKG polynomials must be durable before their commitment is sent).
+func writeSynced(path string, bz []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp) // no-op after the rename
+	if err := f.Chmod(0o600); err != nil && !errors.Is(err, errors.ErrUnsupported) {
+		_ = f.Close()
+		return err
+	}
+	if _, err := f.Write(bz); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // ReadFile reads and opens an envelope written by WriteFile into v.

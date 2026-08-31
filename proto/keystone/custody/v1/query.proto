@@ -64,6 +64,16 @@ service Query {
     option (cosmos.query.v1.module_query_safe) = true;
     option (google.api.http).get = "/keystone/custody/v1/active_sessions";
   }
+  // DKG returns a DKG run and its messages.
+  rpc DKG(QueryDKGRequest) returns (QueryDKGResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/dkg/{epoch}";
+  }
+  // CustodyKeys returns the registered custody keys.
+  rpc CustodyKeys(QueryCustodyKeysRequest) returns (QueryCustodyKeysResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/custody_keys";
+  }
   // NoncePool returns the recorded, unconsumed nonce commitments of a share.
   rpc NoncePool(QueryNoncePoolRequest) returns (QueryNoncePoolResponse) {
     option (cosmos.query.v1.module_query_safe) = true;
@@ -190,4 +200,32 @@ message QueryNoncePoolRequest {
 message QueryNoncePoolResponse {
   uint64 last_recorded = 1;
   repeated keystone.ve.v1.NonceCommitment commitments = 2 [(gogoproto.nullable) = false];
+}
+
+// QueryDKGRequest is the request for Query/DKG.
+message QueryDKGRequest {
+  uint64 epoch = 1;
+}
+
+// DKGDealer is one dealer's messages in a DKG run.
+message DKGDealer {
+  string operator = 1;
+  DKGCommitment commitment = 2;
+  DKGDealing dealing = 3;
+}
+
+// QueryDKGResponse is the response for Query/DKG.
+message QueryDKGResponse {
+  DKGState state = 1 [(gogoproto.nullable) = false];
+  // dealers are sorted by operator.
+  repeated DKGDealer dealers = 2 [(gogoproto.nullable) = false];
+  repeated DKGComplaint complaints = 3 [(gogoproto.nullable) = false];
+}
+
+// QueryCustodyKeysRequest is the request for Query/CustodyKeys.
+message QueryCustodyKeysRequest {}
+
+// QueryCustodyKeysResponse is the response for Query/CustodyKeys.
+message QueryCustodyKeysResponse {
+  repeated CustodyKey keys = 1 [(gogoproto.nullable) = false];
 }

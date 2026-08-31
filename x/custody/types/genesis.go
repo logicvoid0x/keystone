@@ -1,9 +1,12 @@
 package types
 
 import (
+	"bytes"
 	"cmp"
 	"fmt"
 	"regexp"
+
+	"github.com/btcsuite/btcd/btcec/v2"
 
 	errorsmod "cosmossdk.io/errors"
 
@@ -89,6 +92,19 @@ func (gs GenesisState) Validate() error {
 			return bad("epoch %d needs %d share indices and verifying shares", e.Number, e.N)
 		}
 	}
+	hot := map[string]bool{}
+	for i, ck := range gs.CustodyKeys {
+		if err := ValidateCustodyKey(ck); err != nil {
+			return err
+		}
+		if i > 0 && bytes.Compare(sdk.MustAccAddressFromBech32(gs.CustodyKeys[i-1].Operator), sdk.MustAccAddressFromBech32(ck.Operator)) >= 0 {
+			return bad("custody keys must be sorted by operator address, without duplicates")
+		}
+		if hot[ck.HotKey] {
+			return bad("hot key %s used twice", ck.HotKey)
+		}
+		hot[ck.HotKey] = true
+	}
 	return nil
 }
 
@@ -100,6 +116,26 @@ func cmpEpochIndex(ea uint64, ia uint32, eb uint64, ib uint32) int {
 func (gs GenesisState) CheckChainID(chainID string) error {
 	if len(gs.Epochs) > 0 && !IsLocalChainID(chainID) {
 		return fmt.Errorf("custody genesis epochs are only allowed on localnet chain ids (-local-<n>), not %q", chainID)
+	}
+	return nil
+}
+
+// MaxDKGParticipants bounds a DKG (design §9.1: up to 20 operators; headroom).
+const MaxDKGParticipants = 64
+
+// ValidateCustodyKey checks a custody key record.
+func ValidateCustodyKey(ck CustodyKey) error {
+	if _, err := sdk.AccAddressFromBech32(ck.Operator); err != nil {
+		return errorsmod.Wrapf(ErrInvalidAddress, "custody key operator %q", ck.Operator)
+	}
+	if _, err := sdk.AccAddressFromBech32(ck.HotKey); err != nil {
+		return errorsmod.Wrapf(ErrInvalidAddress, "custody hot key %q", ck.HotKey)
+	}
+	if len(ck.EncPubkey) != 33 {
+		return errorsmod.Wrapf(ErrInvalidGenesis, "encryption key of %s is %d bytes", ck.Operator, len(ck.EncPubkey))
+	}
+	if _, err := btcec.ParsePubKey(ck.EncPubkey); err != nil {
+		return errorsmod.Wrapf(ErrInvalidGenesis, "encryption key of %s: %v", ck.Operator, err)
 	}
 	return nil
 }

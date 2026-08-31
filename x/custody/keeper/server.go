@@ -189,3 +189,64 @@ func (q querier) NoncePool(ctx context.Context, req *types.QueryNoncePoolRequest
 	}
 	return &types.QueryNoncePoolResponse{LastRecorded: last, Commitments: cs}, nil
 }
+
+func (m msgServer) RegisterCustodyKey(ctx context.Context, msg *types.MsgRegisterCustodyKey) (*types.MsgRegisterCustodyKeyResponse, error) {
+	if err := m.k.RegisterCustodyKey(ctx, msg); err != nil {
+		return nil, err
+	}
+	return &types.MsgRegisterCustodyKeyResponse{}, nil
+}
+
+func (m msgServer) DKGCommit(ctx context.Context, msg *types.MsgDKGCommit) (*types.MsgDKGCommitResponse, error) {
+	if err := msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+	if err := m.k.DKGCommit(ctx, msg); err != nil {
+		return nil, err
+	}
+	return &types.MsgDKGCommitResponse{}, nil
+}
+
+func (m msgServer) DKGDeal(ctx context.Context, msg *types.MsgDKGDeal) (*types.MsgDKGDealResponse, error) {
+	if err := msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+	if err := m.k.DKGDeal(ctx, msg); err != nil {
+		return nil, err
+	}
+	return &types.MsgDKGDealResponse{}, nil
+}
+
+func (m msgServer) DKGComplaint(ctx context.Context, msg *types.MsgDKGComplaint) (*types.MsgDKGComplaintResponse, error) {
+	if err := msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+	upheld, err := m.k.DKGComplaint(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+	return &types.MsgDKGComplaintResponse{Upheld: upheld}, nil
+}
+
+func (q querier) DKG(ctx context.Context, req *types.QueryDKGRequest) (*types.QueryDKGResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "empty request")
+	}
+	run, ok, err := q.k.GetDKG(ctx, req.Epoch)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "no DKG for epoch %d", req.Epoch)
+	}
+	return &types.QueryDKGResponse{State: run.State, Dealers: run.Dealers, Complaints: run.Complaints}, nil
+}
+
+func (q querier) CustodyKeys(ctx context.Context, _ *types.QueryCustodyKeysRequest) (*types.QueryCustodyKeysResponse, error) {
+	res := &types.QueryCustodyKeysResponse{}
+	err := q.k.CustodyKeys.Walk(ctx, nil, func(_ sdk.AccAddress, ck types.CustodyKey) (bool, error) {
+		res.Keys = append(res.Keys, ck)
+		return false, nil
+	})
+	return res, err
+}

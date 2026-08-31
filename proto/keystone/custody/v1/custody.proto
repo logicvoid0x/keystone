@@ -242,3 +242,74 @@ message SignerStats {
   // flagged is set once signer_flagged has been emitted.
   bool flagged = 4;
 }
+
+// CustodyKey is an operator's DKG encryption key (33-byte secp256k1) and custody hot
+// key, the account that signs its DKG messages (design §4.4, §10.4; M4b).
+message CustodyKey {
+  string operator = 1;
+  bytes enc_pubkey = 2;
+  string hot_key = 3;
+}
+
+// DKGPhase is a DKG run's phase (design §9.3).
+enum DKGPhase {
+  option (gogoproto.goproto_enum_prefix) = false;
+  DKG_PHASE_UNSPECIFIED = 0;
+  DKG_PHASE_COMMIT = 1;
+  DKG_PHASE_DEAL = 2;
+  DKG_PHASE_COMPLAIN = 3;
+  DKG_PHASE_DONE = 4;
+  DKG_PHASE_FAILED = 5;
+}
+
+// DKGParticipant is an operator taking part in a DKG, with the share index it will
+// hold (rank by operator address bytes, from 1).
+message DKGParticipant {
+  string operator = 1;
+  uint32 index = 2;
+}
+
+// DKGState is a DKG run for one epoch (design §9.3). The phase windows are
+// [start, start+W), [start+W, start+2W), [start+2W, start+3W) for W = DKGWindow;
+// finalization runs in the EndBlock of start+3W−1.
+message DKGState {
+  uint64 epoch = 1;
+  uint32 attempt = 2;
+  int64 start_height = 3;
+  DKGPhase phase = 4;
+  uint32 t = 5;
+  // participants are sorted by index.
+  repeated DKGParticipant participants = 6 [(gogoproto.nullable) = false];
+  // disqualified are operators, sorted.
+  repeated string disqualified = 7;
+}
+
+// DKGCommitment is a dealer's commitment message: the t coefficient commitments
+// (33-byte points, a_0·G first) and the 64-byte proof of knowledge of a_0.
+message DKGCommitment {
+  repeated bytes commitments = 1;
+  bytes proof = 2;
+}
+
+// DKGCiphertext is a dealer's encrypted share for one recipient: nonce (12 bytes) ‖
+// AES-256-GCM ciphertext of the 32-byte share.
+message DKGCiphertext {
+  uint32 recipient = 1;
+  bytes ciphertext = 2;
+}
+
+// DKGDealing is a dealer's deal message: one ciphertext per other participant, sorted
+// by recipient index.
+message DKGDealing {
+  repeated DKGCiphertext ciphertexts = 1 [(gogoproto.nullable) = false];
+}
+
+// DKGComplaint is a recipient's complaint against a dealer and its verdict.
+message DKGComplaint {
+  string complainer = 1;
+  string dealer = 2;
+  bytes ecdh_secret = 3;
+  bytes dleq_proof = 4;
+  // upheld: the dealer was disqualified (else the complainer was).
+  bool upheld = 5;
+}

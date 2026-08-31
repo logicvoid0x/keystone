@@ -30,6 +30,9 @@ var (
 	ClaimableKey       = collections.NewPrefix(0x15) // address -> claimable sat
 	FeeReserveKey      = collections.NewPrefix(0x16) // fee reserve sat
 	DeficitKey         = collections.NewPrefix(0x17) // custody deficit sat
+	DKGStatesKey       = collections.NewPrefix(0x13) // epoch -> DKGState (M4b)
+	DKGMessagesKey     = collections.NewPrefix(0x14) // (epoch, phase, key) -> message bytes (M4b)
+	CustodyKeysKey     = collections.NewPrefix(0x18) // operator -> CustodyKey (M4b)
 	SignerStatsKey     = collections.NewPrefix(0x19) // (epoch, operator) -> SignerStats (M4a)
 	CreditedKey        = collections.NewPrefix(0x1A) // credited sat (for the cap)
 	DepositsKey        = collections.NewPrefix(0x1C) // (txid, vout) -> DepositRecord (added in M3)
@@ -38,4 +41,5 @@ var (
 	TxBatchKey         = collections.NewPrefix(0x1F) // txid -> batch id, every version (added in M4a)
 	NextBatchKey       = collections.NewPrefix(0x20) // next batch id (added in M4a)
 	InFlightKey        = collections.NewPrefix(0x21) // epoch -> batch id not yet confirmed (added in M4a)
+	HotKeysKey         = collections.NewPrefix(0x22) // hot key -> operator (added in M4b)
 )

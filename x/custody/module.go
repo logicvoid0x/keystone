@@ -84,3 +84,8 @@ func (am AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.Raw
 	}
 	return cdc.MustMarshalJSON(gs)
 }
+
+var _ appmodule.HasEndBlocker = AppModule{}
+
+// EndBlock drives the DKG (design §9.3).
+func (am AppModule) EndBlock(ctx context.Context) error { return am.keeper.EndBlock(ctx) }

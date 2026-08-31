@@ -39,7 +39,9 @@ func initRootCmd(rootCmd *cobra.Command, tempApp *app.App) {
 		AddFlags: func(cmd *cobra.Command) {
 			cmd.Flags().Bool(signer.FlagRevokeNonces, false, "Set revoke_all_nonces in the next vote extension (after restoring shares from a backup, design §9.5)")
 		},
+		PostSetup: startDKG,
 	})
+	rootCmd.AddCommand(custodyCommand())
 
 	rootCmd.AddCommand(
 		server.StatusCommand(),
@@ -102,8 +104,13 @@ func txCommand() *cobra.Command {
 	return cmd
 }
 
+// runningApp is the app newApp created for `keystoned start` (one per process), for
+// services started after CometBFT (the DKG participant).
+var runningApp *app.App
+
 func newApp(logger log.Logger, db dbm.DB, appOpts servertypes.AppOptions) servertypes.Application {
 	a := app.New(logger, db, true, appOpts, server.DefaultBaseappOptions(appOpts)...)
+	runningApp = a
 
 	// Prometheus metrics (design §16), served by CometBFT on instrumentation.prometheus_listen_addr.
 	if m, err := app.NewMetrics(prometheus.DefaultRegisterer); err != nil {

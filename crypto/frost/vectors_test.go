@@ -243,8 +243,8 @@ func TestDKGVectors(t *testing.T) {
 					if other == id {
 						continue
 					}
-					require.True(t, frost.VerifyProofOfKnowledge(tc.suite, other, commits[other][0], unhex(t, parts[other].Proof)))
-					require.False(t, frost.VerifyProofOfKnowledge(tc.suite, id, commits[other][0], unhex(t, parts[other].Proof)))
+					require.True(t, frost.VerifyProofOfKnowledge(tc.suite, nil, other, commits[other][0], unhex(t, parts[other].Proof)))
+					require.False(t, frost.VerifyProofOfKnowledge(tc.suite, nil, id, commits[other][0], unhex(t, parts[other].Proof)))
 					f := scalar(t, p.SigningShares[strconv.Itoa(int(other))])
 					require.True(t, frost.EqualPoints(frost.MulBase(&f), frost.EvalCommitment(commits[other], id)))
 					s.Add(&f)

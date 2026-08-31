@@ -18,6 +18,8 @@ type AdminKeeper interface {
 // ValidatorSet is x/poa as seen by the attestation tallies.
 type ValidatorSet interface {
 	ActiveValidators(ctx context.Context) ([]poatypes.Operator, error)
+	// GetOperator returns an operator of any power (an error if unknown).
+	GetOperator(ctx context.Context, addr sdk.AccAddress) (poatypes.Operator, error)
 }
 
 // VaultKeeper is x/vault as seen by deposit crediting and reversal (design §9.7).
@@ -31,4 +33,7 @@ type VaultKeeper interface {
 	VaultOwner(ctx context.Context, id uint64) (owner sdk.AccAddress, open bool, err error)
 	// MinDepositSat is the vault param below which deposits go to the fee reserve.
 	MinDepositSat(ctx context.Context) (sdkmath.Int, error)
+	// OpenVaultIDs lists the vaults that are not CLOSED (M4b: registered for a new
+	// epoch's deposit scripts).
+	OpenVaultIDs(ctx context.Context) ([]uint64, error)
 }

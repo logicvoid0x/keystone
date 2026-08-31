@@ -14,4 +14,5 @@ var (
 	ErrNotFound       = errorsmod.Register(ModuleName, 10, "not found")
 	ErrDeficit        = errorsmod.Register(ModuleName, 11, "custody deficit outstanding")
 	ErrInvalidScript  = errorsmod.Register(ModuleName, 12, "invalid recipient script")
+	ErrDKG            = errorsmod.Register(ModuleName, 13, "invalid DKG message")
 )
