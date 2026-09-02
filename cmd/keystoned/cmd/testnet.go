@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -31,6 +32,7 @@ import (
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/crypto/frost/secret"
 	"github.com/OWNER/keystone/sidecar/btcwatch"
+	"github.com/OWNER/keystone/sidecar/dkg"
 	"github.com/OWNER/keystone/sidecar/price"
 	"github.com/OWNER/keystone/sidecar/signer"
 	"github.com/OWNER/keystone/testutil/devdealer"
@@ -149,6 +151,7 @@ type nodeFiles struct {
 	kb       keyring.Keyring
 	operator *keyring.Record
 	test     *keyring.Record
+	custody  dkg.Init
 }
 
 // InitFiles writes the node homes and the shared genesis.
@@ -189,7 +192,7 @@ func InitFiles(cdc codec.Codec, defaults app.GenesisState, args InitFilesArgs, i
 		input.Operators = append(input.Operators, app.GenesisOperator{
 			Address: opAddr, ConsPubKey: nf.consPub.Bytes(), Moniker: fmt.Sprintf("node%d", i),
 		})
-		input.Accounts = append(input.Accounts, opAddr, testAddr)
+		input.Accounts = append(input.Accounts, opAddr, testAddr, nf.custody.HotKey)
 	}
 	appState, err := app.BuildGenesis(cdc, defaults, input)
 	if err != nil {
@@ -227,10 +230,13 @@ func InitFiles(cdc codec.Codec, defaults app.GenesisState, args InitFilesArgs, i
 		if args.MockfeedURL != "" {
 			appCfg.Keystone.Price = price.MockConfig(args.MockfeedURL)
 		}
-		if args.DevDealer {
-			// Each node signs custody sessions with its dealt share (spec M4a-T6).
-			appCfg.Keystone.Signer = signer.FileConfig{Enabled: true, PassphraseFile: DevPassphraseFile}
+		// Each node signs custody sessions with its share (spec M4a-T6) and, without
+		// --dev-dealer, takes part in the epoch-1 DKG as its operator (M4b).
+		opAddr, err := nf.operator.GetAddress()
+		if err != nil {
+			return err
 		}
+		appCfg.Keystone.Signer = signer.FileConfig{Enabled: true, PassphraseFile: DevPassphraseFile, Operator: opAddr.String()}
 		if args.Docker {
 			dockerConfig(nf.cfg, appCfg, args, i)
 		}
@@ -293,7 +299,20 @@ func initNode(cdc codec.Codec, args InitFilesArgs, i int, in *bufio.Reader) (*no
 	if err := os.WriteFile(filepath.Join(home, "key_seeds.json"), seeds, 0o600); err != nil {
 		return nil, err
 	}
-	return &nodeFiles{home: home, cfg: cfg, nodeID: nodeID, consPub: consPub, kb: kb, operator: op, test: test}, nil
+	// Custody keys (spec M4b-T1): the DKG encryption key and the "custody" hot key,
+	// encrypted with the localnet passphrase, which sits next to them (test networks only).
+	pw := args.CustodyPassphrase
+	if pw == "" {
+		pw = DefaultCustodyPassphrase
+	}
+	ck, err := dkg.InitCustody(home, kb, []byte(pw))
+	if err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(home, DevPassphraseFile), []byte(pw+"\n"), 0o600); err != nil {
+		return nil, err
+	}
+	return &nodeFiles{home: home, cfg: cfg, nodeID: nodeID, consPub: consPub, kb: kb, operator: op, test: test, custody: ck}, nil
 }
 
 // createAdmin returns the admin address. N = 1: a single "admin" key in node0. N > 1: a
@@ -500,21 +519,33 @@ func AddNode(cdc codec.Codec, args AddNodeArgs, in *bufio.Reader) (NodeInfo, err
 	}, nil
 }
 
-// localCustodyGenesis applies the localnet custody params (design §9.1: regtest,
-// MembershipDelayBlocks 100, confirmation depth 1) on localnet chain ids and, with
-// --dev-dealer, deals the epoch-1 key and writes each node's encrypted share.
+// localCustodyGenesis writes the operators' custody keys into the custody genesis,
+// applies the localnet custody params (design §9.1: regtest, MembershipDelayBlocks 100,
+// confirmation depth 1) on localnet chain ids and, with --dev-dealer, deals the
+// epoch-1 key and writes each node's encrypted share.
 func localCustodyGenesis(cdc codec.Codec, appState app.GenesisState, args InitFilesArgs, nodes []*nodeFiles) error {
-	if !custodytypes.IsLocalChainID(args.ChainID) {
-		return nil
-	}
 	var gs custodytypes.GenesisState
 	if err := cdc.UnmarshalJSON(appState[custodytypes.ModuleName], &gs); err != nil {
 		return err
 	}
-	gs.Params.BitcoinNetwork = custodytypes.NetworkRegtest
-	gs.Params.MembershipDelayBlocks = 100
-	gs.Params.ConfirmDepth = 1
-	if args.DevDealer {
+	// Every chain: the operators' custody keys, so the epoch-1 DKG can start at height 2
+	// with no registration transactions (design §10.4).
+	for _, nf := range nodes {
+		op, err := nf.operator.GetAddress()
+		if err != nil {
+			return err
+		}
+		gs.CustodyKeys = append(gs.CustodyKeys, custodytypes.CustodyKey{Operator: op.String(), EncPubkey: nf.custody.EncPubkey, HotKey: nf.custody.HotKey.String()})
+	}
+	slices.SortFunc(gs.CustodyKeys, func(a, b custodytypes.CustodyKey) int {
+		return bytes.Compare(sdk.MustAccAddressFromBech32(a.Operator), sdk.MustAccAddressFromBech32(b.Operator))
+	})
+	if custodytypes.IsLocalChainID(args.ChainID) {
+		gs.Params.BitcoinNetwork = custodytypes.NetworkRegtest
+		gs.Params.MembershipDelayBlocks = 100
+		gs.Params.ConfirmDepth = 1
+	}
+	if args.DevDealer && custodytypes.IsLocalChainID(args.ChainID) {
 		ops := make([]sdk.AccAddress, len(nodes))
 		for i, nf := range nodes {
 			addr, err := nf.operator.GetAddress()

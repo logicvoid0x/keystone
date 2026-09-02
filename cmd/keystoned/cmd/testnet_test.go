@@ -25,8 +25,10 @@ import (
 
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/cmd/keystoned/cmd"
+	"github.com/OWNER/keystone/crypto/frost"
 	"github.com/OWNER/keystone/crypto/frost/secret"
 	"github.com/OWNER/keystone/sidecar/btcwatch"
+	"github.com/OWNER/keystone/sidecar/dkg"
 	"github.com/OWNER/keystone/sidecar/price"
 	"github.com/OWNER/keystone/testutil/devdealer"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
@@ -257,4 +259,49 @@ func TestInitFilesDevDealer(t *testing.T) {
 	b := sum.Bytes()
 	_, pub := btcec.PrivKeyFromBytes(b[:])
 	require.Equal(t, cg.Epochs[0].GroupKey, pub.SerializeCompressed())
+}
+
+// Without --dev-dealer, genesis has no custody epoch but every operator's custody keys
+// (spec M4b-T1/T3): the encryption key decrypts with the localnet passphrase, the hot
+// key is in the keyring and funded, and the signer runs as the operator.
+func TestInitFilesCustodyKeys(t *testing.T) {
+	a := app.New(log.NewNopLogger(), dbm.NewMemDB(), true, simtestutil.EmptyAppOptions{})
+	args := cmd.InitFilesArgs{
+		Operators: 4, OutputDir: t.TempDir(), ChainID: "keystone-local-1",
+		KeyringBackend: keyring.BackendTest, FundAmount: sdkmath.NewInt(1000),
+	}
+	require.NoError(t, cmd.InitFiles(a.AppCodec(), a.DefaultGenesis(), args, bufio.NewReader(strings.NewReader(""))))
+	gen, err := genutiltypes.AppGenesisFromFile(filepath.Join(args.OutputDir, "node0", "config", "genesis.json"))
+	require.NoError(t, err)
+	var state map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(gen.AppState, &state))
+	require.NoError(t, a.BasicModuleManager.ValidateGenesis(a.AppCodec(), a.TxConfig(), state))
+	var cg custodytypes.GenesisState
+	a.AppCodec().MustUnmarshalJSON(state[custodytypes.ModuleName], &cg)
+	require.Empty(t, cg.Epochs)
+	require.Zero(t, cg.ActiveEpoch)
+	require.Len(t, cg.CustodyKeys, 4)
+	bank := string(state["bank"])
+	for i := 0; i < 4; i++ {
+		home := filepath.Join(args.OutputDir, fmt.Sprintf("node%d", i))
+		kb, err := keyring.New("keystone", keyring.BackendTest, home, nil, a.AppCodec())
+		require.NoError(t, err)
+		rec, err := kb.Key("operator")
+		require.NoError(t, err)
+		op, _ := rec.GetAddress()
+		hotRec, err := kb.Key(dkg.HotKeyName)
+		require.NoError(t, err)
+		hot, _ := hotRec.GetAddress()
+		j := slices.IndexFunc(cg.CustodyKeys, func(ck custodytypes.CustodyKey) bool { return ck.Operator == op.String() })
+		require.GreaterOrEqual(t, j, 0)
+		require.Equal(t, hot.String(), cg.CustodyKeys[j].HotKey)
+		require.Contains(t, bank, hot.String(), "the hot key has a genesis account")
+		enc, err := dkg.LoadEncKey(home, []byte(cmd.DefaultCustodyPassphrase))
+		require.NoError(t, err)
+		pub, _ := frost.SerializePoint(frost.MulBase(&enc))
+		require.Equal(t, pub[:], cg.CustodyKeys[j].EncPubkey)
+		toml, err := os.ReadFile(filepath.Join(home, "config", "app.toml"))
+		require.NoError(t, err)
+		require.Contains(t, string(toml), `operator = "`+op.String()+`"`)
+	}
 }

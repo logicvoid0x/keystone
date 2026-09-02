@@ -4,7 +4,7 @@ BUILDDIR ?= build
 # make test builds with these tags (spec M1-T8): invariants run in EndBlock.
 TEST_TAGS ?= invariants
 
-.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz localnet-signer3 e2e-M3 clean
+.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz localnet-signer3 e2e-M3 e2e-M4a clean
 
 all: build
 
@@ -45,8 +45,11 @@ build-dev: check-go
 	@mkdir -p $(BUILDDIR)
 	$(GO) build -o $(BUILDDIR)/ ./cmd/keystoned ./cmd/mockfeed
 
-# e2e runs the demo of the latest finished milestone (M4a: needs Docker).
+# e2e runs the demo of the latest finished milestone (M4b: needs Docker).
 e2e: build-dev
+	bash scripts/demo-M4b.sh
+
+e2e-M4a: build-dev
 	bash scripts/demo-M4a.sh
 
 e2e-M3: build-dev
@@ -73,9 +76,13 @@ localnet-bin: check-go
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -tags byzantine -o $(BUILDDIR)/linux/keystoned-byz ./cmd/keystoned
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -o $(BUILDDIR)/linux/mockfeed ./cmd/mockfeed
 
+# DEALER=--dev-dealer (default) puts a dealer key in genesis; `make localnet-start DEALER=`
+# starts with no custody key and runs the epoch-1 DKG (M4b).
+DEALER ?= --dev-dealer
+
 localnet-start: build-dev localnet-bin
 	@if [ ! -d $(LOCALNET_HOMES)/node0 ]; then \
-		./$(BUILDDIR)/keystoned testnet init-files --operators 4 --docker --dev-dealer --output $(LOCALNET_HOMES) --chain-id keystone-local-1; fi
+		./$(BUILDDIR)/keystoned testnet init-files --operators 4 --docker $(DEALER) --output $(LOCALNET_HOMES) --chain-id keystone-local-1; fi
 	$(COMPOSE) up -d --build mockfeed bitcoin0 bitcoin1 bitcoin2 bitcoin3 node0 node1 node2 node3
 
 localnet-stop:
