@@ -38,6 +38,7 @@ import (
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/app/protocol/vetypes"
 	"github.com/OWNER/keystone/sidecar/btcwatch"
+	"github.com/OWNER/keystone/sidecar/dkg"
 	"github.com/OWNER/keystone/sidecar/signer"
 	"github.com/OWNER/keystone/testutil/apptest"
 	"github.com/OWNER/keystone/testutil/btcfake"
@@ -68,6 +69,10 @@ type Node struct {
 	Signer     *signer.Signer
 	StopSigner bool
 	FrostHook  func(p *vetypes.FrostPayload)
+	// HotKey and Participant are this node's custody hot key and DKG participant
+	// (Options.DKG only).
+	HotKey      *secp256k1.PrivKey
+	Participant *dkg.Participant
 }
 
 // nodeFrost is the FrostSource a node's App uses: its signer, unless stopped or hooked.
@@ -114,8 +119,19 @@ type Net struct {
 	Bitcoin *btcfake.Chain
 }
 
-// New starts an n-node network at genesis (no block committed).
-func New(t testing.TB, n int) *Net {
+// Options select how a network's custody key is made.
+type Options struct {
+	// DKG starts with no custody epoch: every node has custody keys in genesis and a
+	// DKG participant, and DKGTxs carries their messages (spec M4b). Otherwise a dealer
+	// key is in genesis (M3/M4a).
+	DKG bool
+}
+
+// New starts an n-node network at genesis (no block committed) with a dealer key.
+func New(t testing.TB, n int) *Net { return NewWithOptions(t, n, Options{}) }
+
+// NewWithOptions starts an n-node network at genesis.
+func NewWithOptions(t testing.TB, n int, opts Options) *Net {
 	t.Helper()
 	net := &Net{
 		T: t, Time: time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC),
@@ -154,6 +170,10 @@ func New(t testing.TB, n int) *Net {
 	for _, nd := range net.Nodes {
 		in.Operators = append(in.Operators, app.GenesisOperator{Address: nd.Addr, ConsPubKey: nd.ConsKey.PubKey().Bytes(), Moniker: fmt.Sprintf("node%d", nd.Index)})
 		accounts = append(accounts, nd.Addr)
+		if opts.DKG {
+			nd.HotKey = secp256k1.GenPrivKeyFromSecret([]byte{'m', 'h', byte(nd.Index)})
+			accounts = append(accounts, sdk.AccAddress(nd.HotKey.PubKey().Address()))
+		}
 	}
 	in.Accounts = accounts
 	gs, err := app.BuildGenesis(ref.AppCodec(), ref.DefaultGenesis(), in)
@@ -162,11 +182,15 @@ func New(t testing.TB, n int) *Net {
 	for i, nd := range net.Nodes {
 		ops[i] = nd.Addr
 	}
-	dealt, err := apptest.DealCustody(ref.AppCodec(), gs, ops)
-	require.NoError(t, err)
-	for _, nd := range net.Nodes {
-		nd.Signer = apptest.NewSigner(t, dealt, nd.Addr, nd.App.FrostView(), filepath.Join(t.TempDir(), fmt.Sprintf("node%d", nd.Index)))
-		nd.App.SetFrostSource(nodeFrost{nd})
+	if opts.DKG {
+		net.setupDKG(gs)
+	} else {
+		dealt, err := apptest.DealCustody(ref.AppCodec(), gs, ops)
+		require.NoError(t, err)
+		for _, nd := range net.Nodes {
+			nd.Signer = apptest.NewSigner(t, dealt, nd.Addr, nd.App.FrostView(), filepath.Join(t.TempDir(), fmt.Sprintf("node%d", nd.Index)))
+			nd.App.SetFrostSource(nodeFrost{nd})
+		}
 	}
 	state, err := json.Marshal(gs)
 	require.NoError(t, err)
