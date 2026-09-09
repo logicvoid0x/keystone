@@ -17,9 +17,12 @@ WORK=$ROOT/.demo/M4a
 . "$ROOT/scripts/lib/localnet.sh"
 
 rm -rf "$WORK"; mkdir -p "$WORK"
-make --no-print-directory localnet-clean >/dev/null 2>&1 || true
-make --no-print-directory localnet-start >"$WORK/start.log" 2>&1 || { tail -20 "$WORK/start.log"; fail "make localnet-start"; }
-pass "localnet started (4 nodes, 4 regtest bitcoinds, 4 FROST signers, mockfeed)"
+# KEYSTONE_DEMO_REUSE=1 runs on an already started localnet (demo-M4b, after the DKG).
+if [ -z "${KEYSTONE_DEMO_REUSE:-}" ]; then
+  make --no-print-directory localnet-clean >/dev/null 2>&1 || true
+  make --no-print-directory localnet-start >"$WORK/start.log" 2>&1 || { tail -20 "$WORK/start.log"; fail "make localnet-start"; }
+  pass "localnet started (4 nodes, 4 regtest bitcoinds, 4 FROST signers, mockfeed)"
+fi
 wait_height 3 300
 btc_ready
 mine 101 # faucet coins mature
