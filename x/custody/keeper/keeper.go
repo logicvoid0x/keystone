@@ -56,6 +56,7 @@ type Keeper struct {
 	HotKeys         collections.Map[sdk.AccAddress, []byte]
 	DKGStates       collections.Map[uint64, types.DKGState]
 	DKGMessages     collections.Map[collections.Triple[uint64, uint32, []byte], []byte]
+	Pending         collections.Item[types.PendingMembership]
 
 	admin types.AdminKeeper
 	vals  types.ValidatorSet
@@ -108,6 +109,7 @@ func NewKeeper(cdc codec.BinaryCodec, storeService store.KVStoreService, admin t
 		CustodyKeys: collections.NewMap(sb, types.CustodyKeysKey, "custody_keys", sdk.AccAddressKey, codec.CollValue[types.CustodyKey](cdc)),
 		HotKeys:     collections.NewMap(sb, types.HotKeysKey, "hot_keys", sdk.AccAddressKey, collections.BytesValue),
 		DKGStates:   collections.NewMap(sb, types.DKGStatesKey, "dkg_states", collections.Uint64Key, codec.CollValue[types.DKGState](cdc)),
+		Pending:     collections.NewItem(sb, types.PendingKey, "pending_membership", codec.CollValue[types.PendingMembership](cdc)),
 		DKGMessages: collections.NewMap(sb, types.DKGMessagesKey, "dkg_messages",
 			collections.TripleKeyCodec(collections.Uint64Key, collections.Uint32Key, collections.BytesKey), collections.BytesValue),
 		admin: admin,

@@ -250,3 +250,17 @@ func (q querier) CustodyKeys(ctx context.Context, _ *types.QueryCustodyKeysReque
 	})
 	return res, err
 }
+
+func (q querier) PendingMembership(ctx context.Context, _ *types.QueryPendingMembershipRequest) (*types.QueryPendingMembershipResponse, error) {
+	p, err := q.k.Pending.Get(ctx)
+	if errors.Is(err, collections.ErrNotFound) {
+		return &types.QueryPendingMembershipResponse{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+	params, err := q.k.Params.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &types.QueryPendingMembershipResponse{Pending: &p, EffectiveHeight: p.SinceHeight + int64(params.MembershipDelayBlocks)}, nil
+}

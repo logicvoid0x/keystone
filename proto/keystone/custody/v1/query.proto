@@ -69,6 +69,11 @@ service Query {
     option (cosmos.query.v1.module_query_safe) = true;
     option (google.api.http).get = "/keystone/custody/v1/dkg/{epoch}";
   }
+  // PendingMembership returns the pending custody set change, if any.
+  rpc PendingMembership(QueryPendingMembershipRequest) returns (QueryPendingMembershipResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/custody/v1/pending_membership";
+  }
   // CustodyKeys returns the registered custody keys.
   rpc CustodyKeys(QueryCustodyKeysRequest) returns (QueryCustodyKeysResponse) {
     option (cosmos.query.v1.module_query_safe) = true;
@@ -228,4 +233,14 @@ message QueryCustodyKeysRequest {}
 // QueryCustodyKeysResponse is the response for Query/CustodyKeys.
 message QueryCustodyKeysResponse {
   repeated CustodyKey keys = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryPendingMembershipRequest is the request for Query/PendingMembership.
+message QueryPendingMembershipRequest {}
+
+// QueryPendingMembershipResponse is the response for Query/PendingMembership.
+message QueryPendingMembershipResponse {
+  PendingMembership pending = 1;
+  // effective_height is when the next epoch's DKG starts (0 if nothing is pending).
+  int64 effective_height = 2;
 }

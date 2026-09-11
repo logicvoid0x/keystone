@@ -113,3 +113,15 @@ func (s StaticShares) Share(epoch uint64) (uint32, frost.Scalar, error) {
 	}
 	return sh.Index, sh.Secret, nil
 }
+
+// Delete removes an epoch's share file once the epoch is RETIRED (design §9.4 step 4).
+func (f *FileShares) Delete(epoch uint64) error {
+	f.mu.Lock()
+	delete(f.cache, epoch)
+	f.mu.Unlock()
+	err := os.Remove(secret.SharesPath(f.Home, epoch))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}

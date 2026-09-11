@@ -33,6 +33,7 @@ func DefaultParams() Params {
 		MinWithdrawSat:        sdkmath.NewInt(10_000),
 		EmergencyRekey:        false,
 		BitcoinNetwork:        NetworkSignet,
+		RetireWatchBlocks:     1000,
 	}
 }
 
@@ -52,6 +53,7 @@ func (p Params) Validate() error {
 		bounds.Uint("feerate_min", p.FeerateMin, 1, p.FeerateMax),
 		bounds.Uint("rbf_after_btc_blocks", uint64(p.RbfAfterBtcBlocks), 1, 1000),
 		bounds.Int("min_withdraw_sat", p.MinWithdrawSat, MinWithdrawSatFloor, MinWithdrawSatCeil),
+		bounds.Uint("retire_watch_blocks", p.RetireWatchBlocks, 1, 1_000_000),
 	)
 	if err == nil {
 		_, err = NetParams(p.BitcoinNetwork)

@@ -48,4 +48,7 @@ message Params {
   bool emergency_rekey = 13;
   // bitcoin_network selects address encoding: "regtest" or "signet" (added in M3).
   string bitcoin_network = 14;
+  // retire_watch_blocks: a RETIRING epoch is RETIRED only this many blocks after it
+  // began retiring (its deposit addresses stay watched; design §9.4, added in M5).
+  uint64 retire_watch_blocks = 15;
 }

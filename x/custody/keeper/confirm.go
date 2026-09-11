@@ -55,7 +55,11 @@ func (k *Keeper) confirmTx(ctx context.Context, c vetypes.TxConfirmed) error {
 		}
 	}
 	if ver.ChangeSat > 0 {
-		e, err := k.Epochs.Get(ctx, b.Epoch)
+		to := b.ChangeEpoch
+		if to == 0 {
+			to = b.Epoch
+		}
+		e, err := k.Epochs.Get(ctx, to)
 		if err != nil {
 			return err
 		}
@@ -63,7 +67,7 @@ func (k *Keeper) confirmTx(ctx context.Context, c vetypes.TxConfirmed) error {
 		if err != nil {
 			return err
 		}
-		u := types.Utxo{Txid: ver.Txid, Vout: uint32(len(b.RequestIds)), AmountSat: ver.ChangeSat, Epoch: b.Epoch, Tweak: tweak, Status: types.UTXO_STATUS_AVAILABLE}
+		u := types.Utxo{Txid: ver.Txid, Vout: uint32(len(b.RequestIds)), AmountSat: ver.ChangeSat, Epoch: to, Tweak: tweak, Status: types.UTXO_STATUS_AVAILABLE}
 		if err := k.setUtxo(ctx, nil, u); err != nil {
 			return err
 		}

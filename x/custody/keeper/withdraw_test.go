@@ -110,6 +110,9 @@ func sortFrost(ve *vetypes.VoteExtension) {
 
 type signFixture struct {
 	*opsFixture
+	fv *fakeVals
+	// hook, if set, runs before each block and returns extra messages to deliver.
+	hook    func() []sdk.Msg
 	signers []*simSigner
 	bitcoin *vetypes.BitcoinPayload // attested by every voter each step
 }
@@ -147,7 +150,7 @@ func newSigning(t *testing.T) *signFixture {
 		of.vault.owner[id] = owner
 		of.vault.coll[id] = sdkmath.ZeroInt()
 	}
-	f := &signFixture{opsFixture: of, bitcoin: &vetypes.BitcoinPayload{FeerateSatVb: 2}}
+	f := &signFixture{opsFixture: of, fv: fv, bitcoin: &vetypes.BitcoinPayload{FeerateSatVb: 2}}
 	for i, op := range d.Operators {
 		s, err := frost.ParseScalar(d.Shares[i].Shares[0].Secret)
 		require.NoError(t, err)
@@ -167,10 +170,16 @@ func (f *signFixture) block(t *testing.T) types.CustodyBatch {
 		}
 		votes = append(votes, types.Vote{ConsAddr: s.cons, Bitcoin: f.bitcoin, Frost: s.payload(t, f.ctx, f.k)})
 	}
+	var msgs []sdk.Msg
+	if f.hook != nil {
+		msgs = f.hook()
+	}
 	f.ctx = f.ctx.WithBlockHeight(f.ctx.BlockHeight() + 1).WithEventManager(sdk.NewEventManager())
 	b, err := f.k.BuildOps(f.ctx, votes)
 	require.NoError(t, err)
 	require.NoError(t, f.k.ApplyOps(f.ctx, b))
+	deliver(t, f.ctx, f.k, msgs)
+	require.NoError(t, f.k.EndBlock(f.ctx))
 	for _, e := range f.ctx.EventManager().Events() {
 		if e.Type == types.EventTypeOpSkipped {
 			for _, a := range e.Attributes {
@@ -455,4 +464,37 @@ func treasuryScript(t *testing.T, f *signFixture) []byte {
 	s, _, err := types.TreasuryScript(treasuryKey(t, f))
 	require.NoError(t, err)
 	return s
+}
+
+// Design §9.10 / §12: signer_flagged is emitted once an operator passes 3 invalid
+// shares (here: blamed sessions over 4 batches) or misses more than 20% of its
+// assigned sessions.
+func TestSignerFlagged(t *testing.T) {
+	f := newSigning(t)
+	f.fund(t, 0x11, 50_000_000)
+	quiet := f.signers[0]
+	quiet.silent = true
+	flagged := false
+	for n := 0; n < 3 && !flagged; n++ {
+		f.queueClaim(t, alice, wpkh(0x21+byte(n)), 1_000_000)
+		for range 30 {
+			f.block(t)
+			if op, ok := evAttr(f.ctx, types.EventTypeSignerFlagged, types.AttributeKeyOperator); ok {
+				require.Equal(t, quiet.op.String(), op)
+				flagged = true
+				break
+			}
+			if b, err := f.k.GetBatch(f.ctx, uint64(n+1)); err == nil && b.Status == types.BATCH_STATUS_SIGNED {
+				f.bitcoin = &vetypes.BitcoinPayload{FeerateSatVb: 2, Confirms: []vetypes.TxConfirmed{{Txid: b.Txs[0].Txid, Block: &vetypes.BtcBlockRef{Height: uint32(200 + n), Hash: h32(byte(0xD0 + n))}}}}
+				f.block(t)
+				f.bitcoin = &vetypes.BitcoinPayload{FeerateSatVb: 2}
+				break
+			}
+		}
+	}
+	require.True(t, flagged, "a signer missing every assigned session is flagged")
+	st, err := f.k.SignerStats.Get(f.ctx, collectionsJoin2(1, quiet.op))
+	require.NoError(t, err)
+	require.True(t, st.Flagged)
+	require.Greater(t, st.Missed*5, st.Assigned)
 }

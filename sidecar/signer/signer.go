@@ -56,6 +56,8 @@ type View struct {
 	NoncePool int
 	// Epochs are the ACTIVE or RETIRING epochs among those asked for, ascending.
 	Epochs []EpochView
+	// Retired are the epochs asked for that are RETIRED: their shares are deleted.
+	Retired []uint64
 }
 
 // ChainView loads a View for the given shares (epoch → share index).
@@ -180,6 +182,15 @@ func (s *Signer) Payload(height int64) (*vetypes.FrostPayload, error) {
 			})
 		}
 	}
+	if d, ok := s.shares.(interface{ Delete(epoch uint64) error }); ok {
+		for _, e := range v.Retired {
+			if err := d.Delete(e); err != nil {
+				s.logger.Error("cannot delete retired share", "epoch", e, "err", err)
+			} else {
+				s.logger.Info("deleted the share of a retired epoch", "epoch", e)
+			}
+		}
+	}
 	for id := range s.cache {
 		if !live[id] {
 			delete(s.cache, id)
@@ -238,4 +249,11 @@ func (s *Signer) sign(ev EpochView, share frost.Scalar, sess custodytypes.Signin
 	}
 	zb := z.Bytes()
 	return vetypes.CombinedShare{SessionId: bytes.Clone(sess.Id), Z: zb[:]}, nil
+}
+
+// SetAlarm replaces the alarm callback (metrics hook it to count nonce alarms).
+func (s *Signer) SetAlarm(f func(error)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.alarm = f
 }

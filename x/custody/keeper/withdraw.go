@@ -245,18 +245,25 @@ func treasuryOutput(e types.KeyEpoch) (script, tweak []byte, err error) {
 // BATCHED with their fee share, the fee-reserve difference, inputs LOCKED and one
 // signing session per input.
 func (k *Keeper) openBatch(ctx context.Context, plan *batchPlan, voters []sdk.AccAddress) error {
+	changeScript, _, err := treasuryOutput(plan.epoch)
+	if err != nil {
+		return err
+	}
+	return k.openBatchTx(ctx, types.BATCH_KIND_WITHDRAW, plan, changeScript, plan.epoch.Number, voters)
+}
+
+// openBatchTx stores a batch: requests' outputs (WITHDRAW), then the change output to
+// changeScript (Q0 of changeEpoch); for WITHDRAW the fee shares beyond the fee go to
+// the fee reserve.
+func (k *Keeper) openBatchTx(ctx context.Context, kind types.BatchKind, plan *batchPlan, changeScript []byte, changeEpoch uint64, voters []sdk.AccAddress) error {
 	sdkCtx := sdk.UnwrapSDKContext(ctx)
 	n, err := k.NextBatch.Next(ctx)
 	if err != nil {
 		return err
 	}
 	id := n + 1
-	changeScript, _, err := treasuryOutput(plan.epoch)
-	if err != nil {
-		return err
-	}
 	ins := make([]types.TxInput, len(plan.inputs))
-	b := types.WithdrawalBatch{Id: id, Epoch: plan.epoch.Number, Kind: types.BATCH_KIND_WITHDRAW,
+	b := types.WithdrawalBatch{Id: id, Epoch: plan.epoch.Number, Kind: kind, ChangeEpoch: changeEpoch,
 		Status: types.BATCH_STATUS_SIGNING, OpenedHeight: sdkCtx.BlockHeight()}
 	for i, u := range plan.inputs {
 		script, err := utxoScript(plan.epoch, u.Tweak)
@@ -309,8 +316,10 @@ func (k *Keeper) openBatch(ctx context.Context, plan *batchPlan, voters []sdk.Ac
 		}
 	}
 	// Σ fee shares ≥ the fee (FeeShare uses 2× the estimate), so this never goes down.
-	if err := k.addFeeReserve(ctx, sdkmath.NewIntFromUint64(uint64(len(plan.requests))*plan.share-plan.fee)); err != nil {
-		return err
+	if kind == types.BATCH_KIND_WITHDRAW {
+		if err := k.addFeeReserve(ctx, sdkmath.NewIntFromUint64(uint64(len(plan.requests))*plan.share-plan.fee)); err != nil {
+			return err
+		}
 	}
 	if err := k.Batches.Set(ctx, id, b); err != nil {
 		return err
@@ -323,6 +332,7 @@ func (k *Keeper) openBatch(ctx context.Context, plan *batchPlan, voters []sdk.Ac
 	}
 	sdkCtx.EventManager().EmitEvent(sdk.NewEvent(types.EventTypeBatchOpened,
 		sdk.NewAttribute(types.AttributeKeyBatch, strconv.FormatUint(id, 10)),
+		sdk.NewAttribute(types.AttributeKeyKind, kind.String()),
 		sdk.NewAttribute(types.AttributeKeyTxid, types.TxidString(txid)),
 		sdk.NewAttribute(types.AttributeKeyInputs, strconv.Itoa(len(ins))),
 		sdk.NewAttribute(types.AttributeKeyRequests, strconv.Itoa(len(plan.requests))),

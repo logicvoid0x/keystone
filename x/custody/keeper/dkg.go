@@ -402,8 +402,14 @@ func (k *Keeper) EndBlock(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		if n != 0 {
+			if err := k.membership(ctx, n); err != nil {
+				return err
+			}
+			return k.retire(ctx)
+		}
 		has, err := k.DKGStates.Has(ctx, 1)
-		if err != nil || n != 0 || has {
+		if err != nil || has {
 			return err
 		}
 		_, err = k.startDKG(ctx, 1, 0, h+1)
@@ -419,9 +425,11 @@ func (k *Keeper) EndBlock(ctx context.Context) error {
 			sdk.NewAttribute(types.AttributeKeyHeight, strconv.FormatInt(h+1, 10)))
 	}
 	if h == st.StartHeight+3*DKGWindow-1 {
-		return k.finalizeDKG(ctx, st)
+		if err := k.finalizeDKG(ctx, st); err != nil {
+			return err
+		}
 	}
-	return nil
+	return k.retire(ctx)
 }
 
 // qualified are the participants that committed and dealt and were not disqualified.
@@ -510,6 +518,19 @@ func (k *Keeper) finalizeDKG(ctx context.Context, st types.DKGState) error {
 			return err
 		}
 		if err := k.ShareIndex.Set(ctx, collections.Join(e.Number, sdk.MustAccAddressFromBech32(p.Operator)), p.Index); err != nil {
+			return err
+		}
+	}
+	// The previous epoch retires: its UTXOs are swept to the new one (§9.4).
+	if prev, err := k.ActiveEpoch.Get(ctx); err != nil {
+		return err
+	} else if prev != 0 && prev != e.Number {
+		old, err := k.Epochs.Get(ctx, prev)
+		if err != nil {
+			return err
+		}
+		old.Status, old.RetiringHeight = types.EPOCH_STATUS_RETIRING, h
+		if err := k.Epochs.Set(ctx, prev, old); err != nil {
 			return err
 		}
 	}

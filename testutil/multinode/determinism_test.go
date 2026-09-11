@@ -16,8 +16,12 @@ import (
 // heights by default; 10,000 with -tags long.
 func TestDeterminism10k(t *testing.T) {
 	start := time.Now()
-	net := multinode.New(t, 4)
+	// No dealer: the epoch-1 DKG runs through transactions, and at height 250 the admin
+	// removes node3, so custody moves to a new epoch among the other three (spec M5
+	// acceptance 1).
+	net := multinode.NewWithOptions(t, 4, multinode.Options{DKG: true})
 	w := multinode.NewWorkload(net, 42)
+	w.RemoveAt = 250
 	for h := 0; h < determinismHeights; h++ {
 		w.Step()
 		// Builds with -tags invariants already check (and panic) in every node's EndBlock.
@@ -34,4 +38,6 @@ func TestDeterminism10k(t *testing.T) {
 	require.Positive(t, w.Stats.Deposits, "deposits are attested and credited")
 	require.Positive(t, w.Stats.BtcReorgs, "the fake chain reorgs")
 	require.Positive(t, w.Stats.Confirmed, "withdrawals are signed, broadcast and confirmed")
+	require.GreaterOrEqual(t, w.Stats.Epochs, 2, "epoch 1 by DKG, epoch 2 after the membership change")
+	require.Positive(t, w.Stats.Sweeps, "epoch-1 UTXOs are swept to epoch 2")
 }

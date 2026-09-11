@@ -77,6 +77,11 @@ type CustodyBatch struct {
 	// RBF lists batch ids to fee-bump, ascending.
 	RBF       []uint64
 	OpenBatch *OpenBatch
+	// Sweeps are RETIRING epochs to sweep to the active epoch; Consolidate merges the
+	// active epoch's smallest UTXOs (M5). Feerate is the block's median feerate.
+	Sweeps      []uint64
+	Consolidate bool
+	Feerate     uint64
 	// Voters are the operators whose VE verified this block (signer eligibility,
 	// §9.10), sorted by address bytes.
 	Voters []sdk.AccAddress
@@ -87,7 +92,8 @@ type CustodyBatch struct {
 func (b CustodyBatch) Empty() bool {
 	return len(b.Anchors) == 0 && len(b.Credits) == 0 && len(b.Reverts) == 0 &&
 		len(b.Frost) == 0 && len(b.Accepted) == 0 && len(b.Signed) == 0 && len(b.Failed) == 0 &&
-		len(b.Confirms) == 0 && len(b.RBF) == 0 && b.OpenBatch == nil && len(b.Voters) == 0
+		len(b.Confirms) == 0 && len(b.RBF) == 0 && b.OpenBatch == nil && len(b.Voters) == 0 &&
+		len(b.Sweeps) == 0 && !b.Consolidate
 }
 
 // TallyKey is SHA-256(kind ‖ payload).

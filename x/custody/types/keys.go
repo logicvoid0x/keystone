@@ -35,6 +35,7 @@ var (
 	CustodyKeysKey     = collections.NewPrefix(0x18) // operator -> CustodyKey (M4b)
 	SignerStatsKey     = collections.NewPrefix(0x19) // (epoch, operator) -> SignerStats (M4a)
 	CreditedKey        = collections.NewPrefix(0x1A) // credited sat (for the cap)
+	PendingKey         = collections.NewPrefix(0x1B) // PendingMembership (M5)
 	DepositsKey        = collections.NewPrefix(0x1C) // (txid, vout) -> DepositRecord (added in M3)
 	TallyExpiryKey     = collections.NewPrefix(0x1D) // (first height, hash) -> empty (added in M3)
 	QueueKey           = collections.NewPrefix(0x1E) // queued request id -> empty (added in M4a)

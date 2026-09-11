@@ -544,6 +544,7 @@ func localCustodyGenesis(cdc codec.Codec, appState app.GenesisState, args InitFi
 		gs.Params.BitcoinNetwork = custodytypes.NetworkRegtest
 		gs.Params.MembershipDelayBlocks = 100
 		gs.Params.ConfirmDepth = 1
+		gs.Params.RetireWatchBlocks = 20
 	}
 	if args.DevDealer && custodytypes.IsLocalChainID(args.ChainID) {
 		ops := make([]sdk.AccAddress, len(nodes))

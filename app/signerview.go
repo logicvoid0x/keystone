@@ -36,6 +36,9 @@ func LoadFrostView(ctx sdk.Context, app *App, mine map[uint64]uint32) (signer.Vi
 	}
 	err = k.Epochs.Walk(ctx, nil, func(n uint64, e custodytypes.KeyEpoch) (bool, error) {
 		idx, ok := mine[n]
+		if ok && e.Status == custodytypes.EPOCH_STATUS_RETIRED {
+			view.Retired = append(view.Retired, n)
+		}
 		if !ok || (e.Status != custodytypes.EPOCH_STATUS_ACTIVE && e.Status != custodytypes.EPOCH_STATUS_RETIRING) {
 			return false, nil
 		}

@@ -29,6 +29,7 @@ func (net *Net) setupDKG(gs app.GenesisState) {
 	cg.Params.BitcoinNetwork = custodytypes.NetworkRegtest
 	cg.Params.ConfirmDepth = 1
 	cg.Params.MembershipDelayBlocks = 100
+	cg.Params.RetireWatchBlocks = 20
 	for _, nd := range net.Nodes {
 		enc, err := secret.RandomScalar(nil)
 		require.NoError(t, err)

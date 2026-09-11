@@ -935,6 +935,8 @@ Custody follows the PoA validator set with a delay. When the set of validators w
 
 **Emergency rekey:** if only t epoch-e operators have been online for 100 blocks, one more failure would freeze the funds. The admin can then set `EmergencyRekey`, which starts a new epoch immediately among the online operators and skips the delay.
 
+**Implementation notes (M5).** The custody set is compared every EndBlock with the active operators that registered custody keys. A difference is stored as `PendingMembership{set_hash, since_height, added, removed}` (0x1B) and emitted as `custody_membership_pending`; a further change restarts the delay. After `MembershipDelayBlocks` unchanged (immediately with `EmergencyRekey`) the DKG for e+1 starts among that set (§9.3). On activation epoch e becomes RETIRING (`retiring_height`); one SWEEP batch per retiring epoch is in flight at a time (up to `MaxInputs` UTXOs, largest first, one output to the new Q0, `change_epoch` = e+1), its fee charged to the fee reserve (any shortfall to the deficit). Epoch e is RETIRED (`epoch_retired`) when it has no UTXOs, no batch in flight and `retire_watch_blocks` (new param, default 1,000) have passed; signers then delete its shares. The removal guard rejects a `MsgSetValidators` that would leave fewer than t share holders of any funded ACTIVE or RETIRING epoch active.
+
 ### 9.5 Share storage and backup
 
 Shares are stored as in §4.4. A backup holds encrypted shares, never nonce state. **Restore procedure:**
@@ -1258,7 +1260,7 @@ message Auction { uint64 id = 1; uint64 vault_id = 2; string tab = 3; string rai
 | vault | MCR 15000, LR 13000, StabilityFeePerSecond (RAY), GlobalDebtCeiling 500,000 KUSD, Dust 100 KUSD, MinDepositSat 10,000 |
 | liquidation | PenaltyBps 1000, MaxPerBlock 50, AuctionStartBps 12000, AuctionStepBps 100, AuctionResetBps 6000, AuctionMaxBlocks 300 |
 | stablecoin | SinPauseBps 500, SinPauseBlocks 1000 |
-| custody | TreasuryCapSat 1,000,000,000 (10 BTC), MembershipDelayBlocks 28800, ConfirmDepth 6, NoncePool 8, SessionDeadline 5, MaxInputs 8, BatchMinRequests 16, BatchMaxWait 20, FeerateMin 1, FeerateMax 200, RbfAfterBtcBlocks 6, MinWithdrawSat 10,000, EmergencyRekey false, BitcoinNetwork "signet" (added in M3: "regtest" or "signet"; selects the bech32m prefix) |
+| custody | TreasuryCapSat 1,000,000,000 (10 BTC), MembershipDelayBlocks 28800, ConfirmDepth 6, NoncePool 8, SessionDeadline 5, MaxInputs 8, BatchMinRequests 16, BatchMaxWait 20, FeerateMin 1, FeerateMax 200, RbfAfterBtcBlocks 6, MinWithdrawSat 10,000, EmergencyRekey false, BitcoinNetwork "signet" (added in M3: "regtest" or "signet"; selects the bech32m prefix), RetireWatchBlocks 1,000 (added in M5; localnet 20) |
 | ante (app) | MaxTxPerAccountPerBlock 5 |
 | poa | admin = operators' multisig address |
 
@@ -1348,6 +1350,33 @@ Every failure either pauses the affected function automatically or halts the cha
 | Bad debt above 5% of supply | `sin` monitor | Mints pause | Admin raises the stability fee; operators recapitalize (§20) |
 | Treasury at cap | Credited sat = `TreasuryCapSat` | New deposits become claimable only | Admin raises the cap if the operators accept the risk |
 | Admin key loss (multisig cannot sign) | No admin txs possible | Chain keeps running; no set or param changes | Software upgrade with a migration that sets a new admin, coordinated by operators |
+
+**Test coverage of the automatic responses (M5-T5).** Each row with an automatic response has a test:
+
+| Scenario | Test |
+| --- | --- |
+| Price fetchers down on > 1/3 | `testutil/multinode` `TestTwoNodesWithholdPrice` (no update, STALE, no liquidation while STALE, recovery) |
+| Price spikes 15% from TWAP | `x/oracle/keeper` VOLATILE status tests; `x/vault/keeper` mint refused while VOLATILE |
+| Proposer omits or alters tx0 | `testutil/multinode` `TestFaultyProposer` (8 cases, round change), `TestByzantineProposer`; localnet demo-M2 byzantine node3 |
+| One VE signature unverifiable | `TestFaultyProposer` "corrupt one signature" (accepted, verified power 3); `app` `TestMetrics` (`ve_unverified`) |
+| VEs from > 1/3 unverifiable | `TestFaultyProposer` "corrupt two signatures" (rejected) |
+| A PreBlocker step fails | `app/protocol` PreBlocker tests: a failing step is skipped with `protocol_step_failed`, later steps run |
+| App-hash divergence | `testutil/multinode` `TestDiffStoresReportsDifference`; every harness step compares app hashes |
+| One bitcoind stalls | `testutil/multinode` `TestOneBitcoindDown`; `sidecar/btcwatch` errors clear the snapshot |
+| bitcoind on > 1/3 stalls | `testutil/multinode` `TestTwoBitcoindsDown` (deposit waits, a withdrawal still signs, credited after recovery) |
+| Reorg deeper than k | `x/custody/keeper` reorg tests (revert, deficit), `x/vault/keeper` `TestWithdrawBlockedByDeficit`; localnet demo-M3 |
+| Signer offline | `TestStoppedSignerStillSigns`, `x/custody/keeper` `TestMissingShareRetried`, `TestSignerFlagged`; localnet demo-M4a step 4 |
+| Invalid signature share | `TestInvalidShareBlamedAndRetried`, `x/custody/keeper` `TestInvalidShareBlamed` |
+| Fewer than t eligible signers | `x/custody/keeper` `TestStalledUntilSignersReturn` |
+| Removing too many operators | `x/custody/keeper` `TestRemovalGuard`, `TestMembershipChangeSweepsAndRetires`; localnet demo-M5 |
+| Nonce database lost or corrupt | `sidecar/signer/noncestore` corrupt/tampered tests, `sidecar/signer` `TestReplenishAndRevoke` |
+| Nonce bound to another session | `sidecar/signer` `TestNonceStoreCrash` (refusal and alarm), metric `nonce_alarms_total` |
+| Withdrawal tx stuck | `x/custody/keeper` `TestRBF`; localnet demo-M5 |
+| DKG fails | `x/custody/keeper` `TestDKGRestart` |
+| Bad debt above 5% of supply | `x/stablecoin/keeper` mints-paused tests |
+| Treasury at cap | `x/custody/keeper` over-cap deposit tests; localnet demo-M3 |
+
+Rows without an automatic response are checked by hand: "operator needs a new consensus key" (remove and re-add under a new operator address, which the membership tests exercise) and "admin key loss" (needs a software upgrade; not testable without one).
 
 ## 13. Security analysis
 
@@ -1440,6 +1469,8 @@ Every milestone ships with tests at three levels: unit tests per keeper, a multi
 Each node exports Prometheus metrics for the protocol segment and every sidecar; alerts fire on staleness, stuck custody and any determinism or nonce anomaly.
 
 **Metrics** (prefix `keystone_`)
+
+All of these are implemented (M2 and M5); M5 adds `treasury_cap_sat`, `sessions_stalled` and `nonce_alarms_total` for the alerts, and `session_attempts` / `session_latency_blocks` are gauges (highest attempt, oldest active session age). `localnet/monitoring` holds a Prometheus config with these alerts and a Grafana dashboard (`make localnet-monitoring`).
 
 - Oracle: `oracle_spot`, `oracle_participation_bps`, `oracle_status`, `oracle_local_price`, `oracle_local_sources`, `oracle_misses{validator}`.
 - Vaults: `vault_count`, `debt_total`, `surplus`, `sin`, `liquidations_total{mode}`, `liquidation_queue_depth`, `pool_balance`.

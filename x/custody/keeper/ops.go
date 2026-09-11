@@ -251,6 +251,20 @@ func (k *Keeper) ApplyOps(ctx context.Context, batch types.CustodyBatch) error {
 	if ob := batch.OpenBatch; ob != nil {
 		k.runOp(ctx, types.OpOpenBatch, func(c context.Context) error { return k.applyOpenBatch(c, *ob, batch.Voters) })
 	}
+	for _, e := range batch.Sweeps {
+		k.runOp(ctx, types.OpOpenSweep, func(c context.Context) error {
+			return k.openMove(c, types.BATCH_KIND_SWEEP, e, batch.Feerate, batch.Voters)
+		})
+	}
+	if batch.Consolidate {
+		k.runOp(ctx, types.OpConsolidate, func(c context.Context) error {
+			n, err := k.ActiveEpoch.Get(c)
+			if err != nil {
+				return err
+			}
+			return k.openMove(c, types.BATCH_KIND_CONSOLIDATE, n, batch.Feerate, batch.Voters)
+		})
+	}
 	return nil
 }
 
@@ -333,12 +347,18 @@ func (k *Keeper) buildFrost(ctx context.Context, votes []types.Vote, batch *type
 	if err != nil {
 		return err
 	}
-	if due, err := k.shouldOpenBatch(ctx, p); err != nil {
+	due, err := k.shouldOpenBatch(ctx, p)
+	if err != nil {
 		return err
-	} else if due {
-		if f, ok := medianFeerate(votes, p); ok {
-			batch.OpenBatch = &types.OpenBatch{Feerate: f}
-		}
 	}
-	return nil
+	f, ok := medianFeerate(votes, p)
+	if !ok {
+		return nil
+	}
+	if due {
+		batch.OpenBatch = &types.OpenBatch{Feerate: f}
+	}
+	batch.Feerate = f
+	batch.Sweeps, batch.Consolidate, err = k.dueMoves(ctx, f, due)
+	return err
 }

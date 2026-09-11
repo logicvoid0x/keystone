@@ -25,6 +25,8 @@ message KeyEpoch {
   uint32 t = 4;
   EpochStatus status = 5;
   int64 start_height = 6;
+  // retiring_height is when the epoch became RETIRING (0 before; added in M5).
+  int64 retiring_height = 7;
 }
 
 // UtxoStatus is a treasury UTXO's state.
@@ -174,6 +176,9 @@ message WithdrawalBatch {
   repeated BatchTx txs = 11 [(gogoproto.nullable) = false];
   // confirmed_txid is the version that confirmed.
   bytes confirmed_txid = 12;
+  // change_epoch is the epoch whose Q0 the change output pays: the batch epoch, or the
+  // new epoch for a SWEEP (added in M5).
+  uint64 change_epoch = 13;
 }
 
 // SessionState is a FROST signing session's state (design §9.11).
@@ -312,4 +317,15 @@ message DKGComplaint {
   bytes dleq_proof = 4;
   // upheld: the dealer was disqualified (else the complainer was).
   bool upheld = 5;
+}
+
+// PendingMembership is a validator set that differs from the active epoch's custody set
+// (design §9.4). The next epoch's DKG starts once it has stayed unchanged for
+// MembershipDelayBlocks (added in M5).
+message PendingMembership {
+  bytes set_hash = 1;
+  int64 since_height = 2;
+  // added and removed are operators, sorted.
+  repeated string added = 3;
+  repeated string removed = 4;
 }
