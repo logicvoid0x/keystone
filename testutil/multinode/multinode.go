@@ -63,6 +63,9 @@ type Node struct {
 	// before each ExtendVote unless SkipBitcoinUpdate is set (a lagging watcher).
 	Watcher           *btcwatch.Watcher
 	SkipBitcoinUpdate bool
+	// BitcoinDown makes this node's bitcoind look stalled: its VEs carry no Bitcoin
+	// payload (design §12).
+	BitcoinDown bool
 	// Signer is this node's FROST signer (its nonce store in a temp dir). StopSigner
 	// leaves the FROST payload out of its VEs (a stopped signer); FrostHook, if set,
 	// rewrites the payload (e.g. an invalid share).
@@ -73,6 +76,17 @@ type Node struct {
 	// (Options.DKG only).
 	HotKey      *secp256k1.PrivKey
 	Participant *dkg.Participant
+}
+
+// nodeBitcoin is the BitcoinSource a node's App uses: its watcher, unless its
+// bitcoind is down.
+type nodeBitcoin struct{ n *Node }
+
+func (b nodeBitcoin) Snapshot() (*vetypes.BitcoinPayload, bool) {
+	if b.n.BitcoinDown {
+		return nil, false
+	}
+	return b.n.Watcher.Snapshot()
 }
 
 // nodeFrost is the FrostSource a node's App uses: its signer, unless stopped or hooked.
@@ -151,7 +165,7 @@ func NewWithOptions(t testing.TB, n int, opts Options) *Net {
 		node.App = app.New(log.NewNopLogger(), dbm.NewMemDB(), true, simtestutil.EmptyAppOptions{}, baseapp.SetChainID(ChainID))
 		node.App.SetPriceSource(node.Price)
 		node.Watcher = btcwatch.New(net.Bitcoin, node.App.BitcoinView(), btcwatch.Config{Network: custodytypes.NetworkRegtest}, nil)
-		node.App.SetBitcoinSource(node.Watcher)
+		node.App.SetBitcoinSource(nodeBitcoin{node})
 		net.Nodes = append(net.Nodes, node)
 	}
 	adminKey := secp256k1.GenPrivKeyFromSecret([]byte("multinode-admin"))
