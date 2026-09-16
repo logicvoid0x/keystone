@@ -34,6 +34,8 @@ type Metrics struct {
 	DebtTotal              prometheus.Gauge
 	LiquidationsTotal      *prometheus.CounterVec
 	PoolBalance            prometheus.Gauge
+	// Full holds the rest of the §16 metrics (M5).
+	Full *FullMetrics
 }
 
 const metricsNamespace = "keystone"
@@ -77,6 +79,11 @@ func NewMetrics(reg prometheus.Registerer) (*Metrics, error) {
 			return nil, fmt.Errorf("register metric: %w", err)
 		}
 	}
+	full, err := newFullMetrics(reg)
+	if err != nil {
+		return nil, err
+	}
+	m.Full = full
 	return m, nil
 }
 
@@ -137,6 +144,7 @@ func (app *App) observeState(ctx sdk.Context) {
 	n := 0
 	_ = app.VaultKeeper.Vaults.Walk(ctx, nil, func(uint64, vaulttypes.Vault) (bool, error) { n++; return false, nil })
 	m.VaultCount.Set(float64(n))
+	app.observeFullState(ctx)
 }
 
 func intFloat(v sdkmath.Int) float64 {
@@ -146,3 +154,6 @@ func intFloat(v sdkmath.Int) float64 {
 	f, _ := new(big.Float).SetInt(v.BigInt()).Float64()
 	return f
 }
+
+// Metrics returns the enabled metrics (nil if disabled).
+func (app *App) Metrics() *Metrics { return app.metrics }

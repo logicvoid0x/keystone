@@ -1,0 +1,37 @@
+# Design §16 alerts. Blocks are ~3 s: 20 blocks ≈ 1 min, 100 blocks ≈ 5 min.
+groups:
+  - name: keystone
+    rules:
+      - alert: PriceStale
+        expr: keystone_oracle_status == 3
+        labels: {severity: page}
+        annotations: {summary: "Oracle price is STALE on {{ $labels.instance }}"}
+      - alert: LocalPriceMissing
+        expr: keystone_oracle_local_price == 0
+        for: 1m
+        labels: {severity: warn}
+        annotations: {summary: "{{ $labels.instance }} sent no price in its VEs for ~20 blocks"}
+      - alert: ProposalRejects
+        expr: increase(keystone_process_proposal_rejects[5m]) > 3
+        labels: {severity: warn}
+        annotations: {summary: "{{ $labels.instance }} rejected more than 3 proposals in ~100 blocks ({{ $labels.reason }})"}
+      - alert: CustodyStalled
+        expr: keystone_sessions_stalled > 0 or keystone_batch_age_blocks > 50
+        labels: {severity: page}
+        annotations: {summary: "A signing session is STALLED or a batch is older than 50 blocks"}
+      - alert: NonceAlarm
+        expr: increase(keystone_nonce_alarms_total[5m]) > 0
+        labels: {severity: page}
+        annotations: {summary: "{{ $labels.instance }} refused a nonce bound to another session: possible compromise"}
+      - alert: Deficit
+        expr: keystone_deficit_sat > 0
+        labels: {severity: page}
+        annotations: {summary: "Custody deficit of {{ $value }} sat"}
+      - alert: BitcoindLag
+        expr: keystone_bitcoind_tip_age_seconds > 1800
+        labels: {severity: warn}
+        annotations: {summary: "{{ $labels.instance }}: bitcoind tip older than 30 min"}
+      - alert: CapReached
+        expr: keystone_credited_sat >= keystone_treasury_cap_sat
+        labels: {severity: info}
+        annotations: {summary: "Treasury cap reached: new deposits become claimable only"}

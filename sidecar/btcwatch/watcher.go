@@ -110,7 +110,8 @@ type output struct {
 type block struct {
 	height int64
 	hash   chainhash.Hash
-	outs   []output // P2TR outputs only
+	time   time.Time // header timestamp
+	outs   []output  // P2TR outputs only
 }
 
 // Watcher follows a Source and produces snapshots.
@@ -274,7 +275,7 @@ func (w *Watcher) store(blocks []block) {
 }
 
 func scan(height int64, hash chainhash.Hash, mb *wire.MsgBlock) block {
-	b := block{height: height, hash: hash}
+	b := block{height: height, hash: hash, time: mb.Header.Timestamp}
 	for _, tx := range mb.Transactions {
 		txid := tx.TxHash()
 		for i, out := range tx.TxOut {
@@ -412,4 +413,15 @@ func (w *Watcher) blockWith(txid chainhash.Hash) *block {
 		}
 	}
 	return nil
+}
+
+// TipAge is the age of the best tip's header timestamp in seconds (metric
+// bitcoind_tip_age_seconds); ok is false before the first sync.
+func (w *Watcher) TipAge() (float64, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.blocks) == 0 {
+		return 0, false
+	}
+	return time.Since(w.blocks[len(w.blocks)-1].time).Seconds(), true
 }

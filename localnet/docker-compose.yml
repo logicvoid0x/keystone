@@ -102,6 +102,29 @@ services:
     volumes: ["./homes/node4:/home/keystone"]
     ports: ["26697:26657", "9130:9090", "26700:26660"]
 
+  # Monitoring (design §16): make localnet-monitoring; Grafana on http://127.0.0.1:3000
+  # (anonymous viewer), Prometheus with the §16 alerts on http://127.0.0.1:9095.
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    profiles: [monitoring]
+    command: [--config.file=/etc/prometheus/prometheus.yml]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ["9095:9090"]
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    profiles: [monitoring]
+    depends_on: [prometheus]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+
 volumes:
   bitcoin0:
   bitcoin1:

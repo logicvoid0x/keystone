@@ -146,6 +146,7 @@ type App struct {
 	voteExt   *protocol.VoteExtHandler
 	price     protocol.PriceSource
 	closers   []func() error
+	bitcoin   protocol.BitcoinSource
 	invState  invariantState
 	metrics   *Metrics
 	proposals *protocol.ProposalHandler
@@ -241,6 +242,8 @@ func New(
 	app.VaultKeeper = vaultkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[vaulttypes.StoreKey]), app.PoaKeeper,
 		app.OracleKeeper, app.StablecoinKeeper, app.CustodyKeeper)
 	app.CustodyKeeper.SetVaultKeeper(app.VaultKeeper)
+	// x/poa asks x/custody before every validator set change (design §9.4, spec M5-T1).
+	app.PoaKeeper.SetRemovalGuard(app.CustodyKeeper.RemovalGuard())
 	app.LiquidationKeeper = liquidationkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[liquidationtypes.StoreKey]), app.PoaKeeper,
 		app.OracleKeeper, app.VaultKeeper, app.StablecoinKeeper, app.CustodyKeeper, app.BankKeeper)
 
@@ -354,6 +357,7 @@ func (app *App) setABCIHandlers() {
 		if m := app.metrics; m != nil && res != nil {
 			m.ExtendVoteMs.Observe(msSince(start))
 			m.VEBytes.Observe(float64(len(res.VoteExtension)))
+			m.Full.observeVE(res.VoteExtension, req.Height)
 		}
 		return res, err
 	})
@@ -513,7 +517,10 @@ func (app *App) SetPriceSource(src protocol.PriceSource) {
 
 // SetBitcoinSource attaches the Bitcoin watcher to ExtendVote. Call before the node
 // starts.
-func (app *App) SetBitcoinSource(src protocol.BitcoinSource) { app.voteExt.SetBitcoinSource(src) }
+func (app *App) SetBitcoinSource(src protocol.BitcoinSource) {
+	app.bitcoin = src
+	app.voteExt.SetBitcoinSource(src)
+}
 
 // SetFrostSource attaches the FROST signer to ExtendVote; signer errors are logged.
 // Call before the node starts.

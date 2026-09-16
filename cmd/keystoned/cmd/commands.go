@@ -151,6 +151,13 @@ func newApp(logger log.Logger, db dbm.DB, appOpts servertypes.AppOptions) server
 		panic(fmt.Errorf("[keystone.signer]: %w", err))
 	}
 	if s != nil {
+		slog := logger.With("module", "signer")
+		s.SetAlarm(func(err error) {
+			slog.Error("FROST SIGNER ALARM: nonce already bound to another session", "err", err)
+			if m := a.Metrics(); m != nil {
+				m.Full.NonceAlarms.Inc()
+			}
+		})
 		a.SetFrostSource(s)
 		a.OnClose(closeStore)
 		logger.Info("frost signer started")

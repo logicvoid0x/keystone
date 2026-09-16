@@ -1,0 +1,27 @@
+{
+  "title": "Keystone",
+  "uid": "keystone",
+  "schemaVersion": 39,
+  "time": {"from": "now-30m", "to": "now"},
+  "refresh": "10s",
+  "panels": [
+    {"id": 1, "type": "timeseries", "title": "Oracle spot (USD)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0}, "targets": [{"refId": "A", "expr": "keystone_oracle_spot / 1e6", "legendFormat": "{{instance}}"}]},
+    {"id": 2, "type": "timeseries", "title": "Oracle status (1 ACTIVE, 2 VOLATILE, 3 STALE)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0}, "targets": [{"refId": "A", "expr": "keystone_oracle_status", "legendFormat": "{{instance}}"}]},
+    {"id": 3, "type": "timeseries", "title": "Oracle participation (bps)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0}, "targets": [{"refId": "A", "expr": "keystone_oracle_participation_bps", "legendFormat": "{{instance}}"}]},
+    {"id": 4, "type": "timeseries", "title": "Local price (USD)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}, "targets": [{"refId": "A", "expr": "keystone_oracle_local_price / 1e6", "legendFormat": "{{instance}}"}]},
+    {"id": 5, "type": "timeseries", "title": "Debt and pool (KUSD)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}, "targets": [{"refId": "A", "expr": "keystone_debt_total / 1e6", "legendFormat": "{{instance}}"}]},
+    {"id": 6, "type": "timeseries", "title": "Surplus and sin (KUSD)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}, "targets": [{"refId": "A", "expr": "keystone_surplus / 1e6", "legendFormat": "{{instance}}"}]},
+    {"id": 7, "type": "timeseries", "title": "Custodied and credited (BTC)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16}, "targets": [{"refId": "A", "expr": "keystone_custodied_sat / 1e8", "legendFormat": "{{instance}}"}]},
+    {"id": 8, "type": "timeseries", "title": "Fee reserve and deficit (sat)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16}, "targets": [{"refId": "A", "expr": "keystone_fee_reserve_sat", "legendFormat": "{{instance}}"}]},
+    {"id": 9, "type": "timeseries", "title": "UTXOs by status", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16}, "targets": [{"refId": "A", "expr": "keystone_utxo_count", "legendFormat": "{{instance}}"}]},
+    {"id": 10, "type": "timeseries", "title": "Withdrawal queue depth", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 24}, "targets": [{"refId": "A", "expr": "keystone_withdrawal_queue_depth", "legendFormat": "{{instance}}"}]},
+    {"id": 11, "type": "timeseries", "title": "Oldest batch age (blocks)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 24}, "targets": [{"refId": "A", "expr": "keystone_batch_age_blocks", "legendFormat": "{{instance}}"}]},
+    {"id": 12, "type": "timeseries", "title": "Signing sessions: stalled, attempts", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 24}, "targets": [{"refId": "A", "expr": "keystone_sessions_stalled", "legendFormat": "{{instance}}"}]},
+    {"id": 13, "type": "timeseries", "title": "Nonce pool level by share", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 32}, "targets": [{"refId": "A", "expr": "keystone_nonce_pool_level", "legendFormat": "{{instance}}"}]},
+    {"id": 14, "type": "timeseries", "title": "BTC anchor height", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 32}, "targets": [{"refId": "A", "expr": "keystone_btc_anchor_height", "legendFormat": "{{instance}}"}]},
+    {"id": 15, "type": "timeseries", "title": "bitcoind tip age (s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 32}, "targets": [{"refId": "A", "expr": "keystone_bitcoind_tip_age_seconds", "legendFormat": "{{instance}}"}]},
+    {"id": 16, "type": "timeseries", "title": "ExtendVote p95 (ms)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 40}, "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, instance) (rate(keystone_extend_vote_ms_bucket[1m])))", "legendFormat": "{{instance}}"}]},
+    {"id": 17, "type": "timeseries", "title": "PreBlocker p95 (ms)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 40}, "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, instance) (rate(keystone_preblocker_ms_bucket[1m])))", "legendFormat": "{{instance}}"}]},
+    {"id": 18, "type": "timeseries", "title": "Proposal rejects (per 5m)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 40}, "targets": [{"refId": "A", "expr": "increase(keystone_process_proposal_rejects[5m])", "legendFormat": "{{instance}}"}]}
+  ]
+}

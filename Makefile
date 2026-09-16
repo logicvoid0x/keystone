@@ -4,7 +4,7 @@ BUILDDIR ?= build
 # make test builds with these tags (spec M1-T8): invariants run in EndBlock.
 TEST_TAGS ?= invariants
 
-.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz localnet-signer3 e2e-M3 e2e-M4a clean
+.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz localnet-signer3 localnet-monitoring e2e-M3 e2e-M4a clean
 
 all: build
 
@@ -86,16 +86,20 @@ localnet-start: build-dev localnet-bin
 	$(COMPOSE) up -d --build mockfeed bitcoin0 bitcoin1 bitcoin2 bitcoin3 node0 node1 node2 node3
 
 localnet-stop:
-	$(COMPOSE) --profile extra down
+	$(COMPOSE) --profile extra --profile monitoring down
 
 localnet-clean:
-	$(COMPOSE) --profile extra down -v
+	$(COMPOSE) --profile extra --profile monitoring down -v
 	rm -rf $(LOCALNET_HOMES)
 
 # localnet-byz restarts node3 as a byzantine proposer: make localnet-byz MODE=extra_magic
 # (drop_tx0, extra_magic, corrupt_one_ve, corrupt_two_ve; MODE= restores honest).
 localnet-byz:
 	KEYSTONE_BYZ=$(MODE) NODE3_BIN=$(if $(MODE),keystoned-byz,keystoned) $(COMPOSE) up -d --no-deps --force-recreate node3
+
+# localnet-monitoring starts Prometheus (with the §16 alerts) and Grafana for the localnet.
+localnet-monitoring:
+	$(COMPOSE) --profile monitoring up -d prometheus grafana
 
 # localnet-signer3 restarts node3 with its FROST signer on or off: make localnet-signer3 SIGNER=false
 localnet-signer3:
