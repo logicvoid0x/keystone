@@ -4,7 +4,7 @@ BUILDDIR ?= build
 # make test builds with these tags (spec M1-T8): invariants run in EndBlock.
 TEST_TAGS ?= invariants
 
-.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz localnet-signer3 localnet-monitoring e2e-M3 e2e-M4a e2e-M4b clean
+.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz localnet-signer3 localnet-monitoring e2e-M3 e2e-M4a e2e-M4b upgrade-drill release release-verify clean
 
 all: build
 
@@ -52,6 +52,10 @@ e2e: build-dev
 e2e-M4b: build-dev
 	bash scripts/demo-M4b.sh
 
+# upgrade-drill rehearses the M6 x/upgrade drill on the localnet (design §17).
+upgrade-drill: build-dev
+	bash scripts/upgrade-drill.sh
+
 e2e-M4a: build-dev
 	bash scripts/demo-M4a.sh
 
@@ -77,6 +81,7 @@ localnet-bin: check-go
 	@mkdir -p $(BUILDDIR)/linux
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -o $(BUILDDIR)/linux/keystoned ./cmd/keystoned
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -tags byzantine -o $(BUILDDIR)/linux/keystoned-byz ./cmd/keystoned
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -tags keystone_pre_v2 -o $(BUILDDIR)/linux/keystoned-pre-v2 ./cmd/keystoned
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -o $(BUILDDIR)/linux/mockfeed ./cmd/mockfeed
 
 # DEALER=--dev-dealer (default) puts a dealer key in genesis; `make localnet-start DEALER=`
@@ -107,6 +112,14 @@ localnet-monitoring:
 # localnet-signer3 restarts node3 with its FROST signer on or off: make localnet-signer3 SIGNER=false
 localnet-signer3:
 	NODE3_SIGNER=$(if $(SIGNER),$(SIGNER),true) $(COMPOSE) up -d --no-deps --force-recreate node3
+
+# release builds reproducible binaries and SHA256SUMS with the pinned Go (spec M6-T2);
+# release-verify also rebuilds linux/amd64 and checks the hash matches.
+release:
+	GO=$(GO) bash scripts/release.sh
+
+release-verify:
+	GO=$(GO) bash scripts/release.sh --verify
 
 clean:
 	rm -rf $(BUILDDIR)

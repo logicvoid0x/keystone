@@ -28,10 +28,11 @@ type BitcoinSource interface {
 
 // VoteExtHandler implements ExtendVote and VerifyVoteExtension (design §5.2).
 type VoteExtHandler struct {
-	price   PriceSource
-	bitcoin BitcoinSource
-	frost   FrostSource
-	onFrost func(error)
+	schedule Schedule
+	price    PriceSource
+	bitcoin  BitcoinSource
+	frost    FrostSource
+	onFrost  func(error)
 }
 
 // NewVoteExtHandler returns a handler with no sidecars attached.
@@ -43,6 +44,9 @@ func (h *VoteExtHandler) SetPriceSource(p PriceSource) { h.price = p }
 // SetBitcoinSource attaches the Bitcoin watcher. Call before the node starts.
 func (h *VoteExtHandler) SetBitcoinSource(b BitcoinSource) { h.bitcoin = b }
 
+// SetSchedule sets the VE version schedule (design §17).
+func (h *VoteExtHandler) SetSchedule(s Schedule) { h.schedule = s }
+
 // SetFrostSource attaches the FROST signer; errors are passed to onErr (may be nil).
 // Call before the node starts.
 func (h *VoteExtHandler) SetFrostSource(f FrostSource, onErr func(error)) {
@@ -52,8 +56,9 @@ func (h *VoteExtHandler) SetFrostSource(f FrostSource, onErr func(error)) {
 // ExtendVote returns VoteExtension{version: 1, height, oracle from the price snapshot,
 // bitcoin from the watcher snapshot, frost from the signer}. It never returns an error;
 // a signer error leaves the FROST payload out.
-func (h *VoteExtHandler) ExtendVote(_ sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
-	ve := vetypes.VoteExtension{Version: VEVersion, Height: req.Height}
+func (h *VoteExtHandler) ExtendVote(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
+	version := h.schedule.at(ctx, req.Height)
+	ve := vetypes.VoteExtension{Version: version, Height: req.Height}
 	if h.price != nil {
 		if p, ok := h.price.Snapshot(); ok && p != nil {
 			ve.Oracle = p
@@ -88,7 +93,7 @@ func (h *VoteExtHandler) ExtendVote(_ sdk.Context, req *abci.RequestExtendVote) 
 	if bz, ok := encodeVE(&ve); ok {
 		return &abci.ResponseExtendVote{VoteExtension: bz}, nil
 	}
-	return &abci.ResponseExtendVote{VoteExtension: MinimalVE(req.Height)}, nil
+	return &abci.ResponseExtendVote{VoteExtension: MinimalVEAt(req.Height, version)}, nil
 }
 
 // encodeVE canonicalizes and encodes ve if it passes the checks VerifyVoteExtension
@@ -107,8 +112,8 @@ func encodeVE(ve *vetypes.VoteExtension) ([]byte, bool) {
 
 // VerifyVoteExtension checks structure only: size, decoding, version, height, canonical
 // order and counts. Content is judged during aggregation.
-func (h *VoteExtHandler) VerifyVoteExtension(_ sdk.Context, req *abci.RequestVerifyVoteExtension) (*abci.ResponseVerifyVoteExtension, error) {
-	if _, err := DecodeVE(req.VoteExtension, req.Height); err != nil {
+func (h *VoteExtHandler) VerifyVoteExtension(ctx sdk.Context, req *abci.RequestVerifyVoteExtension) (*abci.ResponseVerifyVoteExtension, error) {
+	if _, err := DecodeVEAt(req.VoteExtension, req.Height, h.schedule.at(ctx, req.Height)); err != nil {
 		return &abci.ResponseVerifyVoteExtension{Status: abci.ResponseVerifyVoteExtension_REJECT}, nil
 	}
 	return &abci.ResponseVerifyVoteExtension{Status: abci.ResponseVerifyVoteExtension_ACCEPT}, nil

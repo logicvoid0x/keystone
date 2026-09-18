@@ -19,6 +19,7 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
+	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
@@ -85,7 +86,10 @@ type Chain struct {
 
 // New starts a chain with n operators (power 1), an admin and two funded users, and
 // runs InitChain. No block is committed yet.
-func New(t *testing.T, n int) *Chain {
+func New(t *testing.T, n int) *Chain { return NewWithAppOptions(t, n, simtestutil.EmptyAppOptions{}) }
+
+// NewWithAppOptions is New with app options (e.g. app.FlagDeferUpgradeHandlers).
+func NewWithAppOptions(t *testing.T, n int, opts servertypes.AppOptions) *Chain {
 	t.Helper()
 	c := &Chain{
 		T:       t,
@@ -106,7 +110,7 @@ func New(t *testing.T, n int) *Chain {
 	c.Admin = newAccount("admin")
 	c.Users = []Account{newAccount("user0"), newAccount("user1")}
 
-	c.App = app.New(log.NewNopLogger(), dbm.NewMemDB(), true, simtestutil.EmptyAppOptions{}, baseapp.SetChainID(ChainID))
+	c.App = app.New(log.NewNopLogger(), dbm.NewMemDB(), true, opts, baseapp.SetChainID(ChainID))
 	c.Price = &PriceFeed{}
 	c.App.SetPriceSource(c.Price)
 	c.Bitcoin = btcfake.New(10)

@@ -78,10 +78,14 @@ type Keepers struct {
 
 // PreBlocker runs the protocol segment on the real (non-branched) state.
 type PreBlocker struct {
+	schedule     Schedule
 	valStore     ValidatorStore
 	keepers      Keepers
 	onUnverified func(consAddr []byte)
 }
+
+// SetSchedule sets the VE version schedule (design §17).
+func (p *PreBlocker) SetSchedule(s Schedule) { p.schedule = s }
 
 // SetUnverifiedObserver installs a callback told about every committed vote whose VE
 // did not verify (metric ve_unverified{validator}). It only observes.
@@ -116,7 +120,7 @@ func (p *PreBlocker) PreBlock(ctx sdk.Context, req *abci.RequestFinalizeBlock) {
 		emitSkip(ctx, SkipBadTx0)
 		return
 	}
-	votes, verified, total := VerifyVotes(ctx, p.valStore, ctx.ChainID(), req.Height-1, ext)
+	votes, verified, total := VerifyVotes(ctx, p.valStore, ctx.ChainID(), req.Height-1, ext, p.schedule.at(ctx, req.Height-1))
 	if p.onUnverified != nil {
 		reportUnverified(ext, votes, p.onUnverified)
 	}

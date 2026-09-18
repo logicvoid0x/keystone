@@ -31,9 +31,10 @@ type VerifiedVote struct {
 // VerifyVotes checks each VE in ext separately and ignores the ones that fail, so one
 // bad VE cannot invalidate the commit (design §5.4). It returns the verified votes in
 // the order given, their power, and the total power of every vote. height is the vote
-// height (block height - 1). Deterministic: depends only on ext and x/poa state.
+// height (block height - 1); VEs must have the version scheduled for it (§17).
+// Deterministic: depends only on ext and x/poa state.
 func VerifyVotes(ctx context.Context, vs ValidatorStore, chainID string, height int64,
-	ext abci.ExtendedCommitInfo,
+	ext abci.ExtendedCommitInfo, version uint32,
 ) (votes []VerifiedVote, verified, total int64) {
 	for _, v := range ext.Votes {
 		total += v.Validator.Power
@@ -52,7 +53,7 @@ func VerifyVotes(ctx context.Context, vs ValidatorStore, chainID string, height 
 		if err != nil || !pk.VerifySignature(sb, v.ExtensionSignature) {
 			continue
 		}
-		ve, err := DecodeVE(v.VoteExtension, height)
+		ve, err := DecodeVEAt(v.VoteExtension, height, version)
 		if err != nil {
 			continue // signed but malformed: ignore, like a bad signature
 		}

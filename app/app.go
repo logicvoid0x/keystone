@@ -316,6 +316,11 @@ func New(
 	app.setAnteHandler()
 	app.setPostHandler()
 	app.setABCIHandlers()
+	// Tests that simulate the pre-upgrade binary defer the handlers
+	// (RegisterUpgradeHandlers); a node always registers them.
+	if !cast.ToBool(appOpts.Get(FlagDeferUpgradeHandlers)) {
+		app.registerUpgrades()
+	}
 
 	if loadLatest {
 		if err := app.LoadLatestVersion(); err != nil {
@@ -382,6 +387,10 @@ func (app *App) setABCIHandlers() {
 		Liquidation: app.LiquidationKeeper,
 		Custody:     app.CustodyKeeper,
 	})
+	// VE versions follow the upgrade schedule (design §17).
+	veh.SetSchedule(app.VESchedule)
+	ph.SetSchedule(app.VESchedule)
+	app.protocol.SetSchedule(app.VESchedule)
 }
 
 // Name returns the app name.

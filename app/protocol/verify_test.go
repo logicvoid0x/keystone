@@ -68,7 +68,7 @@ func TestVerifyVotes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := cloneExt(base)
 			tc.mutate(&e)
-			votes, verified, total := protocol.VerifyVotes(testCtx(), tc.store, chainID, h, e)
+			votes, verified, total := protocol.VerifyVotes(testCtx(), tc.store, chainID, h, e, protocol.VEVersion)
 			require.Equal(t, tc.verified, verified)
 			require.Equal(t, tc.total, total)
 			require.Len(t, votes, int(tc.verified))
@@ -80,9 +80,9 @@ func TestVerifyVotes(t *testing.T) {
 func TestVerifyVotesWrongHeightOrChain(t *testing.T) {
 	keys := testKeys(4)
 	ext, _ := commitFor(t, keys, 10, 0, protocol.MinimalVE(10))
-	_, verified, _ := protocol.VerifyVotes(testCtx(), storeFor(keys), chainID, 11, ext)
+	_, verified, _ := protocol.VerifyVotes(testCtx(), storeFor(keys), chainID, 11, ext, protocol.VEVersion)
 	require.Zero(t, verified, "signatures bind the height")
-	_, verified, _ = protocol.VerifyVotes(testCtx(), storeFor(keys), "other-chain", 10, ext)
+	_, verified, _ = protocol.VerifyVotes(testCtx(), storeFor(keys), "other-chain", 10, ext, protocol.VEVersion)
 	require.Zero(t, verified, "signatures bind the chain id")
 }
 

@@ -1509,7 +1509,7 @@ Parameters change through `MsgUpdateParams` signed by the admin multisig, within
 
 **Software upgrades.** Standard `x/upgrade` plan at height U with a store migration per module version. The PreBlocker runs `x/upgrade` first, so migrations complete before the protocol segment of block U.
 
-**VE versioning.** Validators running the new binary emit VE version v+1 starting at height U. VerifyVoteExtension accepts version v for heights below U and v+1 from U on, so the extended commit of height U−1, injected in block U, is still version v. Aggregation dispatches on version.
+**VE versioning.** Validators running the new binary emit VE version v+1 starting at height U+1: the votes of height U are still cast by the old binaries, which stop in FinalizeBlock of U (corrected in M6). VerifyVoteExtension, ProcessProposal and the PreBlocker accept version v for heights up to U and v+1 above U (`app.VESchedule`, from the upgrade's done height), so the extended commits of heights U−1 and U are version v. Aggregation dispatches on version.
 
 **Custody across upgrades.**
 

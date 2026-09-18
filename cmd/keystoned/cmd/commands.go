@@ -41,7 +41,7 @@ func initRootCmd(rootCmd *cobra.Command, tempApp *app.App) {
 		},
 		PostSetup: startDKG,
 	})
-	rootCmd.AddCommand(custodyCommand())
+	rootCmd.AddCommand(custodyCommand(), genutilcli.InitCmd(tempApp.BasicModuleManager, app.DefaultNodeHome))
 
 	rootCmd.AddCommand(
 		server.StatusCommand(),
@@ -60,7 +60,7 @@ func genesisCommand(tempApp *app.App) *cobra.Command {
 		SuggestionsMinimumDistance: 2,
 		RunE:                       client.ValidateCmd,
 	}
-	cmd.AddCommand(genutilcli.ValidateGenesisCmd(tempApp.BasicModuleManager))
+	cmd.AddCommand(genutilcli.ValidateGenesisCmd(tempApp.BasicModuleManager), operatorInfoCmd(), ceremonyCmd(tempApp))
 	return cmd
 }
 
@@ -100,6 +100,7 @@ func txCommand() *cobra.Command {
 		authcmd.GetEncodeCommand(),
 		authcmd.GetDecodeCommand(),
 		authcmd.GetSimulateCmd(),
+		adminUpgradeCmd(),
 	)
 	return cmd
 }

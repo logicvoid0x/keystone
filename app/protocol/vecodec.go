@@ -6,6 +6,7 @@ package protocol
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -14,7 +15,8 @@ import (
 )
 
 const (
-	// VEVersion is the only VE version in v1.
+	// VEVersion is the first VE version; an upgrade may move later heights to
+	// VEVersion + 1 (design §17, Schedule).
 	VEVersion = 1
 	// MaxVEBytes caps an encoded VE (design §5.3).
 	MaxVEBytes = 16384
@@ -36,10 +38,22 @@ var (
 	errCounts       = errors.New("vote extension exceeds a count limit")
 )
 
-// DecodeVE decodes and checks a VE for a vote at height: size, decoding, version,
+// Schedule gives the VE version for votes at a height (design §17). FixedV1 is the
+// schedule without upgrades.
+type Schedule func(ctx context.Context, height int64) uint32
+
+// FixedV1 is version 1 at every height.
+func FixedV1(context.Context, int64) uint32 { return VEVersion }
+
+// DecodeVE is DecodeVEAt with version 1.
+func DecodeVE(bz []byte, height int64) (vetypes.VoteExtension, error) {
+	return DecodeVEAt(bz, height, VEVersion)
+}
+
+// DecodeVEAt decodes and checks a VE for a vote at height: size, decoding, version,
 // height, canonical order and counts (design §5.2). The encoding must also be the one
 // Marshal produces, so each VE has exactly one byte form.
-func DecodeVE(bz []byte, height int64) (vetypes.VoteExtension, error) {
+func DecodeVEAt(bz []byte, height int64, version uint32) (vetypes.VoteExtension, error) {
 	var ve vetypes.VoteExtension
 	if len(bz) > MaxVEBytes {
 		return ve, errOversize
@@ -47,7 +61,7 @@ func DecodeVE(bz []byte, height int64) (vetypes.VoteExtension, error) {
 	if err := ve.Unmarshal(bz); err != nil {
 		return ve, fmt.Errorf("decode vote extension: %w", err)
 	}
-	if ve.Version != VEVersion {
+	if ve.Version != version {
 		return ve, errVersion
 	}
 	if ve.Height != height {
@@ -66,9 +80,12 @@ func DecodeVE(bz []byte, height int64) (vetypes.VoteExtension, error) {
 	return ve, nil
 }
 
-// MinimalVE is the encoded VE with no payloads.
-func MinimalVE(height int64) []byte {
-	ve := vetypes.VoteExtension{Version: VEVersion, Height: height}
+// MinimalVE is the encoded version-1 VE with no payloads.
+func MinimalVE(height int64) []byte { return MinimalVEAt(height, VEVersion) }
+
+// MinimalVEAt is the encoded VE of version with no payloads.
+func MinimalVEAt(height int64, version uint32) []byte {
+	ve := vetypes.VoteExtension{Version: version, Height: height}
 	bz, err := ve.Marshal()
 	if err != nil {
 		panic(err) // two scalar fields cannot fail to marshal
@@ -145,3 +162,11 @@ func cmpCommitment(a, b vetypes.NonceCommitment) int {
 }
 
 func cmpShare(a, b vetypes.CombinedShare) int { return bytes.Compare(a.SessionId, b.SessionId) }
+
+// at is the version for height (version 1 without a schedule).
+func (s Schedule) at(ctx context.Context, height int64) uint32 {
+	if s == nil {
+		return VEVersion
+	}
+	return s(ctx, height)
+}

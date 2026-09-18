@@ -11,6 +11,7 @@ import (
 // ProposalHandler implements PrepareProposal and ProcessProposal (design §5.7, §5.8).
 // User transactions are selected and checked by the SDK default handlers passed in.
 type ProposalHandler struct {
+	schedule       Schedule
 	logger         log.Logger
 	valStore       ValidatorStore
 	prepareUserTxs sdk.PrepareProposalHandler
@@ -49,7 +50,7 @@ func (h *ProposalHandler) PrepareProposal(ctx sdk.Context, req *abci.RequestPrep
 	}
 
 	ext := req.LocalLastCommit
-	_, verified, total := VerifyVotes(ctx, h.valStore, ctx.ChainID(), req.Height-1, ext)
+	_, verified, total := VerifyVotes(ctx, h.valStore, ctx.ChainID(), req.Height-1, ext, h.schedule.at(ctx, req.Height-1))
 	if !HasQuorum(verified, total) {
 		// Should not happen: CometBFT already verified these signatures. Propose anyway;
 		// peers reject and the next round retries.
@@ -153,7 +154,7 @@ func (h *ProposalHandler) ProcessProposal(ctx sdk.Context, req *abci.RequestProc
 	if !MatchesLastCommit(ext, req.ProposedLastCommit) {
 		return h.reject(RejectLastCommit)
 	}
-	_, verified, total := VerifyVotes(ctx, h.valStore, ctx.ChainID(), req.Height-1, ext)
+	_, verified, total := VerifyVotes(ctx, h.valStore, ctx.ChainID(), req.Height-1, ext, h.schedule.at(ctx, req.Height-1))
 	if !HasQuorum(verified, total) {
 		return h.reject(RejectLowVerifiedPower)
 	}
@@ -161,3 +162,6 @@ func (h *ProposalHandler) ProcessProposal(ctx sdk.Context, req *abci.RequestProc
 	sub.Txs = req.Txs[1:]
 	return h.userTxsResult(ctx, &sub)
 }
+
+// SetSchedule sets the VE version schedule (design §17).
+func (h *ProposalHandler) SetSchedule(s Schedule) { h.schedule = s }

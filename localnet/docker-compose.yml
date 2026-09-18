@@ -13,7 +13,8 @@ name: keystone-localnet
 x-node: &node
   image: keystone-localnet:latest
   restart: unless-stopped
-  command: ["keystoned", "start", "--home", "/home/keystone"]
+  # NODE_BIN=keystoned-pre-v2 runs the pre-v2 release (scripts/upgrade-drill.sh).
+  command: ["sh", "-c", "exec ${NODE_BIN:-keystoned} start --home /home/keystone"]
 
 x-bitcoind: &bitcoind
   image: bitcoin/bitcoin:31.1
