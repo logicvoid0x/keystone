@@ -96,7 +96,7 @@ pass "removing 2 of 4 operators at once rejected by the custody removal guard"
 # assign (signers are the first t operators by address with no misses), before the batch
 # opens. Either its VE is missing when the batch opens, so the session assigns the
 # others, or it was assigned, the session fails at its deadline and the retry signs.
-OPS=$(q poa validators | jq -r '.validators[].operator_address')
+OPS=$(q poa validators | jq -r '.validators[].operator_address' | tr -d '\r') # Windows jq ends lines with CRLF
 OP0=$("$BIN" keys show operator -a --home "$H/node0" --keyring-backend test)
 VICTIM=""
 for op in $(printf '%s\n' "$OPS" | head -3); do
