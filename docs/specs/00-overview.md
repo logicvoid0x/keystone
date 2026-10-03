@@ -14,6 +14,7 @@ M3–M6 add real Bitcoin custody.
 | M4b DKG | `M4b-dkg.md` | Fresh localnet derives its group key with no dealer | §9.3 |
 | M5 Robustness | `M5-robustness.md` | Operator removed, funds swept to new key; signer killed mid-session | §9.4, §9.10, §12 |
 | M6 Signet testnet | `M6-signet.md` | 7 operators on signet, public end-to-end flow | §16 |
+| M7 Proof of stake | `M7-pos.md` | Stock SDK staking with an admin allowlist; top-N custody set; theft slashes the custody set | §3, §4.2, §9.2, §9.4, §9.12, §20 |
 
 ## Repository layout
 
@@ -39,7 +40,7 @@ keystone/
     btcwatch/                  # Bitcoin watcher (M3)
     signer/                    # FROST signer + nonce store (M4a)
   crypto/frost/                # FROST math, deterministic parts usable on-chain (M4a)
-  x/poa/  x/oracle/  x/vault/  x/stablecoin/  x/liquidation/  x/custody/
+  x/admin/ (x/poa before M7)  x/oracle/  x/vault/  x/stablecoin/  x/liquidation/  x/custody/
     keeper/  types/  module.go  genesis.go
   proto/keystone/<module>/v1/*.proto
   tools/detlint/               # determinism analyzer (M0)
@@ -57,7 +58,7 @@ keystone/
 - Store: `cosmossdk.io/collections` with the prefixes in design §10.1. Prefix bytes are
   constants in `types/keys.go`, never reused.
 - Params: per-module `Params` message, `Validate()` enforces the bounds in design §17.
-  Authority for every `MsgUpdateParams` is the admin address read from `x/poa` params.
+  Authority for every `MsgUpdateParams` is the admin address read from `x/admin` params (`x/poa` before M7).
 - Units: KUSD in `ukusd` (1e-6), BTC in satoshis, prices in micro-USD per BTC (`uint64`
   on the wire, `sdkmath.Int` in state), ratios in basis points.
 - Events: names and attributes exactly as design §11.3.

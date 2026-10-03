@@ -8,6 +8,8 @@ Keystone is a proof-of-authority Cosmos SDK chain run by a known group of operat
 
 **Change from the earlier draft:** the chain no longer uses proof of stake. There is no staking token (KEY is removed), no slashing, and no stake-weighted share mapping. The validator set is managed by an admin multisig of the operators through a small custom PoA module, `x/poa`. The Cosmos Enterprise PoA module was considered and rejected because its documentation states that vote extensions are not supported on PoA chains (§4.2).
 
+**M7 change: back to proof of stake, on stock SDK modules.** The proof-of-authority federation is replaced by permissioned proof of stake: validators bond the native token `ukey` through `x/staking` (with `x/slashing`, `x/distribution`, `x/evidence` and `x/mint`), and only validators on the admin allowlist may join. The top N bonded validators with custody keys hold one FROST share each; a proven theft of treasury BTC slashes every share holder of the epoch. Gas stays zero; stakers earn `ukey` inflation and a share of KUSD stability fees. See §3, §4.2, §7.7, §9.2, §9.12 and ADRs 016–019. Sections that still say "operator" mean an allowlisted, bonded validator.
+
 **Problem.** Borrowing dollars against BTC usually means trusting a custodian, a bridge, and an oracle network, often run by different parties. Keystone puts all three roles in one consortium of identified operators, each running its own node. Trust is explicit: more than 2/3 of operators honest for consensus, fewer than t of n colluding for custody, and custodied BTC capped by a hard limit (§3.2). This is a federated model, comparable to Blockstream's Liquid, not a permissionless one.
 
 **Goals**
@@ -83,21 +85,21 @@ H is a Keystone height; Bitcoin heights are h\_btc.
 
 ## 3. Threat model and trust assumptions
 
-Keystone is safe while more than 2/3 of operators are honest and fewer than t of n collude. Above that, the treasury can be stolen; the deterrents are the operators' legal identity and agreements, and a hard cap on custodied BTC.
+**From M7 Keystone is a permissioned proof-of-stake chain** (ADR-016–019). Validators bond the native token `ukey` through the stock SDK `x/staking`; only validators on the admin's allowlist may join. Keystone is safe while more than 2/3 of bonded power is honest and fewer than t of the N custody-set members collude. Above that, the treasury can be stolen; the deterrents are the custody set's slashable stake (§9.12), the validators' identity under the allowlist, and a hard cap on custodied BTC. The M0–M6 proof-of-authority text below is kept where it still applies; "operator" now means an allowlisted, bonded validator.
 
 ### 3.1 Assumptions
 
-- **Consensus:** more than 2/3 of voting power is honest. With equal power this means more than 2/3 of operators. It protects block validity, oracle aggregation, liquidation enforcement and Bitcoin attestations.
-- **Custody:** fewer than t = floor(2n/3) + 1 operators collude. Localnet n = 4, t = 3; testnet n = 7 gives t = 5, and n = 20 gives t = 14.
-- **Admin:** the admin multisig needs the same > 2/3 of operators. Capturing the admin is therefore no easier than custody collusion.
-- **How they interact:** liveness is aligned, because more than 1/3 of operators offline already halts consensus. Safety differs: a consensus failure is detectable and recoverable; a custody failure moves BTC irreversibly.
-- **Operators are known.** Each is an identified organization under a written operating agreement. Misbehaviour is answered off-chain (contract, law, reputation) and on-chain by the admin removing the operator.
+- **Consensus:** more than 2/3 of bonded voting power is honest. Power is stake (tokens ÷ `PowerReduction`) and is unequal. It protects block validity, oracle aggregation, liquidation enforcement and Bitcoin attestations, all of which already weight by power.
+- **Custody:** fewer than t = floor(2N/3) + 1 members of the custody set collude. The custody set is the top N bonded validators by power that registered custody keys (§9.2), one share each. Localnet N = 4, t = 3; testnet N = 20, t = 14. Custody counts members, consensus counts stake, so the two thresholds no longer count the same thing (ADR-017).
+- **Admin:** the admin multisig keeps parameters, upgrades and the validator allowlist. It is a fixed address set at genesis and replaced by `MsgUpdateParams`; its signers should be the custody-set organizations with a > 2/3 threshold.
+- **How they interact:** consensus halts when more than 1/3 of power is offline; custody stalls when more than N − t members are offline. Safety differs: a consensus failure is detectable and recoverable; a custody failure moves BTC irreversibly.
+- **Validators are known.** The allowlist admits identified organizations under an operating agreement. Misbehaviour is answered by slashing (double-sign, downtime, theft), by the admin removing the validator from the allowlist (which jails it), and off-chain.
 
-### 3.2 Collusion of t or more operators, and the treasury cap
+### 3.2 Collusion of t or more custody members, slashing and the treasury cap
 
-A t-coalition can sign any Bitcoin transaction and drain the treasury. The protocol cannot stop this, and with PoA there is no stake to slash. An aggregated Schnorr signature also does not show which operators signed, so attribution relies on off-chain investigation.
+A t-coalition of the custody set can sign any Bitcoin transaction and drain the treasury. The protocol cannot stop the spend, and an aggregated Schnorr signature does not show which members signed. **Stake is the deterrent:** when > 2/3 of power attests that a treasury UTXO was spent by a transaction that is not a batch in committed state, every share holder of that UTXO's epoch is slashed by `TheftSlashFraction` (default 100%), jailed and tombstoned, and deposits pause (§9.12). Slashing at the epoch's activation height also reaches stake that started unbonding since then. Honest members are slashed too, which is why the custody set must trust each other's operations and why the slash covers the whole set.
 
-The treasury cap bounds the loss. `TreasuryCapSat` = 10 BTC by default, set by the admin. The admin should size it so that the damage from theft (legal liability, loss of business for identifiable firms) clearly exceeds the gain. Unlike a stake-based bound, this is a judgement, not a formula, and is listed as a residual risk.
+The treasury cap bounds the loss. `TreasuryCapSat` = 10 BTC by default, set by the admin. The admin should keep it below the value of the stake a t-coalition would lose: the query `CustodyBond` reports the smallest bonded stake of any t members, in `ukey`. There is no on-chain `ukey` price, so the comparison is the admin's judgement (default assumption — review).
 
 **Enforcement in `x/custody`**, evaluated every block in the PreBlocker:
 
@@ -186,18 +188,27 @@ flowchart LR
 
 | Module | Owns | Depends on |
 | --- | --- | --- |
-| `x/poa` | Admin address, operator records (consensus pubkey, power 0 or 1), validator updates to CometBFT, the validator store used for VE verification | auth |
-| `x/oracle` | Committed spot price, TWAP ring buffer, price status, per-validator miss counters | poa |
+| `x/admin` (M7; was `x/poa`) | Admin address, validator allowlist | auth, staking (jail) |
+| SDK `x/staking`, `x/slashing`, `x/distribution`, `x/evidence`, `x/mint` (M7) | Bonded validators and power, validator updates to CometBFT, the validator store used for VE verification, downtime and double-sign slashing, rewards, `ukey` inflation | auth, bank |
+| `x/oracle` | Committed spot price, TWAP ring buffer, price status, per-validator miss counters | staking (through `app/valset`) |
 | `x/vault` | Vaults, global rate index, liquidation-price index, mint/repay/collateral messages | oracle, stablecoin |
 | `x/stablecoin` | KUSD mint/burn authority, surplus buffer, bad debt (`sin`) | bank |
 | `x/liquidation` | Stability pool, liquidation selection and execution, fallback Dutch auctions | vault, stablecoin, custody (claimable BTC) |
-| `x/custody` | Key epochs, DKG, deposit addresses, attestation tallies, UTXO set, withdrawal queue and batches, FROST sessions, nonce-commitment pools, claimable balances, treasury cap | vault, oracle, poa |
+| `x/custody` | Key epochs, DKG, deposit addresses, attestation tallies, UTXO set, withdrawal queue and batches, FROST sessions, nonce-commitment pools, claimable balances, treasury cap, theft slashing | vault, oracle, staking (through `app/valset`), slashing |
 
 The dependency graph is acyclic; `x/stablecoin` is a leaf apart from SDK modules. The earlier `x/treasurycap` module is folded into `x/custody`, since the cap is now a single admin-set number. `app/protocol` (not a module) owns the VE codec, aggregation, Prepare/Process handlers and the PreBlocker orchestrator, and calls keepers in the fixed order of §5.
 
-**Authority.** Every Keystone module's `MsgUpdateParams`, and `x/upgrade`, take the admin multisig address as their authority. `x/gov` is not used.
+**Authority.** Every Keystone module's `MsgUpdateParams`, `x/upgrade`, `x/consensus` and (M7) the `MsgUpdateParams` of `x/staking`, `x/slashing`, `x/distribution`, `x/mint` and `x/evidence` take the admin multisig address as their authority. The SDK keepers are built with the admin module address and their Msg services re-gated to the current admin (`app/authority.go`). `x/gov` is not used.
 
-**Change from the earlier draft: custom `x/poa` instead of the Enterprise PoA module.** The Enterprise module's architecture page states that vote extensions are not supported on PoA chains. The stated cause is consensus key rotation: for two heights the SDK's consensus address lags CometBFT's, so a rotating validator's VE signature cannot be verified. Keystone carries prices, attestations and FROST shares in VEs, so it needs a validator store that always matches CometBFT. A custom module also removes the license question.
+**M7: stock staking with an allowlist.** `x/poa` is retired. The SDK staking keeper is the validator store for VE verification (`GetPubKeyByConsAddr`) and the only source of validator updates; genesis validators come from `MsgCreateValidator` gentxs. The reason for the original custom module still holds for one feature: `MsgRotateConsPubKey` exists in SDK v0.55.0 staking and would make a rotating validator's VEs unverifiable for two heights, so an ante decorator rejects it (ADR-015). Other changes:
+
+- **`x/admin`:** `Params{admin}` and `Allowlist: operator → AllowEntry{moniker, added_height}`. `MsgUpdateParams{admin, params}` replaces the admin. `MsgSetAllowlist{admin, add[], remove[]}`: removing a bonded validator jails it, after the custody removal guard approves (§9.4). An ante decorator lets `MsgCreateValidator` through only for allowlisted operators and rejects `MsgUnjail` for validators no longer allowlisted. Genesis: admin plus an allowlist that covers every gentx validator.
+- **`app/valset`:** implements the oracle's and custody's `ValidatorSet` from staking state: bonded, unjailed validators with power > 0, sorted by operator address (the contract x/poa had); the operator account has the same bytes as the valoper address. Ranking by power happens only in custody's top-N selection (§9.2).
+- **Rewards and fees:** see §7.7. Gas stays zero.
+
+The history below (the M0–M6 custom PoA) is kept for reference.
+
+**Change from the earlier draft: custom `x/poa` instead of the Enterprise PoA module (M0–M6).** The Enterprise module's architecture page states that vote extensions are not supported on PoA chains. The stated cause is consensus key rotation: for two heights the SDK's consensus address lags CometBFT's, so a rotating validator's VE signature cannot be verified. Keystone carries prices, attestations and FROST shares in VEs, so it needs a validator store that always matches CometBFT. A custom module also removes the license question.
 
 **`x/poa` specification** (about 300 lines):
 
@@ -257,11 +268,13 @@ type CustodyKeeper interface {
     CreditClaimable(ctx context.Context, addr sdk.AccAddress, sat sdkmath.Int) error
 }
 
-// x/poa, as seen by oracle and custody
+// app/valset (x/staking), as seen by oracle and custody (M7; x/poa before)
 type ValidatorSet interface {
-    ActiveValidators(ctx context.Context) ([]poatypes.Operator, error) // power > 0, sorted by operator address
-    TotalPower(ctx context.Context) (int64, error)
+    ActiveValidators(ctx context.Context) ([]types.Validator, error) // bonded, not jailed, power > 0, sorted by operator address
+    TotalPower(ctx context.Context) (int64, error)                   // sum of their consensus power
+    GetValidator(ctx context.Context, op sdk.AccAddress) (types.Validator, error) // any status; error if unknown
 }
+// types.Validator{OperatorAddress string, ConsAddress []byte, Power int64}: a local type in each module.
 ```
 
 `Select` and `BuildOps` only read state and return a batch; the PreBlocker passes each batch straight to `Execute` or `ApplyOps`. Keeping derivation separate from execution makes both easy to unit-test.
@@ -753,6 +766,13 @@ Above $1, minting and selling KUSD is profitable at MCR 150%, which caps the ups
 - 29,000 KUSD is burned; sin = 1,048.87.
 - The surplus buffer (5,000 KUSD) heals it: surplus 3,951.13, sin 0. Alice receives nothing back.
 
+### 7.7 Staking rewards and fees (M7)
+
+- **Gas stays zero.** Users need only KUSD; the per-account rate limits of the ante handler stay the spam defence (ADR-019). Validators set `minimum-gas-prices` to zero.
+- **Inflation:** stock `x/mint` mints `ukey` each block into the fee collector; `x/distribution` pays it to validators and delegators by stake, after commission. Mint parameters are admin-set.
+- **KUSD share:** `x/stablecoin` param `StakerShareBps` (default 2,000 = 20%, bounds 0–5,000). Each block, that share of the stability fees accrued into the surplus buffer in that block, rounded down, moves from the surplus buffer to the fee collector, so `x/distribution` pays KUSD to stakers. The remainder stays in the surplus buffer. Bad debt is never paid out: while `sin` > 0 the share is zero and the whole accrual heals `sin` first.
+- **Slashed `ukey`** is burned (stock `x/staking` behaviour).
+
 ## 8. Deterministic liquidations
 
 Each block liquidates up to 50 vaults, worst collateral ratio first, chosen by walking an index of normalized debt-to-collateral ratios against the freshly committed price. The stability pool absorbs each vault when it holds enough KUSD; otherwise a Dutch auction sells the collateral. The batch is a pure function of committed state, the injected VEs and header time, and every node computes it in the PreBlocker, so the proposer has no say in it.
@@ -875,13 +895,18 @@ All active operators form the custody set, and each holds one FROST share, with 
 
 **Change from the earlier draft:** the stake-weighted custody set (top 20 validators, 400 virtual shares, t = 267) is replaced by one share per operator, and key epochs now end on membership changes rather than on a fixed schedule.
 
+**M7 change:** the custody set is the top N bonded validators by power that registered custody keys (`CustodySetSize`, default 20), still one share each (§9.2). A proven theft slashes the whole set (§9.12).
+
 ### 9.1 Parameters
 
 | Parameter | Localnet | Testnet | Note |
 | --- | --- | --- | --- |
-| Custody set | 4 operators | All active operators (7–20) | x/poa operators with power 1 |
-| Shares | 1 per operator | 1 per operator | Share index = rank by operator address, from 1 |
-| Threshold t | 3 | floor(2n/3) + 1: 5 at n = 7, 14 at n = 20 | Strictly more than 2/3, like consensus |
+| Custody set | 4 validators | Top N = 20 bonded validators by power (`CustodySetSize`) | Bonded, unjailed, custody key registered; incumbents kept within `CustodyEntryMarginBps` (§9.2) |
+| Shares | 1 per member | 1 per member | Share index = rank by operator address, from 1 |
+| Threshold t | 3 | floor(2N/3) + 1: 14 at N = 20 | Strictly more than 2/3 of members |
+| `CustodyEntryMarginBps` | 1,000 | 1,000 (10%) | An outsider displaces the weakest incumbent only above this margin |
+| `MinCustodySelfBond` | 1 `ukey` | Admin-set | Self-bond a member of a funded epoch cannot undelegate below |
+| `TheftSlashFraction` | 1.0 | 1.0 | Slash on an attested unauthorized spend (§9.12) |
 | `MembershipDelayBlocks` | 100 | 28,800 (\~24 h) | Before a changed set takes custody |
 | Confirmation depth k | 1 | 6 | regtest mines on demand |
 | Nonce pool per operator | 8 | 8 | Preprocessed commitments |
@@ -893,6 +918,15 @@ All active operators form the custody set, and each holds one FROST share, with 
 Every operator has power 1 and exactly one share, so the custody threshold and the consensus threshold count the same thing. A coalition of 2n/3 operators or fewer cannot sign; signing needs t operators online, essentially the same bar as consensus liveness. `x/poa` only accepts power 0 or 1, so the two thresholds cannot drift apart.
 
 The earlier virtual-share mapping is no longer needed. It existed only to approximate stake weighting with unweighted FROST.
+
+**M7: top N by power, one share each.** Power is now stake and unequal, while FROST still counts signers. The custody candidates are computed every EndBlock:
+
+1. Take the active validators (bonded, unjailed, power > 0) that registered custody keys.
+2. Rank them by power descending, then operator address ascending.
+3. Incumbents are the share holders of the ACTIVE epoch. Walking the ranking, an incumbent keeps its seat; an outsider takes a seat only while seats remain, or by displacing the weakest remaining incumbent when its power exceeds that incumbent's by more than `CustodyEntryMarginBps`. This hysteresis stops small stake movements from triggering a new key.
+4. Take N members; the set is sorted by operator address for share indices, as before.
+
+Each member holds one share and t = floor(2N/3) + 1. Custody therefore counts members while consensus counts stake: a few large validators can hold more than 2/3 of power with fewer than t shares, and t small ones can hold less (ADR-017). The bound on a theft is the custody set's slashable stake (§9.12) and the treasury cap (§3.2). Signing liveness needs t members online and in the active validator set, since shares travel in VEs; `MaxValidators` (50) is kept well above N.
 
 ### 9.3 DKG (genesis and each membership change)
 
@@ -936,6 +970,13 @@ Custody follows the PoA validator set with a delay. When the set of validators w
 **Emergency rekey:** if only t epoch-e operators have been online for 100 blocks, one more failure would freeze the funds. The admin can then set `EmergencyRekey`, which starts a new epoch immediately among the online operators and skips the delay.
 
 **Implementation notes (M5).** The custody set is compared every EndBlock with the active operators that registered custody keys. A difference is stored as `PendingMembership{set_hash, since_height, added, removed}` (0x1B) and emitted as `custody_membership_pending`; a further change restarts the delay. After `MembershipDelayBlocks` unchanged (immediately with `EmergencyRekey`) the DKG for e+1 starts among that set (§9.3). On activation epoch e becomes RETIRING (`retiring_height`); one SWEEP batch per retiring epoch is in flight at a time (up to `MaxInputs` UTXOs, largest first, one output to the new Q0, `change_epoch` = e+1), its fee charged to the fee reserve (any shortfall to the deficit). Epoch e is RETIRED (`epoch_retired`) when it has no UTXOs, no batch in flight and `retire_watch_blocks` (new param, default 1,000) have passed; signers then delete its shares. The removal guard rejects a `MsgSetValidators` that would leave fewer than t share holders of any funded ACTIVE or RETIRING epoch active.
+
+**M7 changes.**
+
+- The compared set is the top-N custody candidate set of §9.2, not every active operator. A change in power that does not change the membership (including swaps inside the margin) does not trigger a new epoch.
+- The removal guard moves to `x/admin`'s `MsgSetAllowlist`: removing (and so jailing) validators is rejected if it would leave fewer than t share holders of any funded ACTIVE or RETIRING epoch active.
+- **Unbonding guard:** an ante decorator rejects `MsgUndelegate` and `MsgBeginRedelegate` from a validator's own operator account (its self-delegation) when the validator holds a share of a funded ACTIVE or RETIRING epoch and the message would take its self-bond below `MinCustodySelfBond`. Delegators other than the operator are never blocked.
+- Members can still leave the active set in ways no guard can stop: jailing by `x/slashing` (downtime, double-sign), being pushed out by `MaxValidators`, or delegators leaving until power reaches zero. These are the cases §9.4's emergency rekey already covers; §12 lists them.
 
 ### 9.5 Share storage and backup
 
@@ -1173,6 +1214,17 @@ sessions:
 - `signer_flagged` is emitted once per (epoch, operator) when invalid > 3 or missed × 5 > assigned.
 - A batch confirmed while sessions of a later version are still open closes them (FAILED, no charge).
 
+### 9.12 Unauthorized-spend slashing (M7)
+
+A t-coalition can sign any Bitcoin transaction, but every honest node sees the result on Bitcoin. Keystone treats a spend of a treasury UTXO that it did not authorize as proof that the epoch's key was misused, and slashes every share holder of that epoch (ADR-017).
+
+1. **Detection (watcher):** when a UTXO in committed custody state (AVAILABLE or LOCKED) is spent at depth k by a transaction whose txid is not the txid of any version of a batch in committed state, the watcher attests `UnauthorizedSpend{prev_txid, prev_vout, spending_txid, btc_height}` in `BitcoinPayload.spends` (VE field 6, at most 8, sorted by (prev_txid, prev_vout), strictly; checked on decode).
+2. **Tally:** like reorg attestations (§9.7): distinct voters, expiry 600 blocks, accepted at > 2/3 of current power, keyed by (prev_txid, prev_vout, spending_txid). A UTXO already removed from state is ignored.
+3. **Apply (PreBlocker, op `SlashUnauthorizedSpend`):** let e be the UTXO's epoch. For every share holder of e, in operator-address order: `x/staking` slash at infraction height = e's activation height, fraction `TheftSlashFraction`; jail; tombstone through `x/slashing`. The UTXO is removed and its amount added to the custody deficit, so invariant 6 still holds and withdrawals of the lost satoshis wait for the deficit as after a deep reorg (§9.7). Deposits pause (`theft_paused` = true at 0x24; only the admin clears it, with `MsgClearTheftPause{admin}`, accepted once the slashed epoch is RETIRED or RETIRING). Event `custody_theft_slashed{epoch, utxo, spending_txid, members, slashed_ukey}`.
+4. **Totality:** a member already tombstoned, unknown to staking or failing to slash is skipped with event `custody_slash_skipped{operator, reason}`; the op never returns an error (§5.9). An epoch is slashed at most once; later spends of the same epoch only remove UTXOs and add to the deficit.
+
+A share holder who unbonded after the epoch activated is still slashed through its unbonding entries if the unbonding period (21 days) has not ended. After that it is out of reach, which is why the membership delay and the unbonding period must both exceed the time a theft takes to be attested at depth k.
+
 ## 10. State and data model
 
 All state uses `cosmossdk.io/collections` with one-byte prefixes per module; there are no protobuf maps. Amounts are `cosmos.Int` strings in protobuf and `sdkmath.Int` in Go.
@@ -1220,6 +1272,8 @@ All state uses `cosmossdk.io/collections` with one-byte prefixes per module; the
 | custody | 0x22 | custody hot key → operator (added in M4b) |
 | poa | 0x01 / 0x02 / 0x03 | Params{admin}; operator address → Operator{consensus\_pubkey, moniker, power}; consensus address → operator address |
 | poa | 0x04 / 0x05 | used consensus pubkeys → empty; operator address → power last sent to CometBFT |
+| admin (M7, replaces poa) | 0x01 / 0x02 | Params{admin}; operator address → AllowEntry{moniker, added\_height} |
+| custody (M7) | 0x23 / 0x24 | epoch → slashed height; theft\_paused (bool). Spend tallies use the attestation tally store (0x06), like deposits and reorgs |
 
 ### 10.2 Core messages
 
@@ -1262,7 +1316,12 @@ message Auction { uint64 id = 1; uint64 vault_id = 2; string tab = 3; string rai
 | stablecoin | SinPauseBps 500, SinPauseBlocks 1000 |
 | custody | TreasuryCapSat 1,000,000,000 (10 BTC), MembershipDelayBlocks 28800, ConfirmDepth 6, NoncePool 8, SessionDeadline 5, MaxInputs 8, BatchMinRequests 16, BatchMaxWait 20, FeerateMin 1, FeerateMax 200, RbfAfterBtcBlocks 6, MinWithdrawSat 10,000, EmergencyRekey false, BitcoinNetwork "signet" (added in M3: "regtest" or "signet"; selects the bech32m prefix), RetireWatchBlocks 1,000 (added in M5; localnet 20) |
 | ante (app) | MaxTxPerAccountPerBlock 5 |
-| poa | admin = operators' multisig address |
+| poa (M0–M6) | admin = operators' multisig address |
+| admin (M7) | admin = the admin multisig address |
+| custody (M7 additions) | CustodySetSize 20 (localnet 4), CustodyEntryMarginBps 1000, MinCustodySelfBond (localnet 1 ukey), TheftSlashFraction 1.0; state flag theft\_paused |
+| stablecoin (M7 addition) | StakerShareBps 2000 (bounds 0–5000) |
+| staking (M7) | BondDenom ukey, MaxValidators 50, UnbondingTime 21 days (localnet 10 minutes), MinCommissionRate 0 |
+| slashing, mint, distribution (M7) | SDK defaults, localnet relaxed downtime window; mint denom ukey |
 
 ### 10.4 Genesis
 
@@ -1271,6 +1330,7 @@ message Auction { uint64 id = 1; uint64 vault_id = 2; string tab = 3; string rai
 - Custody genesis: each operator's custody encryption pubkey and custody hot-key address, so the epoch-1 DKG can start at height 2 with no registration transactions. Deposits are rejected until epoch 1 is `ACTIVE`.
 - `rate = 1 RAY`, `last_drip = genesis time`, no vaults, empty pool, `sin = 0`, no KUSD supply.
 - One localnet script generates all of this for 4 operators.
+- **M7:** `x/admin` genesis carries the admin and the allowlist; `x/poa` genesis is gone. Validators come from `MsgCreateValidator` gentxs collected by genutil; each must be allowlisted (`ValidateGenesis`). Bank genesis funds each validator account with `ukey` for its self-bond. Staking's InitGenesis returns the initial validator updates.
 
 ## 11. Messages, queries and events
 
@@ -1329,6 +1389,8 @@ Every failure either pauses the affected function automatically or halts the cha
 | Scenario | Detection | Automatic response | Manual runbook |
 | --- | --- | --- | --- |
 | Price fetchers down on > 1/3 of operators | Participation below 2/3 | Price held; `STALE` after 20 blocks pauses liquidations, mints, collateral withdrawals | Operators restore sources |
+| Custody member jailed, pushed out by `MaxValidators` or left with zero power (M7) | Member not in the active set; `custody_membership_pending` | Signing continues while t members remain active; pending membership starts the next epoch after the delay | Admin sets `EmergencyRekey` if only t members remain |
+| Unauthorized spend of a treasury UTXO (M7) | > 2/3 attestation of `UnauthorizedSpend` (§9.12) | Every share holder of the epoch slashed, jailed, tombstoned; UTXO moved to the deficit; deposits paused | Investigate; admin lowers the cap and sends `MsgClearTheftPause` once the slashed epoch is no longer ACTIVE |
 | Price spikes 15% from TWAP | `VOLATILE` status | Mints pause; liquidations continue at clamped spot | Check exchanges for manipulation |
 | Proposer omits or alters tx0 | ProcessProposal reject | Round change | Inspect the proposer's logs; repeat offender → admin removes it |
 | One operator's VE signature cannot be verified | `VerifyVotes` skips it; metric `ve_unverified{validator}` | That VE is ignored; block still valid if verified power > 2/3 | Check the operator's consensus key against its `x/poa` record |
@@ -1585,7 +1647,11 @@ Fifteen decisions are recorded below; each is accepted for the testnet and can b
 | 012 | No PSM; redemptions in v2 | No trusted issuer; redemptions need custody batching first | Weaker peg floor in v1 |
 | 013 | Proof of authority via a custom minimal x/poa, admin = operators' multisig (> 2/3); Enterprise PoA rejected because it does not support vote extensions | Trusted consortium setting; less to build than staking | Federated trust model; about 300 extra lines to maintain |
 | 014 | No native token; zero gas price with per-account rate limits | Users need nothing but KUSD; no token economics | Spam resistance is weaker than fee markets |
-| 015 | Per-VE signature verification with a > 2/3 verified-power rule; no consensus key rotation in v1 | One unverifiable VE must never stall the chain; rotation is what makes VEs unverifiable | Changing a key means replacing the operator and running a new custody epoch |
+| 015 | Per-VE signature verification with a > 2/3 verified-power rule; no consensus key rotation in v1 | One unverifiable VE must never stall the chain; rotation is what makes VEs unverifiable | Changing a key means replacing the operator and running a new custody epoch. M7: `MsgRotateConsPubKey` is rejected by an ante decorator |
+| 016 (M7, supersedes 013) | Permissioned proof of stake on stock SDK `x/staking`, `x/slashing`, `x/distribution`, `x/evidence`, `x/mint`, with native token `ukey`; `x/poa` retired, `x/admin` keeps the admin and an allowlist | Consensus secured by stake with slashing; battle-tested modules instead of a custom one; the allowlist keeps validators identifiable | Token economics to maintain; key rotation must stay disabled |
+| 017 (M7, supersedes 007) | Custody set = top N bonded validators by power with custody keys, one share each, t = floor(2N/3) + 1, entry margin; an attested unauthorized spend slashes every share holder of the epoch | Smallest change to FROST and DKG; stake becomes the theft deterrent without attributing signers | Custody counts members, consensus counts stake; honest members of a robbed epoch are slashed too |
+| 018 (M7) | Validator entry by admin allowlist; the admin multisig keeps params and upgrades; no `x/gov` | Identified validators; one authority for every module | Admin remains a trusted party |
+| 019 (M7, amends 014) | Zero gas stays; stakers earn `ukey` inflation plus `StakerShareBps` of stability fees in KUSD | Users still need only KUSD | Spam resistance still rests on rate limits |
 
 **Open questions**
 
@@ -1596,7 +1662,8 @@ Fifteen decisions are recorded below; each is accepted for the testnet and can b
 5. A recovery path for mass share loss that does not add a trusted party (§9.6).
 6. Isolating the signer in its own process or an HSM-backed enclave for production.
 7. Fees in KUSD for production spam resistance, and who receives them (x/poa has no fee distribution today).
-8. A path from the PoA federation to a permissionless, staked validator set if decentralization becomes a goal.
+8. A path from the PoA federation to a permissionless, staked validator set if decentralization becomes a goal. Partly answered in M7 (ADR-016): staked but allowlisted; dropping the allowlist is a later decision.
+9. An on-chain `ukey` price, so the treasury cap can be bounded by the custody set's slashable stake by formula rather than judgement (§3.2).
 
 ## 21. Appendix A: formal invariants
 
@@ -1628,6 +1695,8 @@ The UTXO sum covers AVAILABLE and LOCKED; pending covers queued and in-flight re
 12. **Protocol txs.** Every block from enable height + 1 has exactly one magic-prefixed tx, at index 0.
 13. **Epochs.** At most one `ACTIVE` and one `RETIRING` epoch; every UTXO's epoch is one of them.
 14. **Treasury cap.** At the moment of crediting, credited collateral satoshis ≤ TreasuryCapSat; over-cap deposits are only claimable balances.
+15. **Theft pause (M7).** If the ACTIVE epoch has a slashed height, `theft_paused` is true; no deposit is credited while `theft_paused` is true.
+16. **Staker share (M7).** In every block, the KUSD moved from the surplus buffer to the fee collector ≤ ⌊accrued fees × `StakerShareBps` / 10,000⌋, and is zero while `sin` > 0.
 
 ## 22. Appendix B: the ten hardest trade-offs
 
@@ -1636,8 +1705,8 @@ The UTXO sum covers AVAILABLE and LOCKED; pending covers queued and in-flight re
 3. **Liquidations derived in the PreBlocker, not listed in the block.** An earlier draft put the liquidation list in the block and had every validator recompute and compare it byte for byte. That list was a pure function of the injected votes and committed state, so it added no information: neutrality follows from every node deriving the same list. Dropping it removes a second computation, a halt-on-mismatch path and failed-transaction noise. The cost is a strict rule that no PreBlocker step may fail, since FinalizeBlock cannot reject a block, and indexers read liquidations from events instead of block contents.
 4. **Stability pool over Dutch auctions.** Auctions rely on outside keepers with capital and bots, and their take transactions are user transactions a proposer can reorder. A pool liquidates inside the protocol segment with no actors, so the common path stays deterministic. Its weakness is size: when the pool is too small, the fallback auction runs, so both mechanisms must be built and audited.
 5. **New key plus sweep instead of resharing.** Share-preserving resharing avoids sweep fees, but operators who leave keep valid shares of the same key after their agreement ends. A fresh key makes old shares worthless once the sweep confirms, which is an easier property to reason about. The costs are Bitcoin fees on every membership change, a window in which two epochs hold funds, and a limit of n − t removals per change.
-6. **Proof of authority instead of proof of stake.** PoS gives a permissionless set and an economic bound on theft, but needs a native token, staking economics, a token price to size the cap, and stake-weighted FROST shares. PoA trades all of that for a federation of identified operators deterred by contracts and reputation, the model Liquid uses. It is far simpler to build and fits a consortium, but it is not trust-minimized: users must trust that fewer than t operators collude.
-7. **One share per operator.** Under PoS, unweighted FROST needed hundreds of virtual shares to approximate stake, with rounding slack that weakened the threshold. With equal-power operators, one share each makes the custody threshold and the consensus threshold count exactly the same thing. x/poa enforces this by accepting only power 0 or 1; the cost is that operators can never carry different weights.
+6. **Proof of authority instead of proof of stake.** PoS gives a permissionless set and an economic bound on theft, but needs a native token, staking economics, a token price to size the cap, and stake-weighted FROST shares. PoA trades all of that for a federation of identified operators deterred by contracts and reputation, the model Liquid uses. It is far simpler to build and fits a consortium, but it is not trust-minimized: users must trust that fewer than t operators collude. **Revisited in M7 (ADR-016):** permissioned PoS on stock SDK modules, keeping the allowlist so validators stay identifiable, and adding stake as the theft deterrent; the token price question remains (open question 9).
+7. **One share per operator.** Under PoS, unweighted FROST needed hundreds of virtual shares to approximate stake, with rounding slack that weakened the threshold. With equal-power operators, one share each makes the custody threshold and the consensus threshold count exactly the same thing. x/poa enforces this by accepting only power 0 or 1; the cost is that operators can never carry different weights. **Revisited in M7 (ADR-017):** stake is unequal again, but the custody set stays one share per member (top N by power), accepting that custody counts members while consensus counts stake.
 8. **Go-native, in-process FROST.** A separate Rust signer using an audited crate would isolate secrets and reuse vetted code. Go-native keeps one toolchain and fits a fast build, and on-chain aggregation needs Go FROST math anyway. The cost is hand-written cryptography, mitigated by byte-for-byte test vectors against the Rust crate and a BIP-340 check before any signature is stored, and flagged for audit.
 9. **Retry-and-blame instead of ROAST.** ROAST guarantees completion whenever t honest signers respond, with no timeouts. Retry-and-blame is one session per input and one state machine, easy to test and reason about; each faulty signer costs one 5-block retry. Since sessions already live in chain state, upgrading to concurrent ROAST sessions later is additive.
 10. **No emergency recovery leaf.** A timelocked script path could rescue funds after mass share loss; Liquid has one. But it either names a recovery key holder, a new trusted party, or forces every UTXO to roll over before its relative timelock expires, adding fees and a second key ceremony. For a capped testnet, a single key-path spend is the simpler surface; production should revisit this.

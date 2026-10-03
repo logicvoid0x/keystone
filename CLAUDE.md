@@ -1,7 +1,8 @@
 # Keystone — instructions for Claude Code
 
-Keystone is a proof-of-authority Cosmos SDK chain. Users lock native BTC in a
-Taproot treasury held by the operators' FROST key and mint the KUSD stablecoin
+Keystone is a permissioned proof-of-stake Cosmos SDK chain (from M7; proof of
+authority before). Users lock native BTC in a Taproot treasury held by the
+custody set's FROST key and mint the KUSD stablecoin
 against it. Prices, Bitcoin attestations and FROST signature shares travel in
 ABCI++ vote extensions.
 
@@ -29,7 +30,10 @@ the milestone summary; do not stop for it.
 - `github.com/cosmos/cosmos-sdk` **v0.55.0** (pulls `github.com/cometbft/cometbft` **v0.40.0**).
 - `cosmossdk.io/collections`, `cosmossdk.io/math`, `cosmossdk.io/log/v2`: versions required by SDK v0.55.0.
 - `github.com/btcsuite/btcd`, `btcd/btcec/v2`, `btcd/btcutil`, `btcd/btcutil/psbt`: latest tagged releases.
-- Do **not** use the Cosmos Enterprise PoA module (no vote-extension support). We write `x/poa`.
+- Do **not** use the Cosmos Enterprise PoA module (no vote-extension support).
+- From M7, consensus uses the stock SDK `x/staking`, `x/slashing`, `x/distribution`,
+  `x/evidence` and `x/mint` (bond denom `ukey`); `x/admin` (formerly `x/poa`) keeps the
+  admin address and the validator allowlist.
 
 ## Hard rules: determinism (state-machine code)
 
@@ -55,7 +59,9 @@ randomness; its output only reaches state through vote extensions.
 ## Never
 
 - Enable BlockSTM (`block-executor = block-stm`) or optimistic execution.
-- Add `x/staking`, `x/distribution`, `x/slashing`, `x/mint` or `x/gov`.
+- Add `x/gov` (the admin multisig stays the authority; ADR-018).
+- Allow `MsgRotateConsPubKey` (rotation makes VEs unverifiable; ADR-015).
+- Charge gas: the minimum gas price stays zero (ADR-019).
 - Change a wire format (proto field numbers, VE layout, tx0 layout, store prefixes)
   without updating `docs/design.md` and `docs/decisions.md`.
 - Invent an SDK, CometBFT or btcd API. If unsure, read the source in the module
