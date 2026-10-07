@@ -18,9 +18,9 @@ import (
 	moduletestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
 
 	"github.com/OWNER/keystone/app/protocol/vetypes"
+	"github.com/OWNER/keystone/x/validators"
 	"github.com/OWNER/keystone/x/oracle/keeper"
 	"github.com/OWNER/keystone/x/oracle/types"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
 )
 
 const usd = 1_000_000
@@ -41,12 +41,12 @@ func (fakeAdmin) CheckAdmin(_ context.Context, signer string) error {
 }
 
 // fakeVals is a fixed set of 4 operators at power 1.
-type fakeVals struct{ ops []poatypes.Operator }
+type fakeVals struct{ ops []validators.Validator }
 
 func newVals() fakeVals {
-	var ops []poatypes.Operator
+	var ops []validators.Validator
 	for i := byte(1); i <= 4; i++ {
-		ops = append(ops, poatypes.Operator{
+		ops = append(ops, validators.Validator{
 			OperatorAddress: sdk.AccAddress(bytes.Repeat([]byte{i}, 20)).String(),
 			ConsensusPubkey: ed25519.GenPrivKeyFromSecret([]byte{'o', i}).PubKey().Bytes(),
 			Power:           1,
@@ -55,8 +55,10 @@ func newVals() fakeVals {
 	return fakeVals{ops}
 }
 
-func (f fakeVals) ActiveValidators(context.Context) ([]poatypes.Operator, error) { return f.ops, nil }
-func (f fakeVals) TotalPower(context.Context) (int64, error)                     { return int64(len(f.ops)), nil }
+func (f fakeVals) ActiveValidators(context.Context) ([]validators.Validator, error) {
+	return f.ops, nil
+}
+func (f fakeVals) TotalPower(context.Context) (int64, error) { return int64(len(f.ops)), nil }
 
 func (f fakeVals) cons(i int) []byte { return f.ops[i].ConsAddress() }
 

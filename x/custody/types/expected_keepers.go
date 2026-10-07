@@ -7,19 +7,21 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	poatypes "github.com/OWNER/keystone/x/poa/types"
+	"github.com/OWNER/keystone/x/validators"
 )
 
-// AdminKeeper is the part of x/poa that authorizes MsgUpdateParams.
+// AdminKeeper is the part of x/admin that authorizes MsgUpdateParams.
 type AdminKeeper interface {
 	CheckAdmin(ctx context.Context, signer string) error
 }
 
-// ValidatorSet is x/poa as seen by the attestation tallies.
+// ValidatorSet is the app validator set (app/valset over x/staking) as seen by custody
+// (design §4.2, §9.2). ActiveValidators are bonded, unjailed, power > 0, sorted by
+// operator address.
 type ValidatorSet interface {
-	ActiveValidators(ctx context.Context) ([]poatypes.Operator, error)
-	// GetOperator returns an operator of any power (an error if unknown).
-	GetOperator(ctx context.Context, addr sdk.AccAddress) (poatypes.Operator, error)
+	ActiveValidators(ctx context.Context) ([]validators.Validator, error)
+	// GetOperator returns a validator of any status (an error if unknown).
+	GetOperator(ctx context.Context, addr sdk.AccAddress) (validators.Validator, error)
 }
 
 // VaultKeeper is x/vault as seen by deposit crediting and reversal (design §9.7).

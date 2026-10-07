@@ -24,7 +24,7 @@ CLAUDE.md (Never list), design sections above, ADRs 016–019 superseding 007, 0
 
 - Add `x/staking`, `x/slashing`, `x/distribution`, `x/evidence` and `x/mint` (SDK v0.55.0)
   to `app/app.go`. Bond denom `ukey`. Staking's EndBlocker is the only source of
-  validator updates; genutil delivers real `MsgCreateValidator` gentxs.
+  validator updates; genesis validators are written into staking genesis (design §10.4).
 - Every SDK keeper's authority is the admin module address; their `MsgUpdateParams` are
   re-gated to the current admin as `app/authority.go` already does for upgrade and consensus.
 - `app/protocol` uses the staking keeper as its `ValidatorStore`.

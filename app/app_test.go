@@ -9,22 +9,25 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
+	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
+	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
 
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/testutil/apptest"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
+	admintypes "github.com/OWNER/keystone/x/admin/types"
 )
 
-func TestInitChainReturnsPoaValidatorSet(t *testing.T) {
+func TestInitChainReturnsStakingValidatorSet(t *testing.T) {
 	c := apptest.New(t, 4)
-	// genutil sees no gentxs and returns nothing; x/poa is the only source.
+	// x/staking InitGenesis returns the bonded genesis validators (design §10.4).
 	require.Len(t, c.InitValidators, 4)
 	for _, u := range c.InitValidators {
 		require.Equal(t, int64(1), u.Power)
 	}
 	c.Finalize(nil, abci.CommitInfo{})
-	ops, err := c.App.PoaKeeper.ActiveValidators(c.Context())
+	ops, err := c.App.StakingKeeper.GetBondedValidatorsByPower(c.Context())
 	require.NoError(t, err)
 	require.Len(t, ops, 4)
 }
@@ -34,9 +37,13 @@ func TestModuleAccountsExist(t *testing.T) {
 	c.Finalize(nil, abci.CommitInfo{})
 	ctx := c.Context()
 	for name, perms := range map[string][]string{
-		app.StablecoinModuleAccount:  {authtypes.Minter, authtypes.Burner},
-		app.SurplusModuleAccount:     nil,
-		app.LiquidationModuleAccount: {authtypes.Burner},
+		app.StablecoinModuleAccount:    {authtypes.Minter, authtypes.Burner},
+		app.SurplusModuleAccount:       nil,
+		app.LiquidationModuleAccount:   {authtypes.Burner},
+		stakingtypes.BondedPoolName:    {authtypes.Burner, authtypes.Staking},
+		stakingtypes.NotBondedPoolName: {authtypes.Burner, authtypes.Staking},
+		minttypes.ModuleName:           {authtypes.Minter},
+		distrtypes.ModuleName:          nil,
 	} {
 		acc := c.App.AccountKeeper.GetModuleAccount(ctx, name)
 		require.NotNil(t, acc, name)
@@ -67,7 +74,7 @@ func TestAnteLimitsTxsPerSignerPerBlock(t *testing.T) {
 	require.Equal(t, uint32(0), res.TxResults[0].Code, res.TxResults[0].Log)
 }
 
-func TestUpgradeAuthorityIsPoaAdmin(t *testing.T) {
+func TestUpgradeAuthorityIsAdmin(t *testing.T) {
 	c := apptest.New(t, 1)
 	c.Finalize(nil, abci.CommitInfo{})
 	plan := upgradetypes.Plan{Name: "v2", Height: 1000}
@@ -75,7 +82,7 @@ func TestUpgradeAuthorityIsPoaAdmin(t *testing.T) {
 	stranger := c.Users[0]
 	res := c.Finalize([][]byte{c.SignTx(stranger.Key, &upgradetypes.MsgSoftwareUpgrade{Authority: stranger.Addr.String(), Plan: plan})}, abci.CommitInfo{})
 	require.NotEqual(t, uint32(0), res.TxResults[0].Code)
-	require.Contains(t, res.TxResults[0].Log, poatypes.ErrUnauthorized.Error())
+	require.Contains(t, res.TxResults[0].Log, admintypes.ErrUnauthorized.Error())
 
 	res = c.Finalize([][]byte{c.SignTx(c.Admin.Key, &upgradetypes.MsgSoftwareUpgrade{Authority: c.Admin.Addr.String(), Plan: plan})}, abci.CommitInfo{})
 	require.Equal(t, uint32(0), res.TxResults[0].Code, res.TxResults[0].Log)

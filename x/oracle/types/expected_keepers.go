@@ -3,16 +3,18 @@ package types
 import (
 	"context"
 
-	poatypes "github.com/OWNER/keystone/x/poa/types"
+	"github.com/OWNER/keystone/x/validators"
 )
 
-// AdminKeeper is the part of x/poa that authorizes MsgUpdateParams.
+// AdminKeeper is the part of x/admin that authorizes MsgUpdateParams.
 type AdminKeeper interface {
 	CheckAdmin(ctx context.Context, signer string) error
 }
 
-// ValidatorSet is x/poa as seen by the oracle (design §4.2).
+// ValidatorSet is the app validator set (app/valset over x/staking) as seen by the
+// oracle (design §4.2): bonded, unjailed validators with power > 0, sorted by operator
+// address, and their total power.
 type ValidatorSet interface {
-	ActiveValidators(ctx context.Context) ([]poatypes.Operator, error)
+	ActiveValidators(ctx context.Context) ([]validators.Validator, error)
 	TotalPower(ctx context.Context) (int64, error)
 }

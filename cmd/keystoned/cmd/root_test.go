@@ -22,7 +22,7 @@ func TestM1Commands(t *testing.T) {
 		"q liquidation pool", "q liquidation pool-deposit", "q liquidation auction", "q liquidation auctions",
 		"q oracle price", "q oracle twap", "q oracle miss-counter",
 		"q stablecoin surplus", "q stablecoin bad-debt", "q custody claimable",
-		"q poa validators",
+		"q admin allowlist", "tx admin set-allowlist", "q staking validators", "tx staking create-validator",
 	}
 	for _, p := range paths {
 		c, rest, err := root.Find(strings.Fields(p))

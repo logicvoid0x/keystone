@@ -16,7 +16,7 @@ import (
 	"github.com/OWNER/keystone/app/protocol/vetypes"
 	"github.com/OWNER/keystone/x/custody/keeper"
 	"github.com/OWNER/keystone/x/custody/types"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
+	"github.com/OWNER/keystone/x/validators"
 )
 
 // fakeVault stands in for x/vault: CreditCollateral credits within the cap headroom
@@ -89,7 +89,7 @@ func newOps(t *testing.T) *opsFixture {
 	fv := &fakeVals{}
 	var vals []sdk.ConsAddress
 	for n := byte(1); n <= 4; n++ {
-		op := poatypes.Operator{OperatorAddress: sdk.AccAddress(bytes.Repeat([]byte{n}, 20)).String(), ConsensusPubkey: bytes.Repeat([]byte{n}, 32), Power: 1}
+		op := validators.Validator{OperatorAddress: sdk.AccAddress(bytes.Repeat([]byte{n}, 20)).String(), ConsensusPubkey: bytes.Repeat([]byte{n}, 32), Power: 1}
 		fv.ops = append(fv.ops, op)
 		vals = append(vals, op.ConsAddress())
 	}

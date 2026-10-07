@@ -22,6 +22,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
 	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
+	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/cmd/keystoned/cmd"
@@ -31,8 +32,8 @@ import (
 	"github.com/OWNER/keystone/sidecar/dkg"
 	"github.com/OWNER/keystone/sidecar/price"
 	"github.com/OWNER/keystone/testutil/devdealer"
+	admintypes "github.com/OWNER/keystone/x/admin/types"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
 )
 
 func TestAdminThreshold(t *testing.T) {
@@ -90,11 +91,15 @@ func TestInitFiles(t *testing.T) {
 			require.NoError(t, json.Unmarshal(gen.AppState, &state))
 			require.NoError(t, a.BasicModuleManager.ValidateGenesis(a.AppCodec(), a.TxConfig(), state))
 
-			var poaGen poatypes.GenesisState
-			a.AppCodec().MustUnmarshalJSON(state[poatypes.ModuleName], &poaGen)
-			require.Len(t, poaGen.Operators, n)
-			for _, op := range poaGen.Operators {
-				require.Equal(t, int64(1), op.Power)
+			var poaGen admintypes.GenesisState
+			a.AppCodec().MustUnmarshalJSON(state[admintypes.ModuleName], &poaGen)
+			require.Len(t, poaGen.Allowlist, n)
+			var sg stakingtypes.GenesisState
+			a.AppCodec().MustUnmarshalJSON(state[stakingtypes.ModuleName], &sg)
+			require.Len(t, sg.Validators, n)
+			for _, v := range sg.Validators {
+				require.Equal(t, app.BondDenom, sg.Params.BondDenom)
+				require.True(t, v.Tokens.IsPositive())
 			}
 
 			kb, err := keyring.New("keystone", keyring.BackendTest, filepath.Join(dir, "node0"), nil, a.AppCodec())

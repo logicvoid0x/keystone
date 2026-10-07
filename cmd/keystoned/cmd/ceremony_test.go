@@ -23,8 +23,8 @@ import (
 	"github.com/OWNER/keystone/cmd/keystoned/cmd"
 	"github.com/OWNER/keystone/crypto/frost"
 	"github.com/OWNER/keystone/crypto/frost/secret"
+	admintypes "github.com/OWNER/keystone/x/admin/types"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
 )
 
 func operatorInfos(t *testing.T, n int) []cmd.OperatorInfo {
@@ -68,8 +68,9 @@ func TestGenesisCeremony(t *testing.T) {
 	require.Equal(t, custodytypes.NetworkSignet, cg.Params.BitcoinNetwork)
 	require.Equal(t, uint32(6), cg.Params.ConfirmDepth)
 	require.Equal(t, uint64(28800), cg.Params.MembershipDelayBlocks)
-	var pg poatypes.GenesisState
-	a.AppCodec().MustUnmarshalJSON(state[poatypes.ModuleName], &pg)
+	var pg admintypes.GenesisState
+	a.AppCodec().MustUnmarshalJSON(state[admintypes.ModuleName], &pg)
+	require.Len(t, pg.Allowlist, 7)
 	require.Equal(t, res.Admin.String(), pg.Params.Admin)
 
 	// Order of the inputs does not matter.

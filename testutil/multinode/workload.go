@@ -2,7 +2,6 @@ package multinode
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 
 	"github.com/btcsuite/btcd/chainhash/v2"
@@ -12,10 +11,10 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/OWNER/keystone/testutil/btcfake"
+	admintypes "github.com/OWNER/keystone/x/admin/types"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
 	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
 	oracletypes "github.com/OWNER/keystone/x/oracle/types"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
 	stablecointypes "github.com/OWNER/keystone/x/stablecoin/types"
 	vaultkeeper "github.com/OWNER/keystone/x/vault/keeper"
 	vaulttypes "github.com/OWNER/keystone/x/vault/types"
@@ -171,13 +170,13 @@ func (w *Workload) Txs() [][]byte {
 func (w *Workload) Step() StepResult {
 	w.setPrices(w.net.Height + 1)
 	txs := w.Txs()
-	// DKG messages (Options.DKG) and, at RemoveAt, the admin removing the last node: a
+	// DKG messages (Options.DKG) and, at RemoveAt, the admin removing the last node from
+	// the allowlist (which jails it): a
 	// custody membership change, a new epoch, sweeps and the old epoch's retirement.
 	txs = append(w.net.DKGTxs(), txs...)
 	if w.RemoveAt > 0 && w.net.Height+1 == w.RemoveAt {
 		nd := w.net.Nodes[len(w.net.Nodes)-1]
-		txs = append(txs, w.net.SignTx(w.net.Admin.Key, &poatypes.MsgSetValidators{Admin: w.net.Admin.Addr.String(),
-			Entries: []poatypes.ValidatorEntry{{OperatorAddress: nd.Addr.String(), ConsensusPubkey: nd.ConsKey.PubKey().Bytes(), Moniker: fmt.Sprintf("node%d", nd.Index), Power: 0}}}))
+		txs = append(txs, w.net.SignTx(w.net.Admin.Key, &admintypes.MsgSetAllowlist{Admin: w.net.Admin.Addr.String(), Remove: []string{nd.Addr.String()}}))
 	}
 	w.bitcoin()
 	r := w.net.Step(StepOpts{Txs: txs})

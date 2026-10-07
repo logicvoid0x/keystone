@@ -8,27 +8,35 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	admintypes "github.com/OWNER/keystone/x/admin/types"
 	"github.com/OWNER/keystone/x/custody/types"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
 )
 
-// RemovalGuard is the x/poa removal guard (design §9.4): it rejects a MsgSetValidators
-// that would leave fewer than t operators of a funded epoch (ACTIVE or RETIRING with
-// any UTXO) active, since only active operators can sign the epoch's sweep.
+// RemovalGuard is the x/admin removal guard (design §9.4): it rejects an allowlist
+// removal (which jails the removed validators) that would leave fewer than t share
+// holders of a funded epoch (ACTIVE or RETIRING with any UTXO) active, since only
+// active validators can sign the epoch's sweep.
 type RemovalGuard struct{ k *Keeper }
 
-// RemovalGuard returns the guard x/poa calls on every MsgSetValidators.
+// RemovalGuard returns the guard x/admin calls on every allowlist removal.
 func (k *Keeper) RemovalGuard() RemovalGuard { return RemovalGuard{k} }
 
-var _ poatypes.RemovalGuard = RemovalGuard{}
+var _ admintypes.RemovalGuard = RemovalGuard{}
 
-// AllowSetValidators implements poatypes.RemovalGuard.
-func (g RemovalGuard) AllowSetValidators(ctx context.Context, _, after []poatypes.Operator) error {
+// AllowRemoval implements admintypes.RemovalGuard.
+func (g RemovalGuard) AllowRemoval(ctx context.Context, removed []sdk.AccAddress) error {
+	vals, err := g.k.vals.ActiveValidators(ctx)
+	if err != nil {
+		return err
+	}
 	active := map[string]bool{}
-	for _, op := range after {
-		if op.Power > 0 {
-			active[op.OperatorAddress] = true
+	for _, v := range vals {
+		if v.Power > 0 {
+			active[v.OperatorAddress] = true
 		}
+	}
+	for _, r := range removed {
+		delete(active, r.String())
 	}
 	var epochs []types.KeyEpoch
 	if err := g.k.Epochs.Walk(ctx, nil, func(_ uint64, e types.KeyEpoch) (bool, error) {
@@ -59,7 +67,7 @@ func (g RemovalGuard) AllowSetValidators(ctx context.Context, _, after []poatype
 		}
 		if left < e.T {
 			return errorsmod.Wrapf(types.ErrRemovalGuard,
-				"epoch %d holds funds and would keep %d active operators, fewer than t = %d; remove operators in stages", e.Number, left, e.T)
+				"epoch %d holds funds and would keep %d active share holders, fewer than t = %d; remove validators in stages", e.Number, left, e.T)
 		}
 	}
 	return nil

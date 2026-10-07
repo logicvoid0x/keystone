@@ -23,7 +23,7 @@ import (
 	"github.com/OWNER/keystone/testutil/devdealer"
 	"github.com/OWNER/keystone/x/custody/keeper"
 	"github.com/OWNER/keystone/x/custody/types"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
+	"github.com/OWNER/keystone/x/validators"
 )
 
 // simSigner is a minimal in-test FROST signer (the real one is sidecar/signer): it keeps
@@ -124,7 +124,7 @@ func newSigning(t *testing.T) *signFixture {
 	fv := &fakeVals{}
 	var ops []sdk.AccAddress
 	for n := byte(1); n <= 4; n++ {
-		op := poatypes.Operator{OperatorAddress: sdk.AccAddress(bytes.Repeat([]byte{n}, 20)).String(), ConsensusPubkey: bytes.Repeat([]byte{n}, 32), Power: 1}
+		op := validators.Validator{OperatorAddress: sdk.AccAddress(bytes.Repeat([]byte{n}, 20)).String(), ConsensusPubkey: bytes.Repeat([]byte{n}, 32), Power: 1}
 		fv.ops = append(fv.ops, op)
 		ops = append(ops, sdk.MustAccAddressFromBech32(op.OperatorAddress))
 	}

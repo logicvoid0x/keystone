@@ -16,13 +16,13 @@ import (
 )
 
 // The x/upgrade and x/consensus keepers take a fixed authority string at
-// construction, but the Keystone admin lives in x/poa state and can change. Both
-// keepers are built with the x/poa module address as authority (no key can sign for
+// construction, but the Keystone admin lives in x/admin state and can change. Both
+// keepers are built with the x/admin module address as authority (no key can sign for
 // it), and their Msg services are wrapped: a message is accepted only if its
-// authority field is the current x/poa admin, and is then forwarded with the module
+// authority field is the current x/admin admin, and is then forwarded with the module
 // address substituted. docs/decisions.md records this.
 
-// AdminChecker is the x/poa check used by the wrappers.
+// AdminChecker is the x/admin check used by the wrappers.
 type AdminChecker interface {
 	CheckAdmin(ctx context.Context, signer string) error
 }
@@ -51,7 +51,7 @@ func (s adminUpgradeMsgServer) CancelUpgrade(ctx context.Context, msg *upgradety
 	return s.inner.CancelUpgrade(ctx, &fwd)
 }
 
-// adminUpgradeModule is x/upgrade with its Msg service gated by the x/poa admin.
+// adminUpgradeModule is x/upgrade with its Msg service gated by the x/admin admin.
 type adminUpgradeModule struct {
 	upgrade.AppModule
 	keeper    *upgradekeeper.Keeper
@@ -87,7 +87,7 @@ func (s adminConsensusMsgServer) UpdateParams(ctx context.Context, msg *consensu
 	return s.keeper.UpdateParams(ctx, &fwd)
 }
 
-// adminConsensusModule is x/consensus with its Msg service gated by the x/poa admin.
+// adminConsensusModule is x/consensus with its Msg service gated by the x/admin admin.
 type adminConsensusModule struct {
 	consensus.AppModule
 	keeper    consensuskeeper.Keeper

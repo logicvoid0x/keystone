@@ -17,7 +17,7 @@ import (
 	"github.com/OWNER/keystone/sidecar/dkg"
 	"github.com/OWNER/keystone/x/custody/keeper"
 	"github.com/OWNER/keystone/x/custody/types"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
+	"github.com/OWNER/keystone/x/validators"
 )
 
 type dkgFixture struct {
@@ -41,7 +41,7 @@ func newDKG(t *testing.T) *dkgFixture {
 	for n := byte(1); n <= 4; n++ {
 		op := sdk.AccAddress(bytes.Repeat([]byte{n}, 20))
 		hot := sdk.AccAddress(bytes.Repeat([]byte{0x40 + n}, 20))
-		fv.ops = append(fv.ops, poatypes.Operator{OperatorAddress: op.String(), ConsensusPubkey: bytes.Repeat([]byte{n}, 32), Power: 1})
+		fv.ops = append(fv.ops, validators.Validator{OperatorAddress: op.String(), ConsensusPubkey: bytes.Repeat([]byte{n}, 32), Power: 1})
 		enc, err := secret.RandomScalar(nil)
 		require.NoError(t, err)
 		pub, err := frost.SerializePoint(frost.MulBase(&enc))

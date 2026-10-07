@@ -5,36 +5,34 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
+
 	"github.com/OWNER/keystone/x/custody/types"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
 )
 
-// The removal guard (design §9.4, spec M5-T1): while an epoch holds funds, a set
-// change must keep at least t of its operators active.
+// The removal guard (design §9.4, spec M5-T1, M7-T2): while an epoch holds funds, an
+// allowlist removal must keep at least t of its share holders active.
 func TestRemovalGuard(t *testing.T) {
 	f := newSigning(t)
 	g := f.k.RemovalGuard()
-	set := func(off ...int) []poatypes.Operator {
-		var out []poatypes.Operator
-		for i, s := range f.signers {
-			op := poatypes.Operator{OperatorAddress: s.op.String(), Power: 1}
-			for _, o := range off {
-				if o == i {
-					op.Power = 0
-				}
-			}
-			out = append(out, op)
+	ops := func(idx ...int) []sdk.AccAddress {
+		out := make([]sdk.AccAddress, len(idx))
+		for i, j := range idx {
+			out[i] = f.signers[j].op
 		}
 		return out
 	}
 	// Unfunded: anything goes.
-	require.NoError(t, g.AllowSetValidators(f.ctx, set(), set(0, 1)))
+	require.NoError(t, g.AllowRemoval(f.ctx, ops(0, 1)))
 
 	f.fund(t, 0x11, 50_000_000)
-	require.NoError(t, g.AllowSetValidators(f.ctx, set(), set(3)), "3 of 4 stay: t = 3")
-	err := g.AllowSetValidators(f.ctx, set(), set(2, 3))
+	require.NoError(t, g.AllowRemoval(f.ctx, ops(3)), "3 of 4 stay: t = 3")
+	err := g.AllowRemoval(f.ctx, ops(2, 3))
 	require.ErrorIs(t, err, types.ErrRemovalGuard, "removing 2 of 4 at once")
-	// Adding an operator never hurts.
-	more := append(set(), poatypes.Operator{OperatorAddress: alice.String(), Power: 1})
-	require.NoError(t, g.AllowSetValidators(f.ctx, set(), more))
+	// Removing someone who holds no share never hurts.
+	require.NoError(t, g.AllowRemoval(f.ctx, []sdk.AccAddress{alice}))
+
+	// A share holder already out of the active set counts as gone.
+	f.fv.ops[3].Power = 0
+	require.ErrorIs(t, g.AllowRemoval(f.ctx, ops(2)), types.ErrRemovalGuard)
 }

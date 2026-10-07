@@ -1,7 +1,7 @@
-// Package app wires the Keystone application: SDK auth, bank, consensus, upgrade and
-// genutil, plus x/poa and the five Keystone modules. Started from SDK v0.55.0
-// simapp/app.go with staking, distribution, slashing, mint, gov, evidence, feegrant,
-// authz, epochs and params removed.
+// Package app wires the Keystone application: SDK auth, bank, consensus, upgrade,
+// genutil and (M7) staking, slashing, distribution, mint and evidence, plus x/admin and
+// the five Keystone modules. Started from SDK v0.55.0 simapp/app.go with gov,
+// feegrant, authz, epochs and params removed.
 package app
 
 import (
@@ -57,14 +57,33 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/consensus"
 	consensuskeeper "github.com/cosmos/cosmos-sdk/x/consensus/keeper"
 	consensustypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
+	"github.com/cosmos/cosmos-sdk/x/distribution"
+	distrkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
+	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
+	"github.com/cosmos/cosmos-sdk/x/evidence"
+	evidencekeeper "github.com/cosmos/cosmos-sdk/x/evidence/keeper"
+	evidencetypes "github.com/cosmos/cosmos-sdk/x/evidence/types"
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
+	"github.com/cosmos/cosmos-sdk/x/mint"
+	mintkeeper "github.com/cosmos/cosmos-sdk/x/mint/keeper"
+	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
+	"github.com/cosmos/cosmos-sdk/x/slashing"
+	slashingkeeper "github.com/cosmos/cosmos-sdk/x/slashing/keeper"
+	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
+	"github.com/cosmos/cosmos-sdk/x/staking"
+	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
+	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/cosmos/cosmos-sdk/x/tx/signing"
 	"github.com/cosmos/cosmos-sdk/x/upgrade"
 	upgradekeeper "github.com/cosmos/cosmos-sdk/x/upgrade/keeper"
 	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
 
 	"github.com/OWNER/keystone/app/protocol"
+	"github.com/OWNER/keystone/app/valset"
+	"github.com/OWNER/keystone/x/admin"
+	adminkeeper "github.com/OWNER/keystone/x/admin/keeper"
+	admintypes "github.com/OWNER/keystone/x/admin/types"
 	"github.com/OWNER/keystone/x/custody"
 	custodykeeper "github.com/OWNER/keystone/x/custody/keeper"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
@@ -74,9 +93,6 @@ import (
 	"github.com/OWNER/keystone/x/oracle"
 	oraclekeeper "github.com/OWNER/keystone/x/oracle/keeper"
 	oracletypes "github.com/OWNER/keystone/x/oracle/types"
-	"github.com/OWNER/keystone/x/poa"
-	poakeeper "github.com/OWNER/keystone/x/poa/keeper"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
 	"github.com/OWNER/keystone/x/stablecoin"
 	stablecoinkeeper "github.com/OWNER/keystone/x/stablecoin/keeper"
 	stablecointypes "github.com/OWNER/keystone/x/stablecoin/types"
@@ -97,10 +113,17 @@ var (
 	DefaultNodeHome string
 
 	maccPerms = map[string][]string{
-		authtypes.FeeCollectorName: nil, // required by the SDK fee decorator; fees are zero
-		StablecoinModuleAccount:    {authtypes.Minter, authtypes.Burner},
-		SurplusModuleAccount:       nil,
-		LiquidationModuleAccount:   {authtypes.Burner},
+		// Gas is zero (design §7.7); the fee collector receives x/mint inflation and the
+		// stakers' KUSD share, which x/distribution pays out.
+		authtypes.FeeCollectorName:          nil,
+		StablecoinModuleAccount:             {authtypes.Minter, authtypes.Burner},
+		SurplusModuleAccount:                nil,
+		LiquidationModuleAccount:            {authtypes.Burner},
+		distrtypes.ModuleName:               nil,
+		minttypes.ModuleName:                {authtypes.Minter},
+		stakingtypes.BondedPoolName:         {authtypes.Burner, authtypes.Staking},
+		stakingtypes.NotBondedPoolName:      {authtypes.Burner, authtypes.Staking},
+		stakingtypes.KeyRotationFeePoolName: {authtypes.Burner},
 	}
 )
 
@@ -131,7 +154,13 @@ type App struct {
 	UpgradeKeeper         *upgradekeeper.Keeper
 	ConsensusParamsKeeper consensuskeeper.Keeper
 
-	PoaKeeper         *poakeeper.Keeper
+	StakingKeeper  *stakingkeeper.Keeper
+	SlashingKeeper slashingkeeper.Keeper
+	DistrKeeper    distrkeeper.Keeper
+	MintKeeper     mintkeeper.Keeper
+	EvidenceKeeper evidencekeeper.Keeper
+
+	AdminKeeper       *adminkeeper.Keeper
 	OracleKeeper      *oraclekeeper.Keeper
 	VaultKeeper       *vaultkeeper.Keeper
 	StablecoinKeeper  *stablecoinkeeper.Keeper
@@ -189,7 +218,9 @@ func New(
 
 	keys := storetypes.NewKVStoreKeys(
 		authtypes.StoreKey, banktypes.StoreKey, consensustypes.StoreKey, upgradetypes.StoreKey,
-		poatypes.StoreKey, oracletypes.StoreKey, vaulttypes.StoreKey, stablecointypes.StoreKey,
+		stakingtypes.StoreKey, slashingtypes.StoreKey, distrtypes.StoreKey, minttypes.StoreKey,
+		evidencetypes.StoreKey,
+		admintypes.StoreKey, oracletypes.StoreKey, vaulttypes.StoreKey, stablecointypes.StoreKey,
 		liquidationtypes.StoreKey, custodytypes.StoreKey,
 	)
 	tkeys := storetypes.NewTransientStoreKeys(TxCountStoreKey)
@@ -208,9 +239,10 @@ func New(
 		tkeys:             tkeys,
 	}
 
-	// Authority for SDK keepers: the x/poa module address. Nobody can sign for it; the
-	// upgrade and consensus Msg services are re-gated to the x/poa admin (authority.go).
-	moduleAuthority := authtypes.NewModuleAddress(poatypes.ModuleName).String()
+	// Authority for SDK keepers: the x/admin module address. Nobody can sign for it; the
+	// upgrade and consensus Msg services are re-gated to the x/admin admin
+	// (authority.go), and the other SDK MsgUpdateParams go through x/admin MsgExec.
+	moduleAuthority := adminkeeper.ModuleAddress().String()
 
 	app.ConsensusParamsKeeper = consensuskeeper.NewKeeper(
 		appCodec, runtime.NewKVStoreService(keys[consensustypes.StoreKey]), moduleAuthority, runtime.EventService{},
@@ -235,33 +267,60 @@ func New(
 		cast.ToString(appOpts.Get(flags.FlagHome)), app.BaseApp, moduleAuthority,
 	)
 
-	app.PoaKeeper = poakeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[poatypes.StoreKey]))
-	app.OracleKeeper = oraclekeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[oracletypes.StoreKey]), app.PoaKeeper, app.PoaKeeper)
-	app.StablecoinKeeper = stablecoinkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[stablecointypes.StoreKey]), app.PoaKeeper, app.BankKeeper)
-	app.CustodyKeeper = custodykeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[custodytypes.StoreKey]), app.PoaKeeper, app.PoaKeeper)
-	app.VaultKeeper = vaultkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[vaulttypes.StoreKey]), app.PoaKeeper,
+	// Proof of stake (design §4.2, M7): stock SDK modules with the admin module address
+	// as authority.
+	app.StakingKeeper = stakingkeeper.NewKeeper(
+		appCodec, runtime.NewKVStoreService(keys[stakingtypes.StoreKey]), app.AccountKeeper, app.BankKeeper, moduleAuthority,
+		authcodec.NewBech32Codec(ValidatorAddressPrefix), authcodec.NewBech32Codec(ConsensusAddressPrefix),
+	)
+	app.MintKeeper = mintkeeper.NewKeeper(
+		appCodec, runtime.NewKVStoreService(keys[minttypes.StoreKey]), app.StakingKeeper, app.AccountKeeper, app.BankKeeper,
+		authtypes.FeeCollectorName, moduleAuthority,
+	)
+	app.DistrKeeper = distrkeeper.NewKeeper(
+		appCodec, runtime.NewKVStoreService(keys[distrtypes.StoreKey]), app.AccountKeeper, app.BankKeeper, app.StakingKeeper,
+		authtypes.FeeCollectorName, moduleAuthority,
+	)
+	app.SlashingKeeper = slashingkeeper.NewKeeper(
+		appCodec, legacyAmino, runtime.NewKVStoreService(keys[slashingtypes.StoreKey]), app.StakingKeeper, moduleAuthority,
+	)
+	app.StakingKeeper.SetHooks(stakingtypes.NewMultiStakingHooks(app.DistrKeeper.Hooks(), app.SlashingKeeper.Hooks()))
+	app.EvidenceKeeper = *evidencekeeper.NewKeeper(
+		appCodec, runtime.NewKVStoreService(keys[evidencetypes.StoreKey]), app.StakingKeeper, app.SlashingKeeper,
+		app.AccountKeeper.AddressCodec(), runtime.ProvideCometInfoService(),
+	)
+
+	app.AdminKeeper = adminkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[admintypes.StoreKey]), app.StakingKeeper)
+	vals := valset.New(app.StakingKeeper)
+	app.OracleKeeper = oraclekeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[oracletypes.StoreKey]), app.AdminKeeper, vals)
+	app.StablecoinKeeper = stablecoinkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[stablecointypes.StoreKey]), app.AdminKeeper, app.BankKeeper)
+	app.CustodyKeeper = custodykeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[custodytypes.StoreKey]), app.AdminKeeper, vals)
+	app.VaultKeeper = vaultkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[vaulttypes.StoreKey]), app.AdminKeeper,
 		app.OracleKeeper, app.StablecoinKeeper, app.CustodyKeeper)
 	app.CustodyKeeper.SetVaultKeeper(app.VaultKeeper)
-	// x/poa asks x/custody before every validator set change (design §9.4, spec M5-T1).
-	app.PoaKeeper.SetRemovalGuard(app.CustodyKeeper.RemovalGuard())
-	app.LiquidationKeeper = liquidationkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[liquidationtypes.StoreKey]), app.PoaKeeper,
+	// x/admin asks x/custody before every allowlist removal (design §9.4, M7-T2).
+	app.AdminKeeper.SetRemovalGuard(app.CustodyKeeper.RemovalGuard())
+	app.LiquidationKeeper = liquidationkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[liquidationtypes.StoreKey]), app.AdminKeeper,
 		app.OracleKeeper, app.VaultKeeper, app.StablecoinKeeper, app.CustodyKeeper, app.BankKeeper)
 
 	app.ModuleManager = module.NewManager(
-		// x/poa is genutil's StakingKeeper. There are no gentxs, so genutil returns no
-		// validator updates and x/poa's InitGenesis is the only source (verified-apis.md).
-		genutil.NewAppModule(app.AccountKeeper, app.PoaKeeper, app, txConfig),
+		genutil.NewAppModule(app.AccountKeeper, app.StakingKeeper, app, txConfig),
 		auth.NewAppModule(appCodec, app.AccountKeeper, authsims.RandomGenesisAccounts),
 		bank.NewAppModule(appCodec, app.BankKeeper, app.AccountKeeper),
 		adminUpgradeModule{
 			AppModule: upgrade.NewAppModule(app.UpgradeKeeper, app.AccountKeeper.AddressCodec()),
-			keeper:    app.UpgradeKeeper, admin: app.PoaKeeper, authority: moduleAuthority,
+			keeper:    app.UpgradeKeeper, admin: app.AdminKeeper, authority: moduleAuthority,
 		},
 		adminConsensusModule{
 			AppModule: consensus.NewAppModule(appCodec, app.ConsensusParamsKeeper),
-			keeper:    app.ConsensusParamsKeeper, admin: app.PoaKeeper, authority: moduleAuthority,
+			keeper:    app.ConsensusParamsKeeper, admin: app.AdminKeeper, authority: moduleAuthority,
 		},
-		poa.NewAppModule(appCodec, app.PoaKeeper),
+		staking.NewAppModule(appCodec, app.StakingKeeper, app.AccountKeeper, app.BankKeeper),
+		slashing.NewAppModule(appCodec, app.SlashingKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, interfaceRegistry),
+		distribution.NewAppModule(appCodec, app.DistrKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper),
+		mint.NewAppModule(appCodec, app.MintKeeper, app.AccountKeeper, nil),
+		evidence.NewAppModule(app.EvidenceKeeper),
+		admin.NewAppModule(appCodec, app.AdminKeeper),
 		oracle.NewAppModule(appCodec, app.OracleKeeper),
 		vault.NewAppModule(appCodec, app.VaultKeeper),
 		stablecoin.NewAppModule(appCodec, app.StablecoinKeeper),
@@ -281,13 +340,21 @@ func New(
 
 	// x/upgrade must run first (design §17); the protocol PreBlock follows in PreBlocker.
 	app.ModuleManager.SetOrderPreBlockers(upgradetypes.ModuleName, authtypes.ModuleName)
-	app.ModuleManager.SetOrderBeginBlockers()
-	app.ModuleManager.SetOrderEndBlockers(
-		banktypes.ModuleName, stablecointypes.ModuleName, custodytypes.ModuleName, poatypes.ModuleName,
+	app.ModuleManager.SetOrderBeginBlockers(
+		minttypes.ModuleName, distrtypes.ModuleName, slashingtypes.ModuleName, evidencetypes.ModuleName,
+		stakingtypes.ModuleName,
 	)
+	// x/staking ends the block: it alone returns validator updates, and custody reads
+	// the set last sent to CometBFT before it changes (design §9.2).
+	app.ModuleManager.SetOrderEndBlockers(
+		banktypes.ModuleName, stablecointypes.ModuleName, custodytypes.ModuleName, stakingtypes.ModuleName,
+	)
+	// distribution precedes staking (staking's genesis hooks write distribution
+	// records); custody follows staking (it reads the validator set).
 	genesisOrder := []string{
-		authtypes.ModuleName, banktypes.ModuleName, poatypes.ModuleName, oracletypes.ModuleName,
-		stablecointypes.ModuleName, vaulttypes.ModuleName, liquidationtypes.ModuleName,
+		authtypes.ModuleName, banktypes.ModuleName, distrtypes.ModuleName, stakingtypes.ModuleName,
+		slashingtypes.ModuleName, minttypes.ModuleName, evidencetypes.ModuleName, admintypes.ModuleName,
+		oracletypes.ModuleName, stablecointypes.ModuleName, vaulttypes.ModuleName, liquidationtypes.ModuleName,
 		custodytypes.ModuleName, genutiltypes.ModuleName, upgradetypes.ModuleName,
 		consensustypes.ModuleName,
 	}
@@ -298,6 +365,7 @@ func New(
 	if err := app.ModuleManager.RegisterServices(app.configurator); err != nil {
 		panic(err)
 	}
+	app.AdminKeeper.SetExecRouter(app.MsgServiceRouter(), AdminExecTypes())
 
 	autocliv1.RegisterQueryServer(app.GRPCQueryRouter(), runtimeservices.NewAutoCLIQueryService(app.ModuleManager.Modules))
 	reflectionSvc, err := runtimeservices.NewReflectionService()
@@ -336,7 +404,7 @@ func (app *App) setAnteHandler() {
 		BankKeeper:      app.BankKeeper,
 		SignModeHandler: app.txConfig.SignModeHandler(),
 		SigGasConsumer:  ante.DefaultSigVerificationGasConsumer,
-	}, app.tkeys[TxCountStoreKey], MaxTxPerAccountPerBlock)
+	}, app.tkeys[TxCountStoreKey], MaxTxPerAccountPerBlock, app.AdminKeeper)
 	if err != nil {
 		panic(err)
 	}
@@ -369,7 +437,7 @@ func (app *App) setABCIHandlers() {
 	app.SetVerifyVoteExtensionHandler(veh.VerifyVoteExtension)
 
 	def := baseapp.NewDefaultProposalHandler(app.Mempool(), app)
-	ph := protocol.NewProposalHandler(app.Logger(), app.PoaKeeper, def.PrepareProposalHandler(), def.ProcessProposalHandler())
+	ph := protocol.NewProposalHandler(app.Logger(), app.StakingKeeper, def.PrepareProposalHandler(), def.ProcessProposalHandler())
 	app.SetPrepareProposal(wrapPrepare(ph.PrepareProposal))
 	app.proposals = ph
 	app.SetProcessProposal(func(ctx sdk.Context, req *abci.RequestProcessProposal) (*abci.ResponseProcessProposal, error) {
@@ -381,7 +449,7 @@ func (app *App) setABCIHandlers() {
 		return res, err
 	})
 
-	app.protocol = protocol.NewPreBlocker(app.PoaKeeper, protocol.Keepers{
+	app.protocol = protocol.NewPreBlocker(app.StakingKeeper, protocol.Keepers{
 		Oracle:      app.OracleKeeper,
 		Vault:       app.VaultKeeper,
 		Liquidation: app.LiquidationKeeper,
@@ -411,12 +479,13 @@ func (app *App) PreBlocker(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sd
 	return res, nil
 }
 
-// BeginBlocker runs module BeginBlockers (none in M0).
+// BeginBlocker runs module BeginBlockers (mint, distribution, slashing, evidence,
+// staking).
 func (app *App) BeginBlocker(ctx sdk.Context) (sdk.BeginBlock, error) {
 	return app.ModuleManager.BeginBlock(ctx)
 }
 
-// EndBlocker runs module EndBlockers; x/poa returns the validator updates.
+// EndBlocker runs module EndBlockers; x/staking returns the validator updates.
 func (app *App) EndBlocker(ctx sdk.Context) (sdk.EndBlock, error) {
 	res, err := app.ModuleManager.EndBlock(ctx)
 	if err != nil {
@@ -456,9 +525,10 @@ func (app *App) TxConfig() client.TxConfig                  { return app.txConfi
 // GetKey returns the KV store key for a module (tests only).
 func (app *App) GetKey(name string) *storetypes.KVStoreKey { return app.keys[name] }
 
-// DefaultGenesis returns the default genesis of every module.
+// DefaultGenesis returns the default genesis of every module, with the Keystone
+// staking and mint params (PatchDefaults).
 func (app *App) DefaultGenesis() map[string]json.RawMessage {
-	return app.BasicModuleManager.DefaultGenesis(app.appCodec)
+	return PatchDefaults(app.appCodec, app.BasicModuleManager.DefaultGenesis(app.appCodec))
 }
 
 // AutoCliOpts returns the autocli options for the root command.
@@ -503,6 +573,18 @@ func (app *App) RegisterNodeService(clientCtx client.Context, cfg config.Config)
 	nodeservice.RegisterNodeService(clientCtx, app.GRPCQueryRouter(), cfg, func() int64 {
 		return app.CommitMultiStore().EarliestVersion()
 	})
+}
+
+// AdminExecTypes are the SDK messages x/admin MsgExec may run (design §4.2): the
+// MsgUpdateParams of the proof-of-stake modules, whose authority is the x/admin module
+// account.
+func AdminExecTypes() []string {
+	return []string{
+		sdk.MsgTypeURL(&stakingtypes.MsgUpdateParams{}),
+		sdk.MsgTypeURL(&slashingtypes.MsgUpdateParams{}),
+		sdk.MsgTypeURL(&distrtypes.MsgUpdateParams{}),
+		sdk.MsgTypeURL(&minttypes.MsgUpdateParams{}),
+	}
 }
 
 // GetMaccPerms returns a copy of the module account permissions.

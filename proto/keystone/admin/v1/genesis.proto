@@ -1,0 +1,16 @@
+syntax = "proto3";
+package keystone.admin.v1;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+import "keystone/admin/v1/admin.proto";
+
+option go_package = "github.com/OWNER/keystone/x/admin/types";
+
+// GenesisState is the x/admin genesis state.
+message GenesisState {
+  Params params = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+  // allowlist is sorted by operator address bytes, without duplicates. It must cover
+  // every genesis validator (gentx).
+  repeated AllowEntry allowlist = 2 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}

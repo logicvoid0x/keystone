@@ -50,6 +50,8 @@ type Account struct {
 
 // Chain is an in-process single-app chain.
 type Chain struct {
+	// powers, if set, gives operator i (after sorting) Powers[i] consensus power.
+	powers    []int64
 	T         *testing.T
 	App       *app.App
 	Operators []Operator // sorted by operator address
@@ -90,6 +92,10 @@ func New(t *testing.T, n int) *Chain { return NewWithAppOptions(t, n, simtestuti
 
 // NewWithAppOptions is New with app options (e.g. app.FlagDeferUpgradeHandlers).
 func NewWithAppOptions(t *testing.T, n int, opts servertypes.AppOptions) *Chain {
+	return newChain(t, n, opts, nil)
+}
+
+func newChain(t *testing.T, n int, opts servertypes.AppOptions, powers []int64) *Chain {
 	t.Helper()
 	c := &Chain{
 		T:       t,
@@ -97,6 +103,7 @@ func NewWithAppOptions(t *testing.T, n int, opts servertypes.AppOptions) *Chain 
 		accNums: map[string]uint64{},
 		seqs:    map[string]uint64{},
 		rng:     rand.New(rand.NewSource(1)),
+		powers:  powers,
 	}
 	for i := 0; i < n; i++ {
 		acc := secp256k1.GenPrivKeyFromSecret([]byte{'o', byte(i)})
@@ -121,6 +128,7 @@ func NewWithAppOptions(t *testing.T, n int, opts servertypes.AppOptions) *Chain 
 	for i, op := range c.Operators {
 		in.Operators = append(in.Operators, app.GenesisOperator{
 			Address: op.Addr, ConsPubKey: op.ConsKey.PubKey().Bytes(), Moniker: "op" + string(rune('0'+i)),
+			SelfBond: c.selfBond(i),
 		})
 	}
 	all := []sdk.AccAddress{c.Admin.Addr}
@@ -224,4 +232,19 @@ func (c *Chain) syncSequences() {
 // Context returns a query context at the last committed height.
 func (c *Chain) Context() sdk.Context {
 	return c.App.NewContext(true)
+}
+
+// NewWithPowers is New with operator i (sorted by address) bonded for powers[i]
+// consensus power (M7: unequal stake).
+func NewWithPowers(t *testing.T, powers []int64) *Chain {
+	return newChain(t, len(powers), simtestutil.EmptyAppOptions{}, powers)
+}
+
+// selfBond is operator i's genesis self-bond: powers[i] (or 1) times PowerReduction.
+func (c *Chain) selfBond(i int) sdkmath.Int {
+	p := int64(1)
+	if i < len(c.powers) {
+		p = c.powers[i]
+	}
+	return sdk.DefaultPowerReduction.MulRaw(p)
 }

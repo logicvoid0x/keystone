@@ -1,0 +1,66 @@
+syntax = "proto3";
+package keystone.admin.v1;
+
+import "amino/amino.proto";
+import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+import "google/protobuf/any.proto";
+import "keystone/admin/v1/admin.proto";
+
+option go_package = "github.com/OWNER/keystone/x/admin/types";
+
+// Msg is the x/admin Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+  // UpdateParams replaces the params, including the admin. Admin only.
+  rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
+  // SetAllowlist adds and removes allowlisted validator operators. Admin only.
+  rpc SetAllowlist(MsgSetAllowlist) returns (MsgSetAllowlistResponse);
+  // Exec runs SDK MsgUpdateParams messages with the admin module account as their
+  // authority. Admin only.
+  rpc Exec(MsgExec) returns (MsgExecResponse);
+}
+
+// MsgUpdateParams replaces the x/admin params.
+message MsgUpdateParams {
+  option (cosmos.msg.v1.signer) = "admin";
+  option (amino.name) = "keystone/admin/MsgUpdateParams";
+  string admin = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  Params params = 2 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// MsgUpdateParamsResponse is the response to MsgUpdateParams.
+message MsgUpdateParamsResponse {}
+
+// AllowInput is one addition of MsgSetAllowlist.
+message AllowInput {
+  string operator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string moniker = 2;
+}
+
+// MsgSetAllowlist adds and removes operators. add and remove are each sorted by
+// operator address bytes without duplicates, and do not overlap. Removing a bonded
+// validator jails it, after the custody removal guard approves (design §9.4).
+message MsgSetAllowlist {
+  option (cosmos.msg.v1.signer) = "admin";
+  option (amino.name) = "keystone/admin/MsgSetAllowlist";
+  string admin = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  repeated AllowInput add = 2 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+  repeated string remove = 3 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// MsgSetAllowlistResponse is the response to MsgSetAllowlist.
+message MsgSetAllowlistResponse {}
+
+// MsgExec carries SDK MsgUpdateParams messages whose authority is the x/admin module
+// account. Only the message types listed in design §4.2 are accepted.
+message MsgExec {
+  option (cosmos.msg.v1.signer) = "admin";
+  option (amino.name) = "keystone/admin/MsgExec";
+  string admin = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  repeated google.protobuf.Any msgs = 2;
+}
+
+// MsgExecResponse is the response to MsgExec.
+message MsgExecResponse {}

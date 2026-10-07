@@ -1,0 +1,56 @@
+syntax = "proto3";
+package keystone.admin.v1;
+
+import "amino/amino.proto";
+import "cosmos/query/v1/query.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "keystone/admin/v1/admin.proto";
+
+option go_package = "github.com/OWNER/keystone/x/admin/types";
+
+// Query is the x/admin query service.
+service Query {
+  // Params returns the x/admin params.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/admin/v1/params";
+  }
+  // Allowlist returns every allowlisted operator, sorted by address.
+  rpc Allowlist(QueryAllowlistRequest) returns (QueryAllowlistResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/admin/v1/allowlist";
+  }
+  // AllowEntry returns one allowlist entry.
+  rpc AllowEntry(QueryAllowEntryRequest) returns (QueryAllowEntryResponse) {
+    option (cosmos.query.v1.module_query_safe) = true;
+    option (google.api.http).get = "/keystone/admin/v1/allowlist/{operator}";
+  }
+}
+
+// QueryParamsRequest is the request for Query/Params.
+message QueryParamsRequest {}
+
+// QueryParamsResponse is the response for Query/Params.
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// QueryAllowlistRequest is the request for Query/Allowlist.
+message QueryAllowlistRequest {}
+
+// QueryAllowlistResponse is the response for Query/Allowlist.
+message QueryAllowlistResponse {
+  repeated AllowEntry allowlist = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+// QueryAllowEntryRequest is the request for Query/AllowEntry.
+message QueryAllowEntryRequest {
+  string operator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// QueryAllowEntryResponse is the response for Query/AllowEntry.
+message QueryAllowEntryResponse {
+  AllowEntry entry = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}

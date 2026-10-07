@@ -146,7 +146,7 @@ func TestMembershipChangeSweepsAndRetires(t *testing.T) {
 
 	// The guard now protects epoch 2 as well: removing another operator would leave
 	// 2 < t = 3 of epoch 1 (still funded) active.
-	err = f.k.RemovalGuard().AllowSetValidators(f.ctx, nil, f.fv.ops[:2])
+	err = f.k.RemovalGuard().AllowRemoval(f.ctx, []sdk.AccAddress{sdk.MustAccAddressFromBech32(f.fv.ops[2].OperatorAddress)})
 	require.ErrorIs(t, err, types.ErrRemovalGuard)
 
 	// Confirmation: the UTXOs move to epoch 2; after RetireWatchBlocks epoch 1 retires.

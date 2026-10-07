@@ -19,16 +19,18 @@ const TxCountStoreKey = "ante_txcount"
 var ErrTooManyTxs = errorsmod.Register("keystone_ante", 2, "too many transactions from one signer in this block")
 
 // NewAnteHandler is the standard SDK v0.55 ante chain (ante.NewAnteHandler) with the
-// MaxTxPerAccountPerBlock decorator inserted after signature verification. Fees are
-// zero (minimum-gas-prices = 0ukusd); tx0 never reaches the ante handler.
-func NewAnteHandler(opts ante.HandlerOptions, txCountKey storetypes.StoreKey, limit uint64) (sdk.AnteHandler, error) {
-	if opts.AccountKeeper == nil || opts.BankKeeper == nil || opts.SignModeHandler == nil {
-		return nil, errorsmod.Wrap(sdkerrors.ErrLogic, "account keeper, bank keeper and sign mode handler are required")
+// staking message rules (design §4.2, M7) after ValidateBasic and the
+// MaxTxPerAccountPerBlock decorator after signature verification. Fees are zero
+// (minimum-gas-prices = 0ukusd); tx0 never reaches the ante handler.
+func NewAnteHandler(opts ante.HandlerOptions, txCountKey storetypes.StoreKey, limit uint64, allow Allowlist) (sdk.AnteHandler, error) {
+	if opts.AccountKeeper == nil || opts.BankKeeper == nil || opts.SignModeHandler == nil || allow == nil {
+		return nil, errorsmod.Wrap(sdkerrors.ErrLogic, "account keeper, bank keeper, sign mode handler and allowlist are required")
 	}
 	return sdk.ChainAnteDecorators(
 		ante.NewSetUpContextDecorator(),
 		ante.NewExtensionOptionsDecorator(opts.ExtensionOptionChecker),
 		ante.NewValidateBasicDecorator(),
+		NewStakingMsgDecorator(allow),
 		ante.NewTxTimeoutHeightDecorator(),
 		ante.NewValidateMemoDecorator(opts.AccountKeeper),
 		ante.NewConsumeGasForTxSizeDecorator(opts.AccountKeeper),

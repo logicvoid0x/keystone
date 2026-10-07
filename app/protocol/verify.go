@@ -15,7 +15,7 @@ import (
 	"github.com/OWNER/keystone/app/protocol/vetypes"
 )
 
-// ValidatorStore resolves consensus keys (x/poa implements it; baseapp.ValidatorStore).
+// ValidatorStore resolves consensus keys (x/staking implements it; baseapp.ValidatorStore).
 type ValidatorStore interface {
 	GetPubKeyByConsAddr(context.Context, sdk.ConsAddress) (cmtprotocrypto.PublicKey, error)
 }
@@ -32,7 +32,7 @@ type VerifiedVote struct {
 // bad VE cannot invalidate the commit (design §5.4). It returns the verified votes in
 // the order given, their power, and the total power of every vote. height is the vote
 // height (block height - 1); VEs must have the version scheduled for it (§17).
-// Deterministic: depends only on ext and x/poa state.
+// Deterministic: depends only on ext and x/staking state.
 func VerifyVotes(ctx context.Context, vs ValidatorStore, chainID string, height int64,
 	ext abci.ExtendedCommitInfo, version uint32,
 ) (votes []VerifiedVote, verified, total int64) {

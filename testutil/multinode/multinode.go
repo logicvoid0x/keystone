@@ -125,6 +125,7 @@ type Net struct {
 	seqs       map[string]uint64
 	rng        *rand.Rand
 	valsets    map[int64][]apptest.Validator
+	powers     []int64
 	lastExt    abci.ExtendedCommitInfo
 	lastCommit abci.CommitInfo
 	// Tx0 records the committed tx0 of each height (faulty-proposer tests reuse old ones).
@@ -139,6 +140,9 @@ type Options struct {
 	// DKG participant, and DKGTxs carries their messages (spec M4b). Otherwise a dealer
 	// key is in genesis (M3/M4a).
 	DKG bool
+	// Powers, if set, gives node i a genesis self-bond of Powers[i] consensus power
+	// (M7: unequal stake); otherwise every node has power 1.
+	Powers []int64
 }
 
 // New starts an n-node network at genesis (no block committed) with a dealer key.
@@ -150,7 +154,7 @@ func NewWithOptions(t testing.TB, n int, opts Options) *Net {
 	net := &Net{
 		T: t, Time: time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC),
 		accNums: map[string]uint64{}, seqs: map[string]uint64{}, rng: rand.New(rand.NewSource(7)),
-		valsets: map[int64][]apptest.Validator{}, Tx0: map[int64][]byte{},
+		valsets: map[int64][]apptest.Validator{}, Tx0: map[int64][]byte{}, powers: opts.Powers,
 	}
 	net.Bitcoin = btcfake.New(10)
 	for i := 0; i < n; i++ {
@@ -182,7 +186,7 @@ func NewWithOptions(t testing.TB, n int, opts Options) *Net {
 		accounts = append(accounts, u.Addr)
 	}
 	for _, nd := range net.Nodes {
-		in.Operators = append(in.Operators, app.GenesisOperator{Address: nd.Addr, ConsPubKey: nd.ConsKey.PubKey().Bytes(), Moniker: fmt.Sprintf("node%d", nd.Index)})
+		in.Operators = append(in.Operators, app.GenesisOperator{Address: nd.Addr, ConsPubKey: nd.ConsKey.PubKey().Bytes(), Moniker: fmt.Sprintf("node%d", nd.Index), SelfBond: net.selfBond(nd.Index)})
 		accounts = append(accounts, nd.Addr)
 		if opts.DKG {
 			nd.HotKey = secp256k1.GenPrivKeyFromSecret([]byte{'m', 'h', byte(nd.Index)})
@@ -465,4 +469,13 @@ func (net *Net) Fund(id uint64, sat int64) {
 		}
 	}
 	net.T.Fatalf("deposit of %d sat to vault %d not accepted", sat, id)
+}
+
+// selfBond is node i's genesis self-bond: Powers[i] (or 1) times PowerReduction.
+func (net *Net) selfBond(i int) sdkmath.Int {
+	p := int64(1)
+	if i < len(net.powers) {
+		p = net.powers[i]
+	}
+	return sdk.DefaultPowerReduction.MulRaw(p)
 }

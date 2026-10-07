@@ -21,7 +21,7 @@ import (
 	"github.com/OWNER/keystone/testutil/devdealer"
 	"github.com/OWNER/keystone/x/custody/keeper"
 	"github.com/OWNER/keystone/x/custody/types"
-	poatypes "github.com/OWNER/keystone/x/poa/types"
+	"github.com/OWNER/keystone/x/validators"
 )
 
 var (
@@ -133,17 +133,19 @@ func TestUpdateParams(t *testing.T) {
 const localChain = "keystone-local-1"
 
 // fakeVals is the x/poa validator set: power 1 per operator.
-type fakeVals struct{ ops []poatypes.Operator }
+type fakeVals struct{ ops []validators.Validator }
 
-func (f *fakeVals) ActiveValidators(context.Context) ([]poatypes.Operator, error) { return f.ops, nil }
+func (f *fakeVals) ActiveValidators(context.Context) ([]validators.Validator, error) {
+	return f.ops, nil
+}
 
-func (f *fakeVals) GetOperator(_ context.Context, addr sdk.AccAddress) (poatypes.Operator, error) {
+func (f *fakeVals) GetOperator(_ context.Context, addr sdk.AccAddress) (validators.Validator, error) {
 	for _, op := range f.ops {
 		if op.OperatorAddress == addr.String() {
 			return op, nil
 		}
 	}
-	return poatypes.Operator{}, errors.New("unknown operator")
+	return validators.Validator{}, errors.New("unknown operator")
 }
 
 func setupWith(t *testing.T, gs *types.GenesisState) (sdk.Context, *keeper.Keeper) {
