@@ -1,6 +1,7 @@
 package keeper_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,7 @@ import (
 	"github.com/OWNER/keystone/sidecar/dkg"
 	"github.com/OWNER/keystone/x/custody/keeper"
 	"github.com/OWNER/keystone/x/custody/types"
+	"github.com/OWNER/keystone/x/validators"
 )
 
 // deliver runs DKG and custody-key messages through the msg server; failures are
@@ -235,4 +237,48 @@ func TestEmergencyRekey(t *testing.T) {
 	require.NoError(t, err, "the epoch-2 DKG started without the delay")
 	require.Equal(t, f.ctx.BlockHeight()+1, st.StartHeight)
 	require.Len(t, st.Participants, 3)
+}
+
+// Design §9.2 / spec M7-T4: with unequal power the custody set is the top N; a power
+// change inside CustodyEntryMarginBps does not make a membership change pending, one
+// past it does.
+func TestTopNMembershipHysteresis(t *testing.T) {
+	f := newSigning(t)
+	p, err := f.k.Params.Get(f.ctx)
+	require.NoError(t, err)
+	p.CustodySetSize = 4
+	p.CustodyEntryMarginBps = 1000
+	require.NoError(t, f.k.Params.Set(f.ctx, p))
+
+	// A fifth validator with a custody key; every operator has custody keys.
+	fifth := sdk.AccAddress(bytes.Repeat([]byte{5}, 20))
+	f.fv.ops = append(f.fv.ops, validators.Validator{OperatorAddress: fifth.String(), ConsensusPubkey: bytes.Repeat([]byte{5}, 32), Power: 1})
+	for _, op := range f.fv.ops {
+		a := sdk.MustAccAddressFromBech32(op.OperatorAddress)
+		require.NoError(t, f.k.CustodyKeys.Set(f.ctx, a, types.CustodyKey{Operator: a.String(), EncPubkey: bytes.Repeat([]byte{2}, 33), HotKey: a.String()}))
+	}
+	for i := range f.fv.ops[:4] {
+		f.fv.ops[i].Power = 100
+	}
+	pending := func() bool {
+		has, err := f.k.Pending.Has(f.ctx)
+		require.NoError(t, err)
+		return has
+	}
+
+	f.fv.ops[4].Power = 110 // +10%: not above the margin
+	f.block(t)
+	require.False(t, pending(), "within the margin")
+
+	f.fv.ops[4].Power = 111 // +11%: displaces the weakest incumbent (ties: highest address)
+	f.block(t)
+	require.True(t, pending())
+	pm, err := f.k.Pending.Get(f.ctx)
+	require.NoError(t, err)
+	require.Equal(t, []string{fifth.String()}, pm.Added)
+	require.Equal(t, []string{f.fv.ops[3].OperatorAddress}, pm.Removed)
+
+	f.fv.ops[4].Power = 105 // back under the margin: the pending change is dropped
+	f.block(t)
+	require.False(t, pending())
 }

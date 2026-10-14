@@ -5,6 +5,7 @@ import (
 
 	"cosmossdk.io/collections"
 	errorsmod "cosmossdk.io/errors"
+	sdkmath "cosmossdk.io/math"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
@@ -84,4 +85,40 @@ func (k *Keeper) epochFunded(ctx context.Context, epoch uint64) (bool, error) {
 		return false, nil
 	})
 	return funded, err
+}
+
+// SelfBondFloor returns MinCustodySelfBond and whether operator holds a share of a
+// funded ACTIVE or RETIRING epoch, in which case its self-delegation may not go below
+// the floor (the ante unbonding guard, design §9.4).
+func (k *Keeper) SelfBondFloor(ctx context.Context, operator sdk.AccAddress) (sdkmath.Int, bool, error) {
+	p, err := k.Params.Get(ctx)
+	if err != nil {
+		return sdkmath.Int{}, false, err
+	}
+	var epochs []uint64
+	if err := k.Epochs.Walk(ctx, nil, func(n uint64, e types.KeyEpoch) (bool, error) {
+		if e.Status == types.EPOCH_STATUS_ACTIVE || e.Status == types.EPOCH_STATUS_RETIRING {
+			epochs = append(epochs, n)
+		}
+		return false, nil
+	}); err != nil {
+		return sdkmath.Int{}, false, err
+	}
+	for _, n := range epochs {
+		holds, err := k.ShareIndex.Has(ctx, collections.Join(n, operator))
+		if err != nil {
+			return sdkmath.Int{}, false, err
+		}
+		if !holds {
+			continue
+		}
+		funded, err := k.epochFunded(ctx, n)
+		if err != nil {
+			return sdkmath.Int{}, false, err
+		}
+		if funded {
+			return p.MinCustodySelfBond, true, nil
+		}
+	}
+	return p.MinCustodySelfBond, false, nil
 }

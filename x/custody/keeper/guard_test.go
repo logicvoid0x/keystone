@@ -36,3 +36,22 @@ func TestRemovalGuard(t *testing.T) {
 	f.fv.ops[3].Power = 0
 	require.ErrorIs(t, g.AllowRemoval(f.ctx, ops(2)), types.ErrRemovalGuard)
 }
+
+// The unbonding guard's floor (design §9.4, spec M7-T4): only share holders of a
+// funded epoch are guarded.
+func TestSelfBondFloor(t *testing.T) {
+	f := newSigning(t)
+	op := f.signers[0].op
+	floor, guarded, err := f.k.SelfBondFloor(f.ctx, op)
+	require.NoError(t, err)
+	require.False(t, guarded, "epoch not funded yet")
+	require.Equal(t, types.DefaultParams().MinCustodySelfBond, floor)
+
+	f.fund(t, 0x11, 50_000_000)
+	_, guarded, err = f.k.SelfBondFloor(f.ctx, op)
+	require.NoError(t, err)
+	require.True(t, guarded)
+	_, guarded, err = f.k.SelfBondFloor(f.ctx, alice)
+	require.NoError(t, err)
+	require.False(t, guarded, "no share")
+}

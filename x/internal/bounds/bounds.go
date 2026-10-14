@@ -29,6 +29,17 @@ func Int(name string, v, lo, hi sdkmath.Int) error {
 	return nil
 }
 
+// Dec checks lo <= v <= hi. A nil v (unset field) is rejected.
+func Dec(name string, v, lo, hi sdkmath.LegacyDec) error {
+	if v.IsNil() {
+		return fmt.Errorf("%s is unset", name)
+	}
+	if v.LT(lo) || v.GT(hi) {
+		return fmt.Errorf("%s = %s, want %s..%s", name, v, lo, hi)
+	}
+	return nil
+}
+
 // First returns the first non-nil error.
 func First(errs ...error) error {
 	for _, err := range errs {

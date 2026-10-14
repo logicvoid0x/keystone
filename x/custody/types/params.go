@@ -13,6 +13,8 @@ var (
 	// MinWithdrawSatFloor is Bitcoin's P2TR dust limit; MinWithdrawSatCeil is 1 BTC.
 	MinWithdrawSatFloor = sdkmath.NewInt(330)
 	MinWithdrawSatCeil  = sdkmath.NewInt(100_000_000)
+	// MaxCustodySelfBond bounds MinCustodySelfBond (1e18 bond-denom units, a sanity bound).
+	MaxCustodySelfBond = sdkmath.NewIntWithDecimal(1, 18)
 )
 
 // DefaultParams are the design §10.3 defaults (testnet values; localnet genesis
@@ -34,6 +36,10 @@ func DefaultParams() Params {
 		EmergencyRekey:        false,
 		BitcoinNetwork:        NetworkSignet,
 		RetireWatchBlocks:     1000,
+		CustodySetSize:        20,
+		CustodyEntryMarginBps: 1000,
+		MinCustodySelfBond:    sdkmath.NewInt(1_000_000),
+		TheftSlashFraction:    sdkmath.LegacyOneDec(),
 	}
 }
 
@@ -54,6 +60,10 @@ func (p Params) Validate() error {
 		bounds.Uint("rbf_after_btc_blocks", uint64(p.RbfAfterBtcBlocks), 1, 1000),
 		bounds.Int("min_withdraw_sat", p.MinWithdrawSat, MinWithdrawSatFloor, MinWithdrawSatCeil),
 		bounds.Uint("retire_watch_blocks", p.RetireWatchBlocks, 1, 1_000_000),
+		bounds.Uint("custody_set_size", uint64(p.CustodySetSize), 1, 100),
+		bounds.Uint("custody_entry_margin_bps", uint64(p.CustodyEntryMarginBps), 0, 10_000),
+		bounds.Int("min_custody_self_bond", p.MinCustodySelfBond, sdkmath.ZeroInt(), MaxCustodySelfBond),
+		bounds.Dec("theft_slash_fraction", p.TheftSlashFraction, sdkmath.LegacyZeroDec(), sdkmath.LegacyOneDec()),
 	)
 	if err == nil {
 		_, err = NetParams(p.BitcoinNetwork)

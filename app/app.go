@@ -404,7 +404,7 @@ func (app *App) setAnteHandler() {
 		BankKeeper:      app.BankKeeper,
 		SignModeHandler: app.txConfig.SignModeHandler(),
 		SigGasConsumer:  ante.DefaultSigVerificationGasConsumer,
-	}, app.tkeys[TxCountStoreKey], MaxTxPerAccountPerBlock, app.AdminKeeper)
+	}, app.tkeys[TxCountStoreKey], MaxTxPerAccountPerBlock, PosAnte{Allowlist: app.AdminKeeper, Custody: app.CustodyKeeper, Staking: app.StakingKeeper})
 	if err != nil {
 		panic(err)
 	}

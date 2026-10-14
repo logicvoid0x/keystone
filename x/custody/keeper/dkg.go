@@ -344,29 +344,17 @@ func emitDKG(ctx context.Context, typ string, epoch uint64, attrs ...sdk.Attribu
 		append([]sdk.Attribute{sdk.NewAttribute(types.AttributeKeyEpoch, strconv.FormatUint(epoch, 10))}, attrs...)...))
 }
 
-// startDKG opens a DKG for epoch among the active operators that registered custody
-// keys, starting at start. Share index = rank by operator address bytes, from 1.
+// startDKG opens a DKG for epoch among the custody candidates (§9.2: the top N active
+// validators with custody keys), starting at start. Share index = rank by operator
+// address bytes, from 1.
 func (k *Keeper) startDKG(ctx context.Context, epoch uint64, attempt uint32, start int64) (bool, error) {
-	ops, err := k.vals.ActiveValidators(ctx)
+	addrs, err := k.custodyCandidates(ctx)
 	if err != nil {
 		return false, err
-	}
-	var addrs []sdk.AccAddress
-	for _, op := range ops {
-		a, err := sdk.AccAddressFromBech32(op.OperatorAddress)
-		if err != nil {
-			return false, err
-		}
-		if has, err := k.CustodyKeys.Has(ctx, a); err != nil {
-			return false, err
-		} else if has && op.Power > 0 {
-			addrs = append(addrs, a)
-		}
 	}
 	if len(addrs) == 0 {
 		return false, nil
 	}
-	slices.SortFunc(addrs, func(a, b sdk.AccAddress) int { return bytes.Compare(a, b) })
 	st := types.DKGState{Epoch: epoch, Attempt: attempt, StartHeight: start, Phase: types.DKG_PHASE_COMMIT, T: uint32(2*len(addrs)/3 + 1)}
 	for i, a := range addrs {
 		st.Participants = append(st.Participants, types.DKGParticipant{Operator: a.String(), Index: uint32(i + 1)})

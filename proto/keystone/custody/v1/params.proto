@@ -51,4 +51,26 @@ message Params {
   // retire_watch_blocks: a RETIRING epoch is RETIRED only this many blocks after it
   // began retiring (its deposit addresses stay watched; design §9.4, added in M5).
   uint64 retire_watch_blocks = 15;
+  // custody_set_size N: the custody set is the top N active validators by power with
+  // custody keys (design §9.2, added in M7).
+  uint32 custody_set_size = 16;
+  // custody_entry_margin_bps: an outsider displaces the weakest incumbent only with
+  // power above it by more than this margin (design §9.2, added in M7).
+  uint32 custody_entry_margin_bps = 17;
+  // min_custody_self_bond: a share holder of a funded epoch cannot undelegate its
+  // self-delegation below this, in bond-denom tokens (design §9.4, added in M7).
+  string min_custody_self_bond = 18 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+  // theft_slash_fraction slashes every share holder of an epoch on an attested
+  // unauthorized spend (design §9.12, added in M7).
+  string theft_slash_fraction = 19 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
 }

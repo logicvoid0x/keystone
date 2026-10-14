@@ -38,14 +38,48 @@ func (k *Keeper) epochOperators(ctx context.Context, epoch uint64) ([]sdk.AccAdd
 	return out, err
 }
 
-// custodyCandidates are the active operators (power > 0) with registered custody keys,
-// sorted: the set the next epoch's DKG would run among.
+// candidate is an active validator with a registered custody key.
+type candidate struct {
+	addr      sdk.AccAddress
+	power     int64
+	incumbent bool
+}
+
+// rankCmp orders candidates by power descending, then address ascending (total order).
+func rankCmp(a, b candidate) int {
+	if a.power != b.power {
+		if a.power > b.power {
+			return -1
+		}
+		return 1
+	}
+	return bytes.Compare(a.addr, b.addr)
+}
+
+// custodyCandidates is the set the next epoch's DKG would run among (design §9.2):
+// the active validators (power > 0) with registered custody keys, at most
+// CustodySetSize of them. Share holders of the ACTIVE epoch keep their seats in power
+// order; free seats go to the strongest outsiders; then an outsider displaces the
+// weakest remaining incumbent only if its power exceeds that incumbent's by more than
+// CustodyEntryMarginBps. Sorted by operator address.
 func (k *Keeper) custodyCandidates(ctx context.Context) ([]sdk.AccAddress, error) {
+	p, err := k.Params.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
 	ops, err := k.vals.ActiveValidators(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []sdk.AccAddress
+	var incumbents []sdk.AccAddress
+	if active, err := k.ActiveEpoch.Get(ctx); err == nil && active > 0 {
+		if incumbents, err = k.epochOperators(ctx, active); err != nil {
+			return nil, err
+		}
+	} else if err != nil && !errors.Is(err, collections.ErrNotFound) {
+		return nil, err
+	}
+	var ins, outs []candidate
 	for _, op := range ops {
 		if op.Power <= 0 {
 			continue
@@ -56,12 +90,53 @@ func (k *Keeper) custodyCandidates(ctx context.Context) ([]sdk.AccAddress, error
 		}
 		if has, err := k.CustodyKeys.Has(ctx, a); err != nil {
 			return nil, err
-		} else if has {
-			out = append(out, a)
+		} else if !has {
+			continue
+		}
+		c := candidate{addr: a, power: op.Power, incumbent: slices.ContainsFunc(incumbents, func(b sdk.AccAddress) bool { return a.Equals(b) })}
+		if c.incumbent {
+			ins = append(ins, c)
+		} else {
+			outs = append(outs, c)
 		}
 	}
+	return selectCustodySet(ins, outs, int(p.CustodySetSize), p.CustodyEntryMarginBps), nil
+}
+
+// selectCustodySet applies the §9.2 seat rule to incumbents and outsiders.
+func selectCustodySet(ins, outs []candidate, n int, marginBps uint32) []sdk.AccAddress {
+	slices.SortFunc(ins, rankCmp)
+	slices.SortFunc(outs, rankCmp)
+	seats := ins[:min(len(ins), n)]
+	seats = slices.Clone(seats)
+	next := 0
+	for ; next < len(outs) && len(seats) < n; next++ {
+		seats = append(seats, outs[next])
+	}
+	for ; next < len(outs); next++ {
+		weakest := -1
+		for i, s := range seats {
+			if s.incumbent && (weakest < 0 || rankCmp(s, seats[weakest]) > 0) {
+				weakest = i
+			}
+		}
+		if weakest < 0 {
+			break
+		}
+		// outsider power > weakest power × (1 + margin): compared in integers.
+		lhs := sdkmath.NewInt(outs[next].power).MulRaw(10_000)
+		rhs := sdkmath.NewInt(seats[weakest].power).MulRaw(10_000 + int64(marginBps))
+		if !lhs.GT(rhs) {
+			break // outsiders are ranked: no weaker one can pass either
+		}
+		seats[weakest] = outs[next]
+	}
+	out := make([]sdk.AccAddress, len(seats))
+	for i, s := range seats {
+		out[i] = s.addr
+	}
 	slices.SortFunc(out, func(a, b sdk.AccAddress) int { return bytes.Compare(a, b) })
-	return out, nil
+	return out
 }
 
 func diffSets(from, to []sdk.AccAddress) (added, removed []string) {

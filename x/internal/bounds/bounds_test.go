@@ -27,6 +27,15 @@ func TestInt(t *testing.T) {
 	require.Error(t, bounds.Int("x", sdkmath.Int{}, lo, hi))
 }
 
+func TestDec(t *testing.T) {
+	lo, hi := sdkmath.LegacyZeroDec(), sdkmath.LegacyOneDec()
+	require.NoError(t, bounds.Dec("x", sdkmath.LegacyNewDecWithPrec(5, 1), lo, hi))
+	require.NoError(t, bounds.Dec("x", hi, lo, hi))
+	require.Error(t, bounds.Dec("x", sdkmath.LegacyNewDec(2), lo, hi))
+	require.Error(t, bounds.Dec("x", sdkmath.LegacyNewDec(-1), lo, hi))
+	require.Error(t, bounds.Dec("x", sdkmath.LegacyDec{}, lo, hi))
+}
+
 func TestFirst(t *testing.T) {
 	a, b := errors.New("a"), errors.New("b")
 	require.NoError(t, bounds.First(nil, nil))
