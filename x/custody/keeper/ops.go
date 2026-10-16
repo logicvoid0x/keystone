@@ -82,6 +82,13 @@ func (k *Keeper) BuildOps(ctx context.Context, votes []types.Vote) (types.Custod
 				}
 			}
 		}
+		for i := range b.Spends {
+			if types.ValidSpend(&b.Spends[i]) {
+				if err := add(types.ATTESTATION_KIND_SPEND, mustMarshal(&b.Spends[i]), v.ConsAddr); err != nil {
+					return batch, err
+				}
+			}
+		}
 		for i := range b.Confirms {
 			if types.ValidConfirm(&b.Confirms[i]) {
 				if err := add(types.ATTESTATION_KIND_CONFIRM, mustMarshal(&b.Confirms[i]), v.ConsAddr); err != nil {
@@ -179,6 +186,12 @@ func (k *Keeper) acceptTally(ctx context.Context, p *pending, batch *types.Custo
 			return err
 		}
 		batch.Reverts = append(batch.Reverts, r)
+	case types.ATTESTATION_KIND_SPEND:
+		var s vetypes.UnauthorizedSpend
+		if err := s.Unmarshal(p.tally.Payload); err != nil {
+			return err
+		}
+		batch.Spends = append(batch.Spends, s)
 	case types.ATTESTATION_KIND_CONFIRM:
 		var c vetypes.TxConfirmed
 		if err := c.Unmarshal(p.tally.Payload); err != nil {
@@ -214,7 +227,8 @@ func (k *Keeper) expireTallies(ctx context.Context, height int64) error {
 }
 
 // ApplyOps applies a batch in the fixed order of §9.11: AcceptAnchor, CreditDeposit,
-// RevertDeposit, RecordCommitments, ShareAccepted, SessionSigned, SessionFailed (each
+// RevertDeposit, SlashUnauthorizedSpend (M7, §9.12),
+// RecordCommitments, ShareAccepted, SessionSigned, SessionFailed (each
 // opening its retry, or stalling), the stalled-session re-check, ConfirmTx, StartRBF,
 // OpenBatch. Totality: an operation that cannot apply is skipped with its writes
 // discarded and a custody_op_skipped{op, reason} event; ApplyOps itself only fails on
@@ -228,6 +242,9 @@ func (k *Keeper) ApplyOps(ctx context.Context, batch types.CustodyBatch) error {
 	}
 	for _, r := range batch.Reverts {
 		k.runOp(ctx, types.OpRevertDeposit, func(c context.Context) error { return k.revertDeposit(c, r) })
+	}
+	for _, s := range batch.Spends {
+		k.runOp(ctx, types.OpSlashSpend, func(c context.Context) error { return k.slashSpend(c, s) })
 	}
 	for _, f := range batch.Frost {
 		k.runOp(ctx, types.OpRecordCommitments, func(c context.Context) error { return k.recordCommitments(c, f) })

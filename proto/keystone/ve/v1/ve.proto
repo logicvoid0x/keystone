@@ -40,6 +40,9 @@ message BitcoinPayload {
   repeated TxConfirmed confirms = 4 [(gogoproto.nullable) = false];
   // reorgs: sorted by (txid, vout).
   repeated ReorgSeen reorgs = 5 [(gogoproto.nullable) = false];
+  // spends: Keystone UTXOs spent at depth k by a transaction that is not a batch in
+  // committed state; max 8, sorted by (prev_txid, prev_vout) (design §9.12, added in M7).
+  repeated UnauthorizedSpend spends = 6 [(gogoproto.nullable) = false];
 }
 
 // BtcBlockRef identifies a Bitcoin block.
@@ -68,6 +71,15 @@ message ReorgSeen {
   bytes txid = 1;
   uint32 vout = 2;
   bytes old_block_hash = 3;
+}
+
+// UnauthorizedSpend attests that a Keystone UTXO was spent by spending_txid, which is
+// not a batch transaction, in block (design §9.12, added in M7).
+message UnauthorizedSpend {
+  bytes prev_txid = 1;
+  uint32 prev_vout = 2;
+  bytes spending_txid = 3;
+  BtcBlockRef block = 4;
 }
 
 // FrostPayload carries FROST signer output (design §9.11).

@@ -43,4 +43,6 @@ var (
 	NextBatchKey       = collections.NewPrefix(0x20) // next batch id (added in M4a)
 	InFlightKey        = collections.NewPrefix(0x21) // epoch -> batch id not yet confirmed (added in M4a)
 	HotKeysKey         = collections.NewPrefix(0x22) // hot key -> operator (added in M4b)
+	SlashedEpochsKey   = collections.NewPrefix(0x23) // epoch -> height slashed for theft (added in M7)
+	TheftPausedKey     = collections.NewPrefix(0x24) // deposits paused after a theft (added in M7)
 )

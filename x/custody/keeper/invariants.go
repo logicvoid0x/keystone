@@ -2,7 +2,10 @@ package keeper
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"cosmossdk.io/collections"
 
 	sdkmath "cosmossdk.io/math"
 )
@@ -65,6 +68,29 @@ func (k *Keeper) CoverageInvariant(ctx context.Context, held sdkmath.Int) error 
 	if have.LT(owed) {
 		return fmt.Errorf("invariant 6: UTXOs %s + deficit %s < collateral %s + claimable %s + fee reserve %s + held %s + queued %s + in flight %s",
 			utxos, deficit, credited, claim, fee, held, queued, inflight)
+	}
+	return nil
+}
+
+// TheftPauseInvariant is invariant 15 (M7, §9.12): if the ACTIVE epoch has been
+// slashed for theft, deposits are paused.
+func (k *Keeper) TheftPauseInvariant(ctx context.Context) error {
+	active, err := k.ActiveEpoch.Get(ctx)
+	if errors.Is(err, collections.ErrNotFound) || active == 0 {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	slashed, err := k.SlashedEpochs.Has(ctx, active)
+	if err != nil || !slashed {
+		return err
+	}
+	paused, err := k.IsTheftPaused(ctx)
+	if err != nil {
+		return err
+	}
+	if !paused {
+		return fmt.Errorf("invariant 15: active epoch %d was slashed for theft but deposits are not paused", active)
 	}
 	return nil
 }

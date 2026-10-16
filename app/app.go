@@ -298,6 +298,7 @@ func New(
 	app.VaultKeeper = vaultkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[vaulttypes.StoreKey]), app.AdminKeeper,
 		app.OracleKeeper, app.StablecoinKeeper, app.CustodyKeeper)
 	app.CustodyKeeper.SetVaultKeeper(app.VaultKeeper)
+	app.CustodyKeeper.SetSlasher(valset.NewSlasher(app.StakingKeeper, app.SlashingKeeper))
 	// x/admin asks x/custody before every allowlist removal (design §9.4, M7-T2).
 	app.AdminKeeper.SetRemovalGuard(app.CustodyKeeper.RemovalGuard())
 	app.LiquidationKeeper = liquidationkeeper.NewKeeper(appCodec, runtime.NewKVStoreService(keys[liquidationtypes.StoreKey]), app.AdminKeeper,

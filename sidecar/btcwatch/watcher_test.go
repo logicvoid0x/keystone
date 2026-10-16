@@ -241,3 +241,43 @@ func TestBroadcastAndConfirm(t *testing.T) {
 	require.Equal(t, id[:], p.Confirms[0].Txid)
 	require.Equal(t, uint32(c.Height()-1), p.Confirms[0].Block.Height)
 }
+
+// spendTx spends prev with one P2TR output and puts it in the mempool.
+func spendTx(t *testing.T, c *btcfake.Chain, prev btcwatch.Outpoint) chainhash.Hash {
+	t.Helper()
+	tx := wire.NewMsgTx(2)
+	tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(&prev.Txid, prev.Vout), nil, nil))
+	tx.AddTxOut(wire.NewTxOut(10_000, script(9)))
+	var buf bytes.Buffer
+	require.NoError(t, tx.Serialize(&buf))
+	require.NoError(t, c.SendRawTransaction(context.Background(), buf.Bytes()))
+	return tx.TxHash()
+}
+
+// Design §9.12 / spec M7-T5: a Keystone UTXO spent at depth k by a transaction that is
+// not a batch version is attested as UnauthorizedSpend; batch spends and spends of
+// other outputs are not.
+func TestUnauthorizedSpend(t *testing.T) {
+	c, v, w := setup(2)
+	ours := btcwatch.Outpoint{Txid: c.Send(script(1), 50_000_000), Vout: 0}
+	batchSpent := btcwatch.Outpoint{Txid: c.Send(script(2), 40_000_000), Vout: 0}
+	other := btcwatch.Outpoint{Txid: c.Send(script(9), 1_000), Vout: 0}
+	c.Mine(1)
+	v.v.Utxos = map[btcwatch.Outpoint]bool{ours: true, batchSpent: true}
+
+	thief := spendTx(t, c, ours)
+	batch := spendTx(t, c, batchSpent)
+	spendTx(t, c, other)
+	v.v.BatchTxids = map[chainhash.Hash]bool{batch: true}
+
+	c.Mine(1)
+	require.Empty(t, snap(t, w).Spends, "1 confirmation < k = 2")
+	c.Mine(1)
+	p := snap(t, w)
+	require.Len(t, p.Spends, 1)
+	s := p.Spends[0]
+	require.Equal(t, ours.Txid[:], s.PrevTxid)
+	require.Equal(t, uint32(0), s.PrevVout)
+	require.Equal(t, thief[:], s.SpendingTxid)
+	require.Equal(t, uint32(c.Height()-1), s.Block.Height)
+}

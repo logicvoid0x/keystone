@@ -26,6 +26,7 @@ const (
 	MaxDeposits    = 16
 	MaxConfirms    = 16
 	MaxReorgs      = 16
+	MaxSpends      = 8 // design §9.12 (M7)
 	MaxCommitments = 128
 	MaxShares      = 64
 )
@@ -99,6 +100,7 @@ func Canonicalize(ve *vetypes.VoteExtension) {
 		slices.SortStableFunc(b.Deposits, cmpDeposit)
 		slices.SortStableFunc(b.Confirms, cmpConfirm)
 		slices.SortStableFunc(b.Reorgs, cmpReorg)
+		slices.SortStableFunc(b.Spends, cmpSpend)
 	}
 	if f := ve.Frost; f != nil {
 		slices.SortStableFunc(f.Commitments, cmpCommitment)
@@ -111,7 +113,7 @@ func Canonicalize(ve *vetypes.VoteExtension) {
 func IsCanonical(ve *vetypes.VoteExtension) bool {
 	if b := ve.Bitcoin; b != nil {
 		if !strictlySorted(b.Deposits, cmpDeposit) || !strictlySorted(b.Confirms, cmpConfirm) ||
-			!strictlySorted(b.Reorgs, cmpReorg) {
+			!strictlySorted(b.Reorgs, cmpReorg) || !strictlySorted(b.Spends, cmpSpend) {
 			return false
 		}
 	}
@@ -126,7 +128,8 @@ func IsCanonical(ve *vetypes.VoteExtension) bool {
 // WithinCounts reports whether every repeated field is within its cap.
 func WithinCounts(ve *vetypes.VoteExtension) bool {
 	if b := ve.Bitcoin; b != nil {
-		if len(b.Deposits) > MaxDeposits || len(b.Confirms) > MaxConfirms || len(b.Reorgs) > MaxReorgs {
+		if len(b.Deposits) > MaxDeposits || len(b.Confirms) > MaxConfirms || len(b.Reorgs) > MaxReorgs ||
+			len(b.Spends) > MaxSpends {
 			return false
 		}
 	}
@@ -155,6 +158,10 @@ func cmpConfirm(a, b vetypes.TxConfirmed) int { return bytes.Compare(a.Txid, b.T
 
 func cmpReorg(a, b vetypes.ReorgSeen) int {
 	return cmp.Or(bytes.Compare(a.Txid, b.Txid), cmp.Compare(a.Vout, b.Vout))
+}
+
+func cmpSpend(a, b vetypes.UnauthorizedSpend) int {
+	return cmp.Or(bytes.Compare(a.PrevTxid, b.PrevTxid), cmp.Compare(a.PrevVout, b.PrevVout))
 }
 
 func cmpCommitment(a, b vetypes.NonceCommitment) int {

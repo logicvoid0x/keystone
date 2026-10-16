@@ -57,14 +57,18 @@ type Keeper struct {
 	DKGStates       collections.Map[uint64, types.DKGState]
 	DKGMessages     collections.Map[collections.Triple[uint64, uint32, []byte], []byte]
 	Pending         collections.Item[types.PendingMembership]
+	SlashedEpochs   collections.Map[uint64, int64]
+	TheftPaused     collections.Item[bool]
 
-	admin types.AdminKeeper
-	vals  types.ValidatorSet
-	vault types.VaultKeeper
+	admin   types.AdminKeeper
+	vals    types.ValidatorSet
+	vault   types.VaultKeeper
+	slasher types.StakingSlasher
 }
 
-// NewKeeper builds the keeper. admin authorizes MsgUpdateParams (x/poa); vals gives
-// attestation power (x/poa). The vault keeper is attached with SetVaultKeeper, since
+// NewKeeper builds the keeper. admin authorizes MsgUpdateParams (x/admin); vals gives
+// attestation power (x/staking through app/valset). The vault keeper is attached with
+// SetVaultKeeper, since
 // x/vault also depends on x/custody.
 func NewKeeper(cdc codec.BinaryCodec, storeService store.KVStoreService, admin types.AdminKeeper, vals types.ValidatorSet) *Keeper {
 	sb := collections.NewSchemaBuilder(storeService)
@@ -106,10 +110,12 @@ func NewKeeper(cdc codec.BinaryCodec, storeService store.KVStoreService, admin t
 			collections.PairKeyCodec(collections.Uint64Key, collections.Uint32Key), collections.Uint64Value),
 		SignerStats: collections.NewMap(sb, types.SignerStatsKey, "signer_stats",
 			collections.PairKeyCodec(collections.Uint64Key, sdk.AccAddressKey), codec.CollValue[types.SignerStats](cdc)),
-		CustodyKeys: collections.NewMap(sb, types.CustodyKeysKey, "custody_keys", sdk.AccAddressKey, codec.CollValue[types.CustodyKey](cdc)),
-		HotKeys:     collections.NewMap(sb, types.HotKeysKey, "hot_keys", sdk.AccAddressKey, collections.BytesValue),
-		DKGStates:   collections.NewMap(sb, types.DKGStatesKey, "dkg_states", collections.Uint64Key, codec.CollValue[types.DKGState](cdc)),
-		Pending:     collections.NewItem(sb, types.PendingKey, "pending_membership", codec.CollValue[types.PendingMembership](cdc)),
+		CustodyKeys:   collections.NewMap(sb, types.CustodyKeysKey, "custody_keys", sdk.AccAddressKey, codec.CollValue[types.CustodyKey](cdc)),
+		HotKeys:       collections.NewMap(sb, types.HotKeysKey, "hot_keys", sdk.AccAddressKey, collections.BytesValue),
+		DKGStates:     collections.NewMap(sb, types.DKGStatesKey, "dkg_states", collections.Uint64Key, codec.CollValue[types.DKGState](cdc)),
+		Pending:       collections.NewItem(sb, types.PendingKey, "pending_membership", codec.CollValue[types.PendingMembership](cdc)),
+		SlashedEpochs: collections.NewMap(sb, types.SlashedEpochsKey, "slashed_epochs", collections.Uint64Key, collections.Int64Value),
+		TheftPaused:   collections.NewItem(sb, types.TheftPausedKey, "theft_paused", collections.BoolValue),
 		DKGMessages: collections.NewMap(sb, types.DKGMessagesKey, "dkg_messages",
 			collections.TripleKeyCodec(collections.Uint64Key, collections.Uint32Key, collections.BytesKey), collections.BytesValue),
 		admin: admin,

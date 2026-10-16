@@ -3,6 +3,8 @@ package app
 import (
 	"github.com/btcsuite/btcd/chainhash/v2"
 
+	"cosmossdk.io/collections"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/OWNER/keystone/sidecar/btcwatch"
@@ -34,6 +36,7 @@ func LoadBitcoinView(ctx sdk.Context, app *App) (btcwatch.View, error) {
 	view := btcwatch.View{
 		Network: p.BitcoinNetwork, ConfirmDepth: p.ConfirmDepth, Height: ctx.BlockHeight(),
 		Scripts: map[string]bool{}, Deposits: map[btcwatch.Outpoint]btcwatch.Record{},
+		Utxos: map[btcwatch.Outpoint]bool{}, BatchTxids: map[chainhash.Hash]bool{},
 	}
 	err = k.ScriptVault.Walk(ctx, nil, func(script []byte, _ uint64) (bool, error) {
 		view.Scripts[string(script)] = true
@@ -51,6 +54,29 @@ func LoadBitcoinView(ctx sdk.Context, app *App) (btcwatch.View, error) {
 		copy(bh[:], rec.Block.Hash)
 		view.Deposits[btcwatch.Outpoint{Txid: id, Vout: vout}] = btcwatch.Record{Height: rec.Block.Height, Hash: bh}
 		return false
+	})
+	if err != nil {
+		return btcwatch.View{}, err
+	}
+	// M7 (§9.12): every UTXO and every batch txid, for unauthorized-spend detection.
+	err = k.Utxos.Walk(ctx, nil, func(op collections.Pair[[]byte, uint32], _ custodytypes.Utxo) (bool, error) {
+		h, err := chainhash.NewHash(op.K1())
+		if err != nil {
+			return true, err
+		}
+		view.Utxos[btcwatch.Outpoint{Txid: *h, Vout: op.K2()}] = true
+		return false, nil
+	})
+	if err != nil {
+		return btcwatch.View{}, err
+	}
+	err = k.TxBatch.Walk(ctx, nil, func(txid []byte, _ uint64) (bool, error) {
+		h, err := chainhash.NewHash(txid)
+		if err != nil {
+			return true, err
+		}
+		view.BatchTxids[*h] = true
+		return false, nil
 	})
 	if err != nil {
 		return btcwatch.View{}, err

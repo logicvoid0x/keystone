@@ -66,6 +66,9 @@ type CustodyBatch struct {
 	Anchors []vetypes.BtcBlockRef
 	Credits []vetypes.DepositSeen
 	Reverts []vetypes.ReorgSeen
+	// Spends are accepted UnauthorizedSpend attestations (M7, §9.12), by (txid, vout,
+	// spending txid).
+	Spends []vetypes.UnauthorizedSpend
 	// Frost is sorted by operator address bytes.
 	Frost []FrostInput
 	// Accepted, Signed and Failed are in session id order.
@@ -90,7 +93,7 @@ type CustodyBatch struct {
 // Empty reports whether the batch has nothing to apply. A block with verified voters
 // is never empty: stalled sessions are re-checked every block.
 func (b CustodyBatch) Empty() bool {
-	return len(b.Anchors) == 0 && len(b.Credits) == 0 && len(b.Reverts) == 0 &&
+	return len(b.Anchors) == 0 && len(b.Credits) == 0 && len(b.Reverts) == 0 && len(b.Spends) == 0 &&
 		len(b.Frost) == 0 && len(b.Accepted) == 0 && len(b.Signed) == 0 && len(b.Failed) == 0 &&
 		len(b.Confirms) == 0 && len(b.RBF) == 0 && b.OpenBatch == nil && len(b.Voters) == 0 &&
 		len(b.Sweeps) == 0 && !b.Consolidate
@@ -147,7 +150,15 @@ func (b *CustodyBatch) Sort() {
 	slices.SortFunc(b.Credits, func(x, y vetypes.DepositSeen) int {
 		return cmp.Or(bytes.Compare(x.Txid, y.Txid), cmp.Compare(x.Vout, y.Vout), bytes.Compare(x.Block.Hash, y.Block.Hash))
 	})
+	slices.SortFunc(b.Spends, func(x, y vetypes.UnauthorizedSpend) int {
+		return cmp.Or(bytes.Compare(x.PrevTxid, y.PrevTxid), cmp.Compare(x.PrevVout, y.PrevVout), bytes.Compare(x.SpendingTxid, y.SpendingTxid))
+	})
 	slices.SortFunc(b.Reverts, func(x, y vetypes.ReorgSeen) int {
 		return cmp.Or(bytes.Compare(x.Txid, y.Txid), cmp.Compare(x.Vout, y.Vout), bytes.Compare(x.OldBlockHash, y.OldBlockHash))
 	})
+}
+
+// ValidSpend checks an UnauthorizedSpend's shape: 32-byte txids and a block reference.
+func ValidSpend(s *vetypes.UnauthorizedSpend) bool {
+	return len(s.PrevTxid) == HashLen && len(s.SpendingTxid) == HashLen && ValidBlockRef(s.Block)
 }

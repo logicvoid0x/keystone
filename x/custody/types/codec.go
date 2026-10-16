@@ -11,6 +11,7 @@ import (
 // RegisterLegacyAminoCodec registers the amino names used for multisig signing.
 func RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
 	legacy.RegisterAminoMsg(cdc, &MsgUpdateParams{}, "keystone/custody/MsgUpdateParams")
+	legacy.RegisterAminoMsg(cdc, &MsgClearTheftPause{}, "keystone/custody/MsgClearTheftPause")
 	legacy.RegisterAminoMsg(cdc, &MsgWithdrawClaim{}, "keystone/custody/MsgWithdrawClaim")
 	legacy.RegisterAminoMsg(cdc, &MsgRegisterCustodyKey{}, "keystone/custody/MsgRegisterCustodyKey")
 	legacy.RegisterAminoMsg(cdc, &MsgDKGCommit{}, "keystone/custody/MsgDKGCommit")
@@ -21,7 +22,7 @@ func RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
 
 // RegisterInterfaces registers the module's Msg implementations.
 func RegisterInterfaces(registry cdctypes.InterfaceRegistry) {
-	registry.RegisterImplementations((*sdk.Msg)(nil), &MsgUpdateParams{}, &MsgWithdrawClaim{},
+	registry.RegisterImplementations((*sdk.Msg)(nil), &MsgUpdateParams{}, &MsgClearTheftPause{}, &MsgWithdrawClaim{},
 		&MsgRegisterCustodyKey{}, &MsgDKGCommit{}, &MsgDKGDeal{}, &MsgDKGComplaint{})
 	msgservice.RegisterMsgServiceDesc(registry, &_Msg_serviceDesc)
 }

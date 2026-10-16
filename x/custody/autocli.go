@@ -52,9 +52,10 @@ func (AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 			Service: types.Msg_serviceDesc.ServiceName,
 			RpcCommandOptions: []*autocliv1.RpcCommandOptions{
 				{
-					RpcMethod: "UpdateParams", Use: "update-params [params-json]", Short: "Replace the x/custody params; signed by the x/poa admin",
+					RpcMethod: "UpdateParams", Use: "update-params [params-json]", Short: "Replace the x/custody params; signed by the x/admin admin",
 					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "params"}},
 				},
+				{RpcMethod: "ClearTheftPause", Use: "clear-theft-pause", Short: "Re-enable deposits after a theft once the slashed epoch is no longer ACTIVE; signed by the x/admin admin"},
 				{
 					RpcMethod: "RegisterCustodyKey", Use: "register-custody-key [enc-pubkey-hex] [hot-key]", Short: "Set your DKG encryption key and custody hot key (operators added after genesis)",
 					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "enc_pubkey"}, {ProtoField: "hot_key"}},

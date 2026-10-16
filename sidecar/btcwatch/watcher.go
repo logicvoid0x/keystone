@@ -67,6 +67,11 @@ type View struct {
 	// Watched are the txids of every version of every in-flight batch, to attest
 	// TxConfirmed for (step 6).
 	Watched []chainhash.Hash
+	// Utxos are every Keystone UTXO in committed state, and BatchTxids the txids of every
+	// version of every batch: a spend of a UTXO by any other transaction is attested as
+	// UnauthorizedSpend (design §9.12, M7).
+	Utxos      map[Outpoint]bool
+	BatchTxids map[chainhash.Hash]bool
 }
 
 // SignedTx is a signed withdrawal transaction.
@@ -107,11 +112,18 @@ type output struct {
 	script []byte
 }
 
+// input is a transaction input: the outpoint it spends and the spending txid.
+type input struct {
+	prev Outpoint
+	txid chainhash.Hash
+}
+
 type block struct {
 	height int64
 	hash   chainhash.Hash
 	time   time.Time // header timestamp
 	outs   []output  // P2TR outputs only
+	ins    []input   // every non-coinbase input (M7: unauthorized-spend detection)
 }
 
 // Watcher follows a Source and produces snapshots.
@@ -278,6 +290,11 @@ func scan(height int64, hash chainhash.Hash, mb *wire.MsgBlock) block {
 	b := block{height: height, hash: hash, time: mb.Header.Timestamp}
 	for _, tx := range mb.Transactions {
 		txid := tx.TxHash()
+		if !isCoinbase(tx) {
+			for _, in := range tx.TxIn {
+				b.ins = append(b.ins, input{prev: Outpoint{in.PreviousOutPoint.Hash, in.PreviousOutPoint.Index}, txid: txid})
+			}
+		}
 		for i, out := range tx.TxOut {
 			if out.Value > 0 && custodytypes.IsP2TRScript(out.PkScript) {
 				b.outs = append(b.outs, output{txid: txid, vout: uint32(i), amount: uint64(out.Value), script: slices.Clone(out.PkScript)})
@@ -306,7 +323,8 @@ func ref(height int64, hash chainhash.Hash) *vetypes.BtcBlockRef {
 // build is the §9.7 BitcoinPayload: anchor = block at tip − k; deposits to registered
 // scripts with at least k confirmations not yet accepted, oldest first, at most
 // MaxDeposits; ReorgSeen for accepted deposits whose block is no longer at its height
-// on the best chain. Lists are in canonical order. Caller holds w.mu.
+// on the best chain; TxConfirmed for our transactions; UnauthorizedSpend for other
+// spends of our UTXOs (M7). Lists are in canonical order. Caller holds w.mu.
 func (w *Watcher) build(v View, fee uint64) *vetypes.BitcoinPayload {
 	if len(w.blocks) == 0 {
 		return nil
@@ -370,6 +388,24 @@ func (w *Watcher) build(v View, fee uint64) *vetypes.BitcoinPayload {
 			p.Confirms = append(p.Confirms, vetypes.TxConfirmed{Txid: slices.Clone(id[:]), Block: ref(b.height, b.hash)})
 		}
 	}
+	// UnauthorizedSpend for Keystone UTXOs spent at depth ≥ k by a transaction that is
+	// not a batch version (design §9.12), oldest block first, at most MaxSpends.
+	for _, b := range w.blocks {
+		if b.height > tip-k+1 || len(p.Spends) == protocol.MaxSpends {
+			break
+		}
+		for _, in := range b.ins {
+			if len(p.Spends) == protocol.MaxSpends {
+				break
+			}
+			if !v.Utxos[in.prev] || v.BatchTxids[in.txid] {
+				continue
+			}
+			p.Spends = append(p.Spends, vetypes.UnauthorizedSpend{
+				PrevTxid: slices.Clone(in.prev.Txid[:]), PrevVout: in.prev.Vout, SpendingTxid: slices.Clone(in.txid[:]), Block: ref(b.height, b.hash),
+			})
+		}
+	}
 	ve := vetypes.VoteExtension{Bitcoin: p}
 	protocol.Canonicalize(&ve)
 	return p
@@ -424,4 +460,13 @@ func (w *Watcher) TipAge() (float64, bool) {
 		return 0, false
 	}
 	return time.Since(w.blocks[len(w.blocks)-1].time).Seconds(), true
+}
+
+// isCoinbase reports whether tx is a coinbase: one input spending the null outpoint.
+func isCoinbase(tx *wire.MsgTx) bool {
+	if len(tx.TxIn) != 1 {
+		return false
+	}
+	prev := tx.TxIn[0].PreviousOutPoint
+	return prev.Index == ^uint32(0) && prev.Hash == (chainhash.Hash{})
 }

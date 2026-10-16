@@ -39,3 +39,11 @@ type VaultKeeper interface {
 	// epoch's deposit scripts).
 	OpenVaultIDs(ctx context.Context) ([]uint64, error)
 }
+
+// StakingSlasher is x/staking and x/slashing as seen by theft slashing (design §9.12,
+// M7): slash operator's validator by fraction for an infraction at infractionHeight
+// (unbonding entries since then included), jail and tombstone it; return the tokens
+// burned.
+type StakingSlasher interface {
+	SlashForTheft(ctx context.Context, operator sdk.AccAddress, infractionHeight int64, fraction sdkmath.LegacyDec) (sdkmath.Int, error)
+}

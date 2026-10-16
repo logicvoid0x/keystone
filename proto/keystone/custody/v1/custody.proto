@@ -71,6 +71,8 @@ enum AttestationKind {
   ATTESTATION_KIND_REORG = 3;
   // CONFIRM tallies TxConfirmed (added in M4a).
   ATTESTATION_KIND_CONFIRM = 4;
+  // SPEND tallies UnauthorizedSpend (added in M7).
+  ATTESTATION_KIND_SPEND = 5;
 }
 
 // Tally accumulates identical attestations across heights (design §9.7 step 3). Key =

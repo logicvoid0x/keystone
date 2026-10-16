@@ -1,11 +1,13 @@
 package app_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/cometbft/cometbft/crypto/ed25519"
 	"github.com/stretchr/testify/require"
 
+	"cosmossdk.io/collections"
 	sdkmath "cosmossdk.io/math"
 
 	sdked25519 "github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
@@ -14,8 +16,10 @@ import (
 
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/app/protocol"
+	"github.com/OWNER/keystone/app/protocol/vetypes"
 	"github.com/OWNER/keystone/testutil/apptest"
 	admintypes "github.com/OWNER/keystone/x/admin/types"
+	custodytypes "github.com/OWNER/keystone/x/custody/types"
 )
 
 // TestTx0FromBlock2 runs blocks through Prepare/Process/ExtendVote/Finalize: block 1
@@ -146,4 +150,48 @@ func eventAttr(evs []abciEvent, typ, key string) string {
 		}
 	}
 	return ""
+}
+
+// TestTheftSlashesWithStaking runs §9.12's op against the real x/staking and
+// x/slashing keepers: every share holder of the epoch loses its stake (fraction 1),
+// is jailed and tombstoned, and deposits pause.
+func TestTheftSlashesWithStaking(t *testing.T) {
+	c := apptest.NewWithPowers(t, []int64{3, 2, 1, 1})
+	for range 3 {
+		c.NextBlock(nil)
+	}
+	ctx := c.Context().WithBlockHeight(c.Height + 1).WithEventManager(sdk.NewEventManager())
+	k := c.App.CustodyKeeper
+	txid := bytes.Repeat([]byte{0x11}, 32)
+	u := custodytypes.Utxo{Txid: txid, Vout: 0, AmountSat: 50_000_000, Epoch: c.Dealt.Epoch.Number, Status: custodytypes.UTXO_STATUS_AVAILABLE}
+	require.NoError(t, k.Utxos.Set(ctx, collections.Join(txid, uint32(0)), u))
+
+	batch := custodytypes.CustodyBatch{Spends: []vetypes.UnauthorizedSpend{{
+		PrevTxid: txid, PrevVout: 0, SpendingTxid: bytes.Repeat([]byte{0xEE}, 32),
+		Block: &vetypes.BtcBlockRef{Height: 200, Hash: bytes.Repeat([]byte{0xB2}, 32)},
+	}}}
+	require.NoError(t, k.ApplyOps(ctx, batch))
+
+	for _, op := range c.Dealt.Operators {
+		v, err := c.App.StakingKeeper.GetValidator(ctx, sdk.ValAddress(op))
+		require.NoError(t, err)
+		require.True(t, v.Tokens.IsZero(), "%s keeps %s", op, v.Tokens)
+		require.True(t, v.IsJailed())
+		cons, err := v.GetConsAddr()
+		require.NoError(t, err)
+		require.True(t, c.App.SlashingKeeper.IsTombstoned(ctx, cons))
+	}
+	paused, err := k.IsTheftPaused(ctx)
+	require.NoError(t, err)
+	require.True(t, paused)
+	require.Equal(t, sdk.DefaultPowerReduction.MulRaw(7).String(),
+		eventAttr(abciEvents(ctx.EventManager().Events()), custodytypes.EventTypeTheftSlashed, custodytypes.AttributeKeySlashed))
+}
+
+func abciEvents(evs sdk.Events) []abciEvent {
+	out := make([]abciEvent, len(evs))
+	for i, e := range evs {
+		out[i] = abciEvent(e)
+	}
+	return out
 }

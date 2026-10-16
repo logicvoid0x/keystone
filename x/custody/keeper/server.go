@@ -26,6 +26,13 @@ func (m msgServer) UpdateParams(ctx context.Context, msg *types.MsgUpdateParams)
 	}
 	return &types.MsgUpdateParamsResponse{}, nil
 }
+func (m msgServer) ClearTheftPause(ctx context.Context, msg *types.MsgClearTheftPause) (*types.MsgClearTheftPauseResponse, error) {
+	if err := m.k.ClearTheftPause(ctx, msg); err != nil {
+		return nil, err
+	}
+	return &types.MsgClearTheftPauseResponse{}, nil
+}
+
 
 func (m msgServer) WithdrawClaim(ctx context.Context, msg *types.MsgWithdrawClaim) (*types.MsgWithdrawClaimResponse, error) {
 	id, err := m.k.WithdrawClaim(ctx, msg)

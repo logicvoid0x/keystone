@@ -16,6 +16,9 @@ service Msg {
 
   // UpdateParams replaces the params. Signed by the x/poa admin.
   rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
+  // ClearTheftPause re-enables deposits after an unauthorized spend, once the slashed
+  // epoch is no longer ACTIVE. Admin only (design §9.12, added in M7).
+  rpc ClearTheftPause(MsgClearTheftPause) returns (MsgClearTheftPauseResponse);
 
   // WithdrawClaim queues a payout of claimable satoshis.
   rpc WithdrawClaim(MsgWithdrawClaim) returns (MsgWithdrawClaimResponse);
@@ -40,6 +43,17 @@ message MsgUpdateParams {
 
 // MsgUpdateParamsResponse is the response to MsgUpdateParams.
 message MsgUpdateParamsResponse {}
+
+// MsgClearTheftPause clears theft_paused (design §9.12, added in M7).
+message MsgClearTheftPause {
+  option (cosmos.msg.v1.signer) = "admin";
+  option (amino.name) = "keystone/custody/MsgClearTheftPause";
+
+  string admin = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// MsgClearTheftPauseResponse is the response to MsgClearTheftPause.
+message MsgClearTheftPauseResponse {}
 
 // MsgWithdrawClaim withdraws amount_sat of the owner's claimable balance to a Bitcoin
 // script (P2TR, P2WPKH or P2WSH; design §9.8 step 1).

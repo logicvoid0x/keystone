@@ -8,6 +8,14 @@ const (
 	EventTypeAnchorAccepted  = "btc_anchor_accepted"
 	EventTypeOpSkipped       = "custody_op_skipped"
 
+	// M7 (design §9.12).
+	EventTypeTheftSlashed      = "custody_theft_slashed"
+	EventTypeSlashSkipped      = "custody_slash_skipped"
+	EventTypeTheftPauseCleared = "custody_theft_pause_cleared"
+	AttributeKeySpendingTxid   = "spending_txid"
+	AttributeKeyMembers        = "members"
+	AttributeKeySlashed        = "slashed"
+
 	EventTypeWithdrawalRequested = "withdrawal_requested"
 	EventTypeBatchOpened         = "batch_opened"
 	EventTypeSessionOpened       = "session_opened"
@@ -86,6 +94,7 @@ const (
 	OpOpenBatch          = "open_batch"
 	OpOpenSweep          = "open_sweep"
 	OpConsolidate        = "consolidate"
+	OpSlashSpend         = "slash_unauthorized_spend"
 	SessionFailedInvalid = "invalid_share"
 	SessionFailedMissing = "deadline"
 )

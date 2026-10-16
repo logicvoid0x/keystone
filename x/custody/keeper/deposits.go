@@ -94,8 +94,13 @@ func (k *Keeper) creditDeposit(ctx context.Context, d vetypes.DepositSeen) error
 		if err != nil {
 			return err
 		}
-		if amount.GT(headroom) {
-			// §3.2: a deposit that would push credited satoshis over the cap is not
+		paused, err := k.IsTheftPaused(ctx)
+		if err != nil {
+			return err
+		}
+		if paused || amount.GT(headroom) {
+			// §3.2: a deposit that would push credited satoshis over the cap, or any
+			// deposit while deposits are paused after a theft (§9.12), is not
 			// credited at all; all of it is claimable (withdraw-only).
 			if err := k.CreditClaimable(ctx, owner, amount); err != nil {
 				return err

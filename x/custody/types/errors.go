@@ -16,4 +16,5 @@ var (
 	ErrInvalidScript  = errorsmod.Register(ModuleName, 12, "invalid recipient script")
 	ErrDKG            = errorsmod.Register(ModuleName, 13, "invalid DKG message")
 	ErrRemovalGuard   = errorsmod.Register(ModuleName, 14, "validator set change rejected by the custody removal guard")
+	ErrTheftPaused    = errorsmod.Register(ModuleName, 15, "theft pause cannot be cleared while the slashed epoch is ACTIVE")
 )

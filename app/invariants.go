@@ -28,6 +28,9 @@ func (app *App) CheckInvariants(ctx sdk.Context) error {
 	if err := app.OracleKeeper.StepInvariant(ctx); err != nil {
 		return err
 	}
+	if err := app.CustodyKeeper.TheftPauseInvariant(ctx); err != nil {
+		return err
+	}
 	if err := app.CustodyKeeper.TreasuryCapInvariant(ctx); err != nil {
 		return err
 	}

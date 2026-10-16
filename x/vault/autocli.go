@@ -12,7 +12,7 @@ func (AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 		Service: types.Msg_serviceDesc.ServiceName,
 		RpcCommandOptions: []*autocliv1.RpcCommandOptions{
 			{
-				RpcMethod: "UpdateParams", Use: "update-params [params-json]", Short: "Replace the x/vault params; signed by the x/poa admin",
+				RpcMethod: "UpdateParams", Use: "update-params [params-json]", Short: "Replace the x/vault params; signed by the x/admin admin",
 				PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "params"}},
 			},
 			{RpcMethod: "OpenVault", Use: "open-vault", Short: "Open a vault"},

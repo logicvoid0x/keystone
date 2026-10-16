@@ -26,6 +26,7 @@ func fullVE(height int64) vetypes.VoteExtension {
 			},
 			Confirms: []vetypes.TxConfirmed{{Txid: []byte{1}}, {Txid: []byte{2}}},
 			Reorgs:   []vetypes.ReorgSeen{{Txid: []byte{1}, Vout: 0}, {Txid: []byte{1}, Vout: 2}},
+			Spends:   []vetypes.UnauthorizedSpend{{PrevTxid: []byte{1}, PrevVout: 0}, {PrevTxid: []byte{1}, PrevVout: 3}},
 		},
 		Frost: &vetypes.FrostPayload{
 			Commitments: []vetypes.NonceCommitment{{ShareIndex: 1, Seq: 0}, {ShareIndex: 1, Seq: 1}, {ShareIndex: 2, Seq: 0}},
@@ -71,6 +72,20 @@ func TestDecodeVE(t *testing.T) {
 			ve := fullVE(h)
 			r := ve.Bitcoin.Reorgs
 			r[0], r[1] = r[1], r[0]
+			return mustMarshal(t, ve)
+		}, false},
+		{"unsorted spends", func(t *testing.T) []byte {
+			ve := fullVE(h)
+			s := ve.Bitcoin.Spends
+			s[0], s[1] = s[1], s[0]
+			return mustMarshal(t, ve)
+		}, false},
+		{"too many spends", func(t *testing.T) []byte {
+			ve := fullVE(h)
+			ve.Bitcoin.Spends = nil
+			for i := 0; i <= protocol.MaxSpends; i++ {
+				ve.Bitcoin.Spends = append(ve.Bitcoin.Spends, vetypes.UnauthorizedSpend{PrevTxid: []byte{byte(i)}})
+			}
 			return mustMarshal(t, ve)
 		}, false},
 		{"unsorted commitments", func(t *testing.T) []byte {

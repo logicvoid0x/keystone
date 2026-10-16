@@ -116,3 +116,16 @@ func (m *MsgDKGComplaint) ValidateBasic() error {
 	}
 	return nil
 }
+
+var (
+	_ sdk.Msg              = (*MsgClearTheftPause)(nil)
+	_ sdk.HasValidateBasic = (*MsgClearTheftPause)(nil)
+)
+
+// ValidateBasic checks the signer address.
+func (m *MsgClearTheftPause) ValidateBasic() error {
+	if _, err := sdk.AccAddressFromBech32(m.Admin); err != nil {
+		return errorsmod.Wrapf(ErrInvalidAddress, "admin %q: %v", m.Admin, err)
+	}
+	return nil
+}
