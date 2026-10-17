@@ -35,5 +35,5 @@ func TestParamsValidate(t *testing.T) {
 }
 
 func TestDefaultsMatchDesign(t *testing.T) {
-	require.Equal(t, types.Params{SinPauseBps: 500, SinPauseBlocks: 1000}, types.DefaultParams())
+	require.Equal(t, types.Params{SinPauseBps: 500, SinPauseBlocks: 1000, StakerShareBps: 2000}, types.DefaultParams())
 }

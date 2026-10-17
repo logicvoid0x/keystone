@@ -11,6 +11,7 @@ import (
 	sdkmath "cosmossdk.io/math"
 
 	sdked25519 "github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
@@ -194,4 +195,26 @@ func abciEvents(evs sdk.Events) []abciEvent {
 		out[i] = abciEvent(e)
 	}
 	return out
+}
+
+// TestStakersEarnInflation (design §7.7, spec M7-T6): x/mint inflation in ukey in the
+// fee collector reaches validators' outstanding rewards through x/distribution (the
+// KUSD share takes the same path; x/stablecoin tests cover the split); gas stays zero.
+func TestStakersEarnInflation(t *testing.T) {
+	c := apptest.NewWithPowers(t, []int64{3, 1})
+	c.NextBlock(nil)
+	for range 4 {
+		c.NextBlock(nil)
+	}
+	ctx := c.Context()
+	for _, op := range c.Operators {
+		r, err := c.App.DistrKeeper.GetValidatorOutstandingRewards(ctx, sdk.ValAddress(op.Addr))
+		require.NoError(t, err)
+		require.True(t, r.Rewards.AmountOf(app.BondDenom).IsPositive(), "%s earns ukey inflation", op.Addr)
+	}
+
+	// A user tx still pays no fee.
+	from, to := c.Users[0], c.Users[1]
+	b := c.NextBlock([][]byte{c.SignTx(from.Key, banktypes.NewMsgSend(from.Addr, to.Addr, sdk.NewCoins(sdk.NewInt64Coin(app.TestDenom, 1))))})
+	require.Equal(t, uint32(0), b.Finalize.TxResults[1].Code, b.Finalize.TxResults[1].Log)
 }

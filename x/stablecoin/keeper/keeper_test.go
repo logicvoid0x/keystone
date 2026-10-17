@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -91,6 +92,9 @@ func TestMintBurn(t *testing.T) {
 
 func TestSurplusAndShortfall(t *testing.T) {
 	f := setup(t)
+	p := types.DefaultParams()
+	p.StakerShareBps = 0 // TestStakerShare covers the split
+	require.NoError(t, f.k.Params.Set(f.ctx, p))
 	require.NoError(t, f.k.AccrueSurplus(f.ctx, i(300)))
 	require.Equal(t, i(300), f.k.SurplusBalance(f.ctx))
 	require.Equal(t, i(300), f.k.Supply(f.ctx))
@@ -187,7 +191,7 @@ func TestQueries(t *testing.T) {
 	q := keeper.NewQuerier(f.k)
 	s, err := q.Surplus(f.ctx, &types.QuerySurplusRequest{})
 	require.NoError(t, err)
-	require.Equal(t, i(7), s.Surplus)
+	require.Equal(t, i(6), s.Surplus, "7 - floor(7 × 20%)")
 	b, err := q.BadDebt(f.ctx, &types.QueryBadDebtRequest{})
 	require.NoError(t, err)
 	require.Equal(t, i(9), b.Sin)
@@ -216,4 +220,58 @@ func TestUpdateParams(t *testing.T) {
 	got, err := f.k.GetParams(f.ctx)
 	require.NoError(t, err)
 	require.Equal(t, next, got)
+}
+
+// Design §7.7 / spec M7-T6: stakers get ⌊fee × StakerShareBps / 10,000⌋ through the fee
+// collector; nothing while sin > 0; supply grows by the whole fee either way.
+func TestStakerShare(t *testing.T) {
+	f := setup(t)
+	require.NoError(t, f.k.AccrueSurplus(f.ctx, i(1_009)))
+	require.Equal(t, i(808), f.k.SurplusBalance(f.ctx), "1,009 - floor(201.8)")
+	require.Equal(t, i(201), f.bank.ModuleBalance(types.FeeCollector, types.Denom))
+	require.True(t, hasEvent(f.ctx, types.EventTypeStakerShare))
+	require.Equal(t, i(1_009), f.k.Supply(f.ctx))
+
+	require.NoError(t, f.k.RecordBadDebt(f.ctx, i(5), "auction"))
+	require.NoError(t, f.k.AccrueSurplus(f.ctx, i(100)))
+	require.Equal(t, i(908), f.k.SurplusBalance(f.ctx), "sin > 0: all to surplus")
+	require.Equal(t, i(201), f.bank.ModuleBalance(types.FeeCollector, types.Denom))
+
+	p := types.DefaultParams()
+	p.StakerShareBps = 0
+	require.NoError(t, f.k.Params.Set(f.ctx, p))
+	require.NoError(t, f.k.Heal(f.ctx))
+	require.NoError(t, f.k.AccrueSurplus(f.ctx, i(100)))
+	require.Equal(t, i(201), f.bank.ModuleBalance(types.FeeCollector, types.Denom), "share 0")
+}
+
+// Property (invariant 16): over random accruals, bad debt and heals, each accrual
+// moves at most ⌊amt × StakerShareBps / 10,000⌋ to the fee collector, nothing while
+// sin > 0, and surplus + fee collector grow by exactly amt.
+func TestStakerShareProperty(t *testing.T) {
+	f := setup(t)
+	rng := rand.New(rand.NewSource(16))
+	bps := int64(types.DefaultParams().StakerShareBps)
+	for step := range 500 {
+		switch rng.Intn(4) {
+		case 0:
+			require.NoError(t, f.k.RecordBadDebt(f.ctx, i(int64(1+rng.Intn(50))), "auction"))
+		case 1:
+			require.NoError(t, f.k.Heal(f.ctx))
+		default:
+			amt := i(int64(rng.Intn(10_000)))
+			sin, err := f.k.Sin.Get(f.ctx)
+			require.NoError(t, err)
+			s0, c0 := f.k.SurplusBalance(f.ctx), f.bank.ModuleBalance(types.FeeCollector, types.Denom)
+			require.NoError(t, f.k.AccrueSurplus(f.ctx, amt))
+			ds := f.k.SurplusBalance(f.ctx).Sub(s0)
+			dc := f.bank.ModuleBalance(types.FeeCollector, types.Denom).Sub(c0)
+			require.Equal(t, amt, ds.Add(dc), "step %d", step)
+			if sin.IsPositive() {
+				require.True(t, dc.IsZero(), "step %d: share while sin > 0", step)
+			} else {
+				require.True(t, dc.LTE(amt.MulRaw(bps).QuoRaw(10_000)), "step %d", step)
+			}
+		}
+	}
 }

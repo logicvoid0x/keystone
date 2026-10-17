@@ -26,8 +26,13 @@ const (
 	EventTypeBadDebt     = "bad_debt"
 	EventTypeHealed      = "healed"
 	EventTypeMintsPaused = "mints_paused"
+	EventTypeStakerShare = "staker_share" // M7, design §7.7
 
 	AttributeKeyAmount = "amount"
 	AttributeKeySource = "source"
 	AttributeKeySin    = "sin"
 )
+
+// FeeCollector is the SDK fee collector module account; x/distribution pays what it
+// holds to stakers each block (design §7.7, M7).
+const FeeCollector = "fee_collector"

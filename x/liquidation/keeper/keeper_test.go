@@ -397,12 +397,12 @@ func TestShortfallFromSurplus(t *testing.T) {
 	f := setup(t)
 	f.fund(t, bob, kusd(50_000))
 	f.deposit(t, bob, kusd(50_000))
-	require.NoError(t, f.sc.AccrueSurplus(f.ctx, kusd(10_000)))
+	require.NoError(t, f.sc.AccrueSurplus(f.ctx, kusd(10_000))) // 8,000 to surplus, 2,000 to stakers
 	id := f.vaultWithDebt(t, alice, 50_000_000, kusd(30_000))
 	f.liquidate(t, n(50_000*usd)) // collateral worth 25,000 < 30,000 debt
 	v, _ := f.vault.GetVault(f.ctx, id)
 	require.True(t, v.CollateralSat.IsZero(), "all collateral seized")
-	require.Equal(t, kusd(5_000), f.sc.SurplusBalance(f.ctx), "surplus covered 5,000")
+	require.Equal(t, kusd(3_000), f.sc.SurplusBalance(f.ctx), "surplus covered 5,000 of its 8,000")
 	c, _, _ := f.k.Position(f.ctx, bob)
 	require.InDelta(t, kusd(25_000).Int64(), c.Int64(), 2, "depositors lose only the collateral value")
 }

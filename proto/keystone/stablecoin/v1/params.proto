@@ -12,4 +12,7 @@ message Params {
   uint32 sin_pause_bps = 1;
   // sin_pause_blocks is how long bad debt may stay above sin_pause_bps before pausing.
   uint32 sin_pause_blocks = 2;
+  // staker_share_bps is the share of each stability-fee accrual paid to stakers through
+  // the fee collector, rounded down; zero while sin > 0 (design §7.7, added in M7).
+  uint32 staker_share_bps = 3;
 }

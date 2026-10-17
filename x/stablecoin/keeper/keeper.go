@@ -88,15 +88,51 @@ func (k *Keeper) BurnFromModule(ctx context.Context, module string, amt sdkmath.
 	return k.bank.BurnCoins(ctx, module, kusd(amt))
 }
 
-// AccrueSurplus mints amt KUSD of stability-fee revenue into the surplus buffer.
+// AccrueSurplus mints amt KUSD of stability-fee revenue. While sin is zero,
+// ⌊amt × StakerShareBps / 10,000⌋ goes to the fee collector for x/distribution to pay
+// stakers (design §7.7, M7); the rest goes to the surplus buffer.
 func (k *Keeper) AccrueSurplus(ctx context.Context, amt sdkmath.Int) error {
 	if err := checkAmount(amt); err != nil || amt.IsZero() {
+		return err
+	}
+	share, err := k.stakerShare(ctx, amt)
+	if err != nil {
 		return err
 	}
 	if err := k.bank.MintCoins(ctx, types.ModuleName, kusd(amt)); err != nil {
 		return err
 	}
-	return k.bank.SendCoinsFromModuleToModule(ctx, types.ModuleName, types.SurplusModuleAccount, kusd(amt))
+	if err := k.bank.SendCoinsFromModuleToModule(ctx, types.ModuleName, types.SurplusModuleAccount, kusd(amt.Sub(share))); err != nil {
+		return err
+	}
+	if share.IsZero() {
+		return nil
+	}
+	if err := k.bank.SendCoinsFromModuleToModule(ctx, types.ModuleName, types.FeeCollector, kusd(share)); err != nil {
+		return err
+	}
+	sdk.UnwrapSDKContext(ctx).EventManager().EmitEvent(sdk.NewEvent(types.EventTypeStakerShare,
+		sdk.NewAttribute(types.AttributeKeyAmount, share.String())))
+	return nil
+}
+
+// stakerShare is ⌊amt × StakerShareBps / 10,000⌋, or zero while sin > 0.
+func (k *Keeper) stakerShare(ctx context.Context, amt sdkmath.Int) (sdkmath.Int, error) {
+	p, err := k.Params.Get(ctx)
+	if err != nil {
+		return sdkmath.Int{}, err
+	}
+	if p.StakerShareBps == 0 {
+		return sdkmath.ZeroInt(), nil
+	}
+	sin, err := k.Sin.Get(ctx)
+	if err != nil {
+		return sdkmath.Int{}, err
+	}
+	if sin.IsPositive() {
+		return sdkmath.ZeroInt(), nil
+	}
+	return amt.MulRaw(int64(p.StakerShareBps)).QuoRaw(10_000), nil
 }
 
 // AddToSurplus moves amt KUSD already held by a module into the surplus buffer

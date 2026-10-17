@@ -339,8 +339,9 @@ func TestDripThirtyDays(t *testing.T) {
 	debt, err := f.k.Debt(f.ctx, f.vault(t, id))
 	require.NoError(t, err)
 	require.Equal(t, "30048868155", debt.String())
-	// Fee revenue floor(30e9 × Δrate / RAY) = 48,868,154 ukusd minted to surplus.
-	require.Equal(t, "48868154", f.sc.SurplusBalance(f.ctx).String())
+	// Fee revenue floor(30e9 × Δrate / RAY) = 48,868,154 ukusd: 80% to surplus, the
+	// stakers' 20% (floor 9,773,630) to the fee collector (design §7.7).
+	require.Equal(t, "39094524", f.sc.SurplusBalance(f.ctx).String())
 
 	// Liquidation price ≈ $78,127.06: liquidatable just below, not at.
 	ok, err := f.k.IsLiquidatable(f.ctx, f.vault(t, id), n(78_127_057_203))
@@ -352,7 +353,7 @@ func TestDripThirtyDays(t *testing.T) {
 
 	// Same block again: no further accrual.
 	require.NoError(t, f.k.Drip(f.ctx, f.ctx.BlockTime()))
-	require.Equal(t, "48868154", f.sc.SurplusBalance(f.ctx).String())
+	require.Equal(t, "39094524", f.sc.SurplusBalance(f.ctx).String())
 }
 
 func TestLiquidationIndexAndIterate(t *testing.T) {
