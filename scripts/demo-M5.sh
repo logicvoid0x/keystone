@@ -63,12 +63,7 @@ atx_try() {
   hash=$(printf '%s' "$out" | jq -r .txhash)
   "$BIN" q wait-tx "$hash" --timeout 60s --home "$H/node0" -o json
 }
-entry() { # entry <node> <power>
-  local op pk
-  op=$("$BIN" keys show operator -a --home "$H/node$1" --keyring-backend test)
-  pk=$(q poa validators | jq -r --arg op "$op" '.validators[] | select(.operator_address == $op) | .consensus_pubkey')
-  jq -nc --arg op "$op" --arg pk "$pk" --arg p "$2" --arg m "node$1" '{operator_address: $op, consensus_pubkey: $pk, moniker: $m, power: $p}'
-}
+op_of() { "$BIN" keys show operator -a --home "$H/node$1" --keyring-backend test | tr -d '\r'; }
 
 # Funds in custody: 1 BTC in vault 1 and a 5,000 sat deposit (below MinDepositSat:
 # it funds the fee reserve that pays sweep fees).
@@ -84,19 +79,19 @@ btc 1 createwallet recv >/dev/null
 RECV_SCRIPT=$(btc 1 -rpcwallet=recv getaddressinfo "$(btc 1 -rpcwallet=recv getnewaddress "" bech32)" | jq -r .scriptPubKey)
 
 # a. Removing 2 of 4 at once leaves 2 < t = 3 of a funded epoch: rejected.
-# Entries must be sorted by operator address bytes: q poa validators lists them so.
-mapfile -t TWO < <(q poa validators | jq -c '.validators[-2:][] | {operator_address, consensus_pubkey, moniker, power: "0"}')
-res=$(atx_try poa set-validators "${TWO[@]}")
+# Removals must be sorted by operator address bytes: q admin allowlist lists them so.
+mapfile -t TWO < <(q admin allowlist | jq -r '.allowlist[-2:][].operator' | tr -d '\r')
+res=$(atx_try admin set-allowlist --remove "${TWO[0]}" --remove "${TWO[1]}")
 [ "$(printf '%s' "$res" | jq -r .code)" != "0" ] || fail "removing 2 of 4 operators was accepted"
 printf '%s' "$res" | jq -r .raw_log | grep -q 'removal guard' || fail "not rejected by the guard: $(printf '%s' "$res" | jq -r .raw_log)"
-[ "$(q poa validators | jq '[.validators[] | select(.power == "1")] | length')" = "4" ] || fail "operator set changed"
+[ "$(q admin allowlist | jq '.allowlist | length')" = "4" ] || fail "allowlist changed"
 pass "removing 2 of 4 operators at once rejected by the custody removal guard"
 
 # b. Stop a signer mid-session: freeze (docker pause) a node that the next session will
 # assign (signers are the first t operators by address with no misses), before the batch
 # opens. Either its VE is missing when the batch opens, so the session assigns the
 # others, or it was assigned, the session fails at its deadline and the retry signs.
-OPS=$(q poa validators | jq -r '.validators[].operator_address' | tr -d '\r') # Windows jq ends lines with CRLF
+OPS=$(q admin allowlist | jq -r '.allowlist[].operator' | tr -d '\r') # Windows jq ends lines with CRLF
 OP0=$("$BIN" keys show operator -a --home "$H/node0" --keyring-backend test)
 VICTIM=""
 for op in $(printf '%s\n' "$OPS" | head -3); do
@@ -149,12 +144,12 @@ pass "batch 2 stuck at 2 sat/vB ($TXA) replaced by $TXB at $RATE sat/vB, which c
 
 # d. Membership change: remove node3; the new epoch takes custody.
 H3=$(height)
-res=$(atx_try poa set-validators "$(entry 3 0)")
+res=$(atx_try admin set-allowlist --remove "$(op_of 3)")
 [ "$(printf '%s' "$res" | jq -r .code)" = "0" ] || fail "removing node3: $(printf '%s' "$res" | jq -r .raw_log)"
 hit=$(wait_event 0 "$H3" 10 custody_membership_pending '.removed != ""')
 [ -n "$hit" ] || fail "no custody_membership_pending"
 EFF=$(printf '%s' "${hit#* }" | jq -r .effective_height)
-pass "node3 removed (power 0); custody_membership_pending at ${hit%% *}, effective at $EFF"
+pass "node3 removed from the allowlist (jailed); custody_membership_pending at ${hit%% *}, effective at $EFF"
 wait_height "$EFF" 900
 hit=$(wait_event 0 "$EFF" 90 epoch_activated '.epoch == "2"')
 [ -n "$hit" ] || fail "epoch 2 not activated"

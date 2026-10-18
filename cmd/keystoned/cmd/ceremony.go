@@ -54,8 +54,10 @@ type CeremonyResult struct {
 	Threshold int
 }
 
-// Ceremony builds the genesis of a public network from the operators' infos: x/poa
-// with every operator at power 1, the admin a ⌊2n/3⌋+1 multisig of the operator keys
+// Ceremony builds the genesis of a public network from the operators' infos: x/admin
+// (admin and allowlist) and x/staking validators,
+// every operator bonded with app.DefaultSelfBond (equal power), the admin a ⌊2n/3⌋+1
+// multisig of the operator keys
 // (5 of 7), the custody keys (no epoch: the DKG runs from height 2, design §9.3), the
 // design §10.3 testnet params (signet, k = 6, MembershipDelayBlocks 28,800, cap 10 BTC)
 // and accounts for operators and hot keys. Operators are taken in address order, so the

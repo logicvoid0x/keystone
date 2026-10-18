@@ -101,6 +101,11 @@ func TestInitFiles(t *testing.T) {
 				require.Equal(t, app.BondDenom, sg.Params.BondDenom)
 				require.True(t, v.Tokens.IsPositive())
 			}
+			require.Equal(t, cmd.LocalUnbondingTime, sg.Params.UnbondingTime, "localnet unbonding")
+			var cg custodytypes.GenesisState
+			a.AppCodec().MustUnmarshalJSON(state[custodytypes.ModuleName], &cg)
+			require.EqualValues(t, 4, cg.Params.CustodySetSize)
+			require.True(t, cg.Params.MinCustodySelfBond.Equal(sdkmath.OneInt()))
 
 			kb, err := keyring.New("keystone", keyring.BackendTest, filepath.Join(dir, "node0"), nil, a.AppCodec())
 			require.NoError(t, err)

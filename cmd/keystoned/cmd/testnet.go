@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	cmtcfg "github.com/cometbft/cometbft/config"
 	cmttime "github.com/cometbft/cometbft/types/time"
@@ -28,6 +29,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
+	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
 	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/crypto/frost/secret"
@@ -102,10 +104,10 @@ type InitFilesArgs struct {
 func initFilesCmd(tempApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init-files",
-		Short: "Write N node homes with a shared PoA genesis",
+		Short: "Write N node homes with a shared proof-of-stake genesis",
 		Long: `Writes DIR/node0 .. DIR/node{N-1}, each a keystoned home with an ed25519 consensus key,
 an "operator" and a funded "test" account key (keyring backend "test"), and the same genesis:
-x/poa operators at power 1, an admin multisig of the operator keys (threshold floor(2N/3)+1;
+bonded, allowlisted validators (one per operator), an admin multisig of the operator keys (threshold floor(2N/3)+1;
 a single "admin" key in node0 when N = 1), vote extensions enabled at height 1.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			n, _ := cmd.Flags().GetInt(flagOperators)
@@ -200,6 +202,9 @@ func InitFiles(cdc codec.Codec, defaults app.GenesisState, args InitFilesArgs, i
 	}
 	if err := localCustodyGenesis(cdc, appState, args, nodes); err != nil {
 		return err
+	}
+	if custodytypes.IsLocalChainID(args.ChainID) {
+		localStakingGenesis(cdc, appState)
 	}
 	appStateJSON, err := json.MarshalIndent(appState, "", "  ")
 	if err != nil {
@@ -417,7 +422,8 @@ const (
 )
 
 // addNodeCmd writes one more node home next to an existing localnet (spec M2-T7). The
-// node is not a validator until the admin multisig adds it with MsgSetValidators.
+// node is not a validator until the admin multisig allowlists it (MsgSetAllowlist) and
+// its operator sends MsgCreateValidator (M7).
 func addNodeCmd(tempApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add-node",
@@ -465,12 +471,14 @@ type AddNodeArgs struct {
 	GenesisFile string
 }
 
-// NodeInfo is what the admin needs to add the node with MsgSetValidators.
+// NodeInfo is what the admin and the new operator need: the allowlist entry and the
+// MsgCreateValidator inputs (M7).
 type NodeInfo struct {
 	Home            string `json:"home"`
 	NodeID          string `json:"node_id"`
 	OperatorAddress string `json:"operator_address"`
-	ConsensusPubkey []byte `json:"consensus_pubkey"` // base64 in JSON, as MsgSetValidators expects
+	ConsensusPubkey []byte `json:"consensus_pubkey"` // raw ed25519 key, base64 in JSON
+	ValidatorAddr   string `json:"validator_address"`
 	ConsAddress     string `json:"cons_address_hex"`
 	Moniker         string `json:"moniker"`
 }
@@ -513,7 +521,7 @@ func AddNode(cdc codec.Codec, args AddNodeArgs, in *bufio.Reader) (NodeInfo, err
 		return NodeInfo{}, err
 	}
 	return NodeInfo{
-		Home: nf.home, NodeID: nf.nodeID, OperatorAddress: op.String(),
+		Home: nf.home, NodeID: nf.nodeID, OperatorAddress: op.String(), ValidatorAddr: sdk.ValAddress(op).String(),
 		ConsensusPubkey: nf.consPub.Bytes(), ConsAddress: fmt.Sprintf("%X", nf.consPub.Address()),
 		Moniker: fmt.Sprintf("node%d", i),
 	}, nil
@@ -545,6 +553,8 @@ func localCustodyGenesis(cdc codec.Codec, appState app.GenesisState, args InitFi
 		gs.Params.MembershipDelayBlocks = 100
 		gs.Params.ConfirmDepth = 1
 		gs.Params.RetireWatchBlocks = 20
+		gs.Params.CustodySetSize = 4
+		gs.Params.MinCustodySelfBond = sdkmath.OneInt()
 	}
 	if args.DevDealer && custodytypes.IsLocalChainID(args.ChainID) {
 		ops := make([]sdk.AccAddress, len(nodes))
@@ -584,4 +594,16 @@ func localCustodyGenesis(cdc codec.Codec, appState app.GenesisState, args InitFi
 	}
 	appState[custodytypes.ModuleName] = bz
 	return nil
+}
+
+// LocalUnbondingTime is the localnet unbonding period (design §10.3, M7).
+const LocalUnbondingTime = 10 * time.Minute
+
+// localStakingGenesis applies the localnet staking params (design §10.3): a 10-minute
+// unbonding period so demos can unbond.
+func localStakingGenesis(cdc codec.Codec, appState app.GenesisState) {
+	var st stakingtypes.GenesisState
+	cdc.MustUnmarshalJSON(appState[stakingtypes.ModuleName], &st)
+	st.Params.UnbondingTime = LocalUnbondingTime
+	appState[stakingtypes.ModuleName] = cdc.MustMarshalJSON(&st)
 }

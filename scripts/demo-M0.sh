@@ -3,7 +3,7 @@
 #   1. one-node home via `testnet init-files --operators 1`, start, wait for height 20;
 #   2. block 1 has no tx starting with KSTN;
 #   3. heights 2..20: txs[0] decodes as tx0 and no other tx has the magic;
-#   4. `keystoned q poa validators` lists 1 operator at power 1;
+#   4. `keystoned q staking validators` lists 1 bonded validator (M7);
 #   5. stop the node.
 # Needs: a built binary (make build), curl, jq, base64.
 set -euo pipefail
@@ -76,11 +76,10 @@ for ((hh = 2; hh <= TARGET; hh++)); do
 done
 pass "blocks 2..$TARGET: txs[0] decodes as tx0, no other magic tx"
 
-vals=$("$BIN" q poa validators --home "$HOME0" -o json)
-n=$(printf '%s' "$vals" | jq '.validators | length')
-p=$(printf '%s' "$vals" | jq -r '.validators[0].power | tostring')
-[ "$n" -eq 1 ] && [ "$p" = "1" ] || fail "poa validators: $vals"
-pass "q poa validators: 1 operator at power 1"
+vals=$("$BIN" q staking validators --home "$HOME0" -o json)
+n=$(printf '%s' "$vals" | jq '[.validators[] | select(.status == "BOND_STATUS_BONDED")] | length')
+[ "$n" -eq 1 ] || fail "staking validators: $vals"
+pass "q staking validators: 1 bonded validator"
 
 cleanup
 trap - EXIT

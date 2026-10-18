@@ -5,7 +5,7 @@
 #      height on all 4 nodes;
 #   3. make localnet-byz MODE=extra_magic for 60 blocks: height keeps increasing and the
 #      honest nodes count rejects;
-#   4. scripts/add-operator.sh: the 5th operator signs blocks.
+#   4. scripts/add-validator.sh: the 5th validator (allowlisted, bonded) signs blocks.
 # Since M3 the vaults are funded through regtest deposits (the dev credit message is
 # gone). Needs: Docker, curl, jq. Leaves the localnet stopped (homes kept; make
 # localnet-clean).
@@ -92,7 +92,7 @@ make --no-print-directory localnet-byz MODE= >/dev/null 2>&1 || fail "restore ho
 pass "node3 byzantine (extra_magic): height $B0 → $B1 (+$((B1 - B0))), honest nodes counted $total rejects"
 
 # 4. A 5th operator via the admin multisig.
-bash "$ROOT/scripts/add-operator.sh" | sed 's/^/      /' || fail "add-operator.sh"
+bash "$ROOT/scripts/add-validator.sh" | sed 's/^/      /' || fail "add-validator.sh"
 pass "5th operator added and signing"
 
 make --no-print-directory localnet-stop >/dev/null 2>&1 || true

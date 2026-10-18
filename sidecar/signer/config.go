@@ -30,7 +30,8 @@ type FileConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 	// PassphraseFile holds the share passphrase; relative to the node home.
 	PassphraseFile string `mapstructure:"passphrase-file"`
-	// Operator is this node's x/poa operator address (its DKG identity, M4b).
+	// Operator is this node's validator operator account address (its DKG identity, M4b;
+	// the same bytes as its valoper address, M7).
 	Operator string `mapstructure:"operator"`
 }
 

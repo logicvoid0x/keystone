@@ -3,7 +3,7 @@
 # and are bind-mounted, so they survive `make localnet-stop`.
 # Host ports per node i: RPC 26657+10i, gRPC 9090+10i, Prometheus 26660+10i.
 # node3 can be restarted as a byzantine proposer: make localnet-byz MODE=extra_magic.
-# node4 (profile "extra") is the 5th operator added by scripts/add-operator.sh.
+# node4 (profile "extra") is the 5th validator added by scripts/add-validator.sh.
 # Each node i follows its own regtest bitcoind, bitcoin<i> (RPC 18443, ZMQ hashblock
 # 28333, user/password keystone/keystone); the bitcoinds peer with each other. Chain
 # data lives in named volumes: localnet-stop keeps it, localnet-clean removes it.
