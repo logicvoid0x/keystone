@@ -27,7 +27,7 @@ func randInt(t *testing.T, n int) int {
 // aggregate is a valid BIP-340 signature for the BIP-341 output key, and a tampered
 // share is caught.
 func TestRandomThresholdSigning(t *testing.T) {
-	sawOddP, sawOddQ, sawOddR := false, false, false
+	sawOddP, sawOddQ := false, false
 	for iter := 0; iter < 60; iter++ {
 		evenY := iter%2 == 0
 		gk, shares, err := secret.GenerateWithDealer(nil, 4, 3, evenY)
@@ -88,9 +88,6 @@ func TestRandomThresholdSigning(t *testing.T) {
 		}
 		sg, err := frost.NewSigning(key, msg, cs)
 		require.NoError(t, err)
-		if sg.NegateNonces() {
-			sawOddR = true
-		}
 		var zs []frost.Scalar
 		for _, id := range ids {
 			z, err := secret.Sign(sg, id, shares[id-1].Secret, nonces[id])
@@ -108,7 +105,8 @@ func TestRandomThresholdSigning(t *testing.T) {
 		z01.Add(&zs[0]).Add(&zs[1])
 		require.True(t, sg.VerifyShares(ids[:2], []frost.Point{shares[ids[0]-1].VerifyingShare, shares[ids[1]-1].VerifyingShare}, z01))
 
-		sig := sg.Aggregate(zs).Bytes(frost.Taproot)
+		sig, err := sg.Aggregate(zs)
+		require.NoError(t, err)
 		require.True(t, frost.Verify(key, msg, sig))
 		parsed, err := schnorr.ParseSignature(sig)
 		require.NoError(t, err)
@@ -119,7 +117,6 @@ func TestRandomThresholdSigning(t *testing.T) {
 	}
 	require.True(t, sawOddP, "no odd-y group key drawn")
 	require.True(t, sawOddQ, "no odd-y output key drawn")
-	require.True(t, sawOddR, "no odd-y group commitment drawn")
 }
 
 func mustScalar(t *testing.T, b []byte) *frost.Scalar {

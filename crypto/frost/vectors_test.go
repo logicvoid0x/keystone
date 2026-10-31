@@ -82,7 +82,9 @@ func loadJSON(t *testing.T, path string, v any) {
 	require.NoError(t, json.Unmarshal(bz, v))
 }
 
-// TestSignVectors runs frost-core's check_sign_with_test_vectors for both suites.
+// TestSignVectors runs frost-core's check_sign_with_test_vectors through the ZF
+// library: shares from the given coefficients, nonces from the given randomness,
+// binding factors, signature shares and the aggregate signature.
 func TestSignVectors(t *testing.T) {
 	for _, tc := range []struct {
 		file  string
@@ -90,8 +92,6 @@ func TestSignVectors(t *testing.T) {
 	}{
 		{"secp256k1-tr/vectors.json", frost.Taproot},
 		{"secp256k1-tr/vectors-big-identifier.json", frost.Taproot},
-		{"secp256k1/vectors.json", frost.RFC9591},
-		{"secp256k1/vectors-big-identifier.json", frost.RFC9591},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			var v signVectors
@@ -172,7 +172,8 @@ func TestSignVectors(t *testing.T) {
 				require.False(t, sg.VerifyShares([]uint32{o.Identifier}, []frost.Point{s.VerifyingShare}, bad))
 				zs = append(zs, z)
 			}
-			sig := sg.Aggregate(zs).Bytes(tc.suite)
+			sig, err := sg.Aggregate(zs)
+			require.NoError(t, err)
 			require.Equal(t, v.Final.Sig, hex.EncodeToString(sig))
 			require.True(t, frost.Verify(key, msg, sig))
 			sig[len(sig)-1] ^= 1
@@ -202,7 +203,6 @@ func TestDKGVectors(t *testing.T) {
 		suite frost.Suite
 	}{
 		{"secp256k1-tr/vectors_dkg.json", frost.Taproot},
-		{"secp256k1/vectors_dkg.json", frost.RFC9591},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			var raw struct {
@@ -251,21 +251,23 @@ func TestDKGVectors(t *testing.T) {
 				}
 				gk, err := frost.SerializePoint(group)
 				require.NoError(t, err)
-				if tc.suite.IsTaproot() {
-					// post_dkg: P' = g_P·P, t0 = H_TapTweak(x(P)), share g_P·s + t0, key
-					// P' + t0·G with whatever parity it has.
-					p := group
-					if gk[0] == 0x03 {
-						s.Negate()
-						p = frost.NegPoint(p)
-					}
-					t0, err := frost.ParseScalar(frost.TapTweak(group, nil))
-					require.NoError(t, err)
-					s.Add(&t0)
-					require.Equal(t, vk, ser(t, frost.AddPoints(p, frost.MulBase(&t0))))
-				} else {
-					require.Equal(t, vk, hex.EncodeToString(gk[:]))
+				// post_dkg: P' = g_P·P, t0 = H_TapTweak(x(P)), share g_P·s + t0, key
+				// P' + t0·G with whatever parity it has.
+				pp := group
+				if gk[0] == 0x03 {
+					s.Negate()
+					pp = frost.NegPoint(pp)
 				}
+				t0b := frost.TapTweak(group, nil)
+				t0, err := frost.ParseScalar(t0b)
+				require.NoError(t, err)
+				s.Add(&t0)
+				require.Equal(t, vk, ser(t, frost.AddPoints(pp, frost.MulBase(&t0))))
+				// The library's key for (P, t0) is the same x-only key.
+				key, err := frost.NewKey(tc.suite, gk[:], t0b)
+				require.NoError(t, err)
+				x := key.XOnly()
+				require.Equal(t, vk[2:], hex.EncodeToString(x[:]))
 				sb := s.Bytes()
 				require.Equal(t, p.SigningShare, hex.EncodeToString(sb[:]))
 				require.Equal(t, p.VerifyingShare, ser(t, frost.MulBase(&s)))

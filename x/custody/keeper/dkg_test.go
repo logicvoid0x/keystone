@@ -178,7 +178,9 @@ func signWith(t *testing.T, f *dkgFixture, e types.KeyEpoch, signers ...int) {
 			require.True(t, sg.VerifyShares([]uint32{id}, []frost.Point{mustPoint(t, yb)}, z))
 			zs = append(zs, z)
 		}
-		require.True(t, frost.Verify(key, msg, sg.Aggregate(zs).Bytes(frost.Taproot)))
+		sig, err := sg.Aggregate(zs)
+		require.NoError(t, err)
+		require.True(t, frost.Verify(key, msg, sig))
 	}
 }
 

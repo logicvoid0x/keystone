@@ -998,7 +998,7 @@ The group key P is normalized to even y: if Y has odd y, every share and verifyi
 
 m\_v takes the place of a Taproot merkle root that has no revealable leaf, so these outputs are key-path only. Each UTXO stores its tweak. Encoding (fixed in M3): chain_id is its UTF-8 bytes, epoch and vault_id are 8-byte big-endian integers, and H_tag is the BIP-340 tagged hash with tag `Keystone/vault`. A tweak that is not below the curve order is rejected (BIP-341). A vault's script is registered when it opens if an epoch is ACTIVE; with no ACTIVE epoch the vault opens without an address (deposits disabled).
 
-**Signing with a tweak t:** let g\_Q = −1 if Q has odd y, else 1. As in `frost-secp256k1-tr` (`sign_with_tweak`, `aggregate_with_tweak`), the tweak is spread over the shares: signer i uses s\_i″ = g\_Q·(s\_i + t) as its secret and is verified against Y\_i″ = g\_Q·(Y\_i + t·G). The Lagrange coefficients of any signing set sum to 1, so Σ λ\_i·s\_i″ = g\_Q·(s + t) and the aggregate z = Σ z\_i is a BIP-340 signature for x(Q); the aggregator adds nothing. (Fixed in M4a: the earlier text had the aggregator add c·g\_Q·t, which gives the same signature but different individual shares, so it could not match the reference shares byte for byte.) Reference vectors come from the Zcash Foundation `frost-secp256k1-tr` crate, which implements this tweak handling; Keystone's Go code must match it byte for byte. **Flag for audit.**
+**Signing with a tweak t:** let g\_Q = −1 if Q has odd y, else 1. As in `frost-secp256k1-tr` (`sign_with_tweak`, `aggregate_with_tweak`), the tweak is spread over the shares: signer i uses s\_i″ = g\_Q·(s\_i + t) as its secret and is verified against Y\_i″ = g\_Q·(Y\_i + t·G). The Lagrange coefficients of any signing set sum to 1, so Σ λ\_i·s\_i″ = g\_Q·(s + t) and the aggregate z = Σ z\_i is a BIP-340 signature for x(Q); the aggregator adds nothing. (Fixed in M4a: the earlier text had the aggregator add c·g\_Q·t, which gives the same signature but different individual shares, so it could not match the reference shares byte for byte.) Since M7a the FROST operations are the Zcash Foundation `frost-secp256k1-tr` / `frost-core` 3.0.0 crates themselves, linked through cgo (`crypto/frost/internal/zf`). Because Keystone stores t rather than a merkle root, the shim applies the crate's `Tweak` steps with t and is tested to equal `sign_with_tweak` / `aggregate_with_tweak` byte for byte; the DKG proof of knowledge keeps Keystone's chain_id ‖ epoch context (§13 A9) on the crate's hash and nonce. **Flag for audit.**
 
 **Emergency script-path leaf: omitted in v1.**
 
@@ -1458,7 +1458,7 @@ The largest residual risks are t colluding operators stealing the treasury (boun
 | A10 | Dealer sends bad shares, or false complaints | Verifiable complaints with ECDH secret + DLEQ proof | Disqualified dealer | **Audit** |
 | A11 | Nonce reuse (bug, restore, round replay) | Write-ahead binding, chain-assigned seq, no nonce backups, revoke flag | Catastrophic if bypassed | **Audit** |
 | A12 | Signer equivocation or invalid shares | Per-operator verification, blame, admin removal | Retry delay | **Audit** |
-| A13 | Taproot tweak or parity mistake loses funds | Byte-for-byte vectors vs `frost-secp256k1-tr`; BIP-340 verify before storing any signature; regtest end-to-end | None if tests pass | **Audit** |
+| A13 | Taproot tweak or parity mistake loses funds | The `frost-secp256k1-tr` crate itself (M7a), its vectors, and a test that the stored-scalar tweak equals its `sign_with_tweak`; BIP-340 verify before storing any signature; regtest end-to-end | None if tests pass | **Audit** |
 | A14 | Fake deposit or inflated amount | Identical attestation from > 2/3 power, depth k | Reorg beyond k → deficit |  |
 | A15 | Feerate manipulation | Median of VE feerates, clamp 1–200 sat/vB, RBF | Overpay up to the clamp |  |
 | A16 | Withdrawal spam | 10,000 sat minimum, per-request fee share, 8-input cap | Queue delay |  |
@@ -1496,7 +1496,7 @@ Every milestone ships with tests at three levels: unit tests per keeper, a multi
 **Unit and property tests**
 
 - Keepers with in-memory stores: rate math (rpow against high-precision reference values), liquidation index ordering, pool P/S accounting, coin selection, fee split, address derivation.
-- FROST: RFC 9591 test vectors for the core, `frost-secp256k1-tr` vectors for tweaks and parity, and BIP-340 test vectors for verification.
+- FROST: the `frost-secp256k1-tr` crate is linked (M7a); its signing and DKG vectors run through the Go API, the Rust shim is tested against the crate's own entry points, and BIP-340 test vectors cover verification.
 - Property tests (`pgregory.net/rapid`): random operation sequences against the Appendix A invariants, run at the end of every simulated block.
 
 **Determinism**

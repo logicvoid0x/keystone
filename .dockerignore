@@ -4,3 +4,4 @@ localnet/homes
 keystone-specs.zip
 build/*
 !build/linux
+crypto/frost/internal/zf/lib

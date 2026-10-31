@@ -2,6 +2,7 @@
 buf = "1.75.0"
 go = "1.26"
 jq = "1.8.2"
+zig = "0.15.2"
 
 [env]
 # Prevents Go's internal toolchain switching from overriding mise

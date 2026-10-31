@@ -34,11 +34,19 @@ the milestone summary; do not stop for it.
 - From M7, consensus uses the stock SDK `x/staking`, `x/slashing`, `x/distribution`,
   `x/evidence` and `x/mint` (bond denom `ukey`); `x/admin` (formerly `x/poa`) keeps the
   admin address and the validator allowlist.
+- From M7a, FROST is the Zcash Foundation crates `frost-core` and `frost-secp256k1-tr`
+  **=3.0.0** (Rust, `Cargo.lock` committed), behind the C ABI shim
+  `crypto/frost/internal/zf/rust` and linked with cgo. Builds need Rust (`rustup target
+  add x86_64-pc-windows-gnu x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu`) and
+  zig **0.15.2** (`mise.toml`), which the Makefile uses as the C compiler for every target.
 
 ## Hard rules: determinism (state-machine code)
 
 State-machine code is everything under `x/`, `app/protocol/` and `crypto/frost/`, except
-`crypto/frost/secret/` and anything under `sidecar/`. In that code:
+`crypto/frost/secret/` and anything under `sidecar/`. The public entry points of the
+Rust shim (`crypto/frost/internal/zf/rust`) are state-machine code too: they must stay
+pure functions of their inputs (no randomness, no I/O, `BTreeMap` only), catch every
+panic, and detlint cannot check them. In that code:
 
 1. No `float32` / `float64`. Amounts are `sdkmath.Int`; ratios are WAD (1e18) or
    RAY (1e27) fixed point. Rounding always favours the protocol (debt up, payouts down).
@@ -102,8 +110,8 @@ continuous run, without waiting for approval between steps or milestones.
 
 | Command | Does |
 | --- | --- |
-| `make build` | Builds `./build/keystoned` |
-| `make test` | `go test ./...` (unit + property tests) |
+| `make build` | Builds `./build/keystoned` (first builds the FROST library: `make zf-lib`) |
+| `make test` | `cargo test` of the FROST shim, then `go test ./...` (unit + property tests) |
 | `make lint` | `go vet`, `detlint`, `golangci-lint` (if installed) |
 | `make proto` | Regenerates protobuf Go code with buf |
 | `make localnet-start` / `make localnet-stop` | 4-node localnet (M2+) |

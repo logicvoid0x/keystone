@@ -1,0 +1,24 @@
+# C ABI shim over the Zcash Foundation FROST crates (design §9.6). Built as a static
+# library by `make zf-lib` and linked into keystoned through cgo
+# (crypto/frost/internal/zf). Versions are pinned exactly; Cargo.lock is committed.
+[package]
+name = "keystone-frost"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "keystone_frost"
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+frost-core = { version = "=3.0.0", default-features = false, features = ["internals"] }
+frost-secp256k1-tr = { version = "=3.0.0", default-features = false }
+
+[dev-dependencies]
+sha2 = { version = "0.10", default-features = false }
+
+[profile.release]
+panic = "unwind"
+codegen-units = 1
+lto = true

@@ -294,8 +294,8 @@ sessions:
 				}
 				zs = append(zs, z)
 			}
-			sig := sg.Aggregate(zs).Bytes(frost.Taproot)
-			if !frost.Verify(sg.Key(), s.Msg, sig) {
+			sig, err := sg.Aggregate(zs)
+			if err != nil || !frost.Verify(sg.Key(), s.Msg, sig) {
 				panic(fmt.Sprintf("frost aggregation bug: session %x", id)) // identical on every node
 			}
 			batch.Signed = append(batch.Signed, types.SessionSigned{SessionID: id, Signature: sig})

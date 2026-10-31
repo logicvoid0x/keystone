@@ -40,6 +40,7 @@ keystone/
     btcwatch/                  # Bitcoin watcher (M3)
     signer/                    # FROST signer + nonce store (M4a)
   crypto/frost/                # FROST math, deterministic parts usable on-chain (M4a)
+  crypto/frost/internal/zf/    # cgo bridge + Rust shim over the ZF frost crates (M7a)
   x/admin/ (x/poa before M7)  x/oracle/  x/vault/  x/stablecoin/  x/liquidation/  x/custody/
     keeper/  types/  module.go  genesis.go
   proto/keystone/<module>/v1/*.proto

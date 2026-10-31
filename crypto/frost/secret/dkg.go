@@ -1,13 +1,16 @@
 // FLAG FOR AUDIT: DKG secret operations (design §9.3): dealer polynomials, proofs of
-// knowledge, share encryption and DLEQ proofs for complaints. Sidecar-only.
+// knowledge (frost-core, crypto/frost/internal/zf), share encryption and DLEQ proofs
+// for complaints. Sidecar-only.
 
 package secret
 
 import (
 	"crypto/rand"
+	"errors"
 	"io"
 
 	"github.com/OWNER/keystone/crypto/frost"
+	"github.com/OWNER/keystone/crypto/frost/internal/zf"
 )
 
 func reader(r io.Reader) io.Reader {
@@ -42,35 +45,26 @@ func Commitments(poly []frost.Scalar) []frost.Point {
 	return out
 }
 
-// ProofOfKnowledge proves knowledge of a_0 for C_0 = a_0·G (frost-core
-// compute_proof_of_knowledge with the challenge over ctx): k random, R = k·G (negated
-// to even y for Taproot, as generate_nonce does), μ = k + a_0·c.
-func ProofOfKnowledge(r io.Reader, s frost.Suite, ctx []byte, id uint32, a0 frost.Scalar) ([]byte, error) {
-	k, err := randomScalar(reader(r))
+// pokRandom is the randomness handed to the proof-of-knowledge nonce: 32 bytes per
+// draw, with room for frost-core's rejection sampling.
+const pokRandom = 128
+
+// ProofOfKnowledge proves knowledge of a_0 for C_0 = a_0·G (64 bytes: x-only R ‖ μ):
+// frost-core `compute_proof_of_knowledge` with the challenge over ctx (k from
+// frost-secp256k1-tr `generate_nonce`, R at even y, μ = k + a_0·c).
+func ProofOfKnowledge(r io.Reader, _ frost.Suite, ctx []byte, id uint32, a0 frost.Scalar) ([]byte, error) {
+	if id == 0 || id > frost.MaxID {
+		return nil, errors.New("frost: share index out of range")
+	}
+	rnd := make([]byte, pokRandom)
+	if _, err := io.ReadFull(reader(r), rnd); err != nil {
+		return nil, err
+	}
+	p, err := zf.ProveKnowledge(ctx, uint16(id), a0.Bytes(), rnd)
 	if err != nil {
 		return nil, err
 	}
-	rp := frost.MulBase(&k)
-	rb, err := frost.SerializePoint(rp)
-	if err != nil {
-		return nil, err
-	}
-	if s.IsTaproot() && rb[0] == 0x03 {
-		k.Negate()
-		rp = frost.NegPoint(rp)
-		rb[0] = 0x02
-	}
-	c, err := frost.PoKChallenge(s, ctx, id, frost.MulBase(&a0), rp)
-	if err != nil {
-		return nil, err
-	}
-	mu := a0
-	mu.Mul(&c).Add(&k)
-	mb := mu.Bytes()
-	if s.IsTaproot() {
-		return append(rb[1:], mb[:]...), nil
-	}
-	return append(rb[:], mb[:]...), nil
+	return p[:], nil
 }
 
 // SealShare encrypts share for a recipient under key with a random nonce.

@@ -59,14 +59,6 @@ func isIdentity(p *Point) bool {
 	return p.Z.IsZero() || (p.X.IsZero() && p.Y.IsZero())
 }
 
-// hasOddY reports whether the affine y of p is odd.
-func hasOddY(p *Point) bool {
-	q := *p
-	q.ToAffine()
-	q.Y.Normalize()
-	return q.Y.IsOdd()
-}
-
 func neg(p Point) Point {
 	p.ToAffine()
 	p.Y.Normalize()
@@ -124,16 +116,4 @@ func xOnly(p Point) [32]byte {
 	p.ToAffine()
 	p.X.Normalize()
 	return *p.X.Bytes()
-}
-
-// identifierScalar is the scalar of a share index (RFC 9591 identifiers 1..n).
-func identifierScalar(id uint32) Scalar {
-	var s Scalar
-	s.SetInt(id)
-	return s
-}
-
-func identifierBytes(id uint32) [32]byte {
-	s := identifierScalar(id)
-	return s.Bytes()
 }

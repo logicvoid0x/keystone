@@ -1,12 +1,15 @@
-// FLAG FOR AUDIT: RFC 9591 signing (binding factors, group commitment, Lagrange
-// coefficients, challenge, share verification, aggregation) with the
-// frost-secp256k1-tr parity rules. Public data only: used on-chain by x/custody.
+// FLAG FOR AUDIT: FROST signing (binding factors, group commitment, Lagrange
+// coefficients, challenge, share verification, aggregation, BIP-340 verification) is
+// the Zcash Foundation frost-secp256k1-tr crate's (crypto/frost/internal/zf). Public
+// data only: used on-chain by x/custody.
 
 package frost
 
 import (
 	"errors"
 	"fmt"
+
+	"github.com/OWNER/keystone/crypto/frost/internal/zf"
 )
 
 // Commitment is a signer's round-one nonce commitment pair (D_i, E_i).
@@ -29,41 +32,40 @@ func ParseCommitment(id uint32, hiding, binding []byte) (Commitment, error) {
 	return Commitment{ID: id, Hiding: d, Binding: e}, nil
 }
 
-// Signing is the public state of one signing operation, prepared from the key, the
-// message and the commitments of exactly the participating signers.
+// Signing is the public state of one signing operation: the key, the message and the
+// commitments of exactly the participating signers.
 type Signing struct {
 	key         Key
-	msg         []byte
 	commitments []Commitment // sorted by ID
-	rhoInput    [][]byte
-	rho         []Scalar
-	lambda      []Scalar
-	shares      []Point // R_i = D_i + ρ_i·E_i, negated when R has odd y (Taproot)
-	r           Point   // group commitment, even y for Taproot
-	rOdd        bool
-	c           Scalar
+	sess        zf.Session
 }
 
-// NewSigning computes binding factors, the group commitment, Lagrange coefficients and
-// the challenge. commitments must be sorted by strictly increasing nonzero ID.
+// MaxID is the largest share index (frost-core identifiers are 16-bit).
+const MaxID = 0xFFFF
+
+func shortID(id uint32) (uint16, error) {
+	if id == 0 || id > MaxID {
+		return 0, fmt.Errorf("frost: share index %d out of range", id)
+	}
+	return uint16(id), nil
+}
+
+// NewSigning prepares a signing operation. commitments must be sorted by strictly
+// increasing nonzero ID, and the group commitment must not be the identity.
 func NewSigning(key Key, msg []byte, commitments []Commitment) (*Signing, error) {
 	if len(commitments) == 0 {
 		return nil, errors.New("frost: no commitments")
 	}
+	s := &Signing{key: key, commitments: append([]Commitment(nil), commitments...)}
+	s.sess = zf.Session{GroupKey: key.groupKey, Tweak: key.tweak, Msg: append([]byte(nil), msg...)}
 	for i, c := range commitments {
-		if c.ID == 0 || (i > 0 && commitments[i-1].ID >= c.ID) {
+		if i > 0 && commitments[i-1].ID >= c.ID {
 			return nil, errors.New("frost: commitments not sorted by distinct nonzero id")
 		}
-		if isIdentity(&c.Hiding) || isIdentity(&c.Binding) {
-			return nil, errIdentity
+		id, err := shortID(c.ID)
+		if err != nil {
+			return nil, err
 		}
-	}
-	s := &Signing{key: key, msg: append([]byte(nil), msg...), commitments: append([]Commitment(nil), commitments...)}
-
-	// Binding factor inputs: vk ‖ H4(msg) ‖ H5(encode_group_commitments) ‖ id.
-	var enc []byte
-	for _, c := range commitments {
-		id := identifierBytes(c.ID)
 		d, err := SerializePoint(c.Hiding)
 		if err != nil {
 			return nil, err
@@ -72,75 +74,12 @@ func NewSigning(key Key, msg []byte, commitments []Commitment) (*Signing, error)
 		if err != nil {
 			return nil, err
 		}
-		enc = append(append(append(enc, id[:]...), d[:]...), e[:]...)
+		s.sess.Commitments = append(append(append(s.sess.Commitments, byte(id>>8), byte(id)), d[:]...), e[:]...)
 	}
-	vk := key.VerifyingKey()
-	h4, h5 := key.suite.H4(msg), key.suite.H5(enc)
-	prefix := append(append(append([]byte{}, vk[:]...), h4[:]...), h5[:]...)
-	var r Point
-	s.rhoInput = make([][]byte, len(commitments))
-	s.rho = make([]Scalar, len(commitments))
-	s.shares = make([]Point, len(commitments))
-	for i, c := range commitments {
-		id := identifierBytes(c.ID)
-		s.rhoInput[i] = append(append([]byte{}, prefix...), id[:]...)
-		s.rho[i] = key.suite.H1(s.rhoInput[i])
-		s.shares[i] = add(c.Hiding, mul(&s.rho[i], c.Binding))
-		r = add(r, s.shares[i])
-	}
-	r.ToAffine()
-	if isIdentity(&r) {
+	if err := s.sess.Check(); err != nil {
 		return nil, errIdentity
 	}
-	if key.suite.taproot && hasOddY(&r) {
-		s.rOdd = true
-		r = neg(r)
-		for i := range s.shares {
-			s.shares[i] = neg(s.shares[i])
-		}
-	}
-	s.r = r
-
-	s.lambda = make([]Scalar, len(commitments))
-	for i, c := range commitments {
-		s.lambda[i] = lagrange(commitments, c.ID)
-	}
-	s.c = challenge(key.suite, r, key.vk, msg)
 	return s, nil
-}
-
-// lagrange is λ_i = Π_{j≠i} x_j / (x_j − x_i) at 0. IDs are distinct, so the
-// denominator is nonzero.
-func lagrange(cs []Commitment, id uint32) Scalar {
-	num, den := identifierScalar(1), identifierScalar(1)
-	xi := identifierScalar(id)
-	xi.Negate()
-	for _, c := range cs {
-		if c.ID == id {
-			continue
-		}
-		xj := identifierScalar(c.ID)
-		num.Mul(&xj)
-		d := xj
-		d.Add(&xi)
-		den.Mul(&d)
-	}
-	den.InverseNonConst()
-	return *num.Mul(&den)
-}
-
-// challenge is H2(R ‖ vk ‖ msg); Taproot hashes x-only R and vk (BIP-340).
-func challenge(s Suite, r, vk Point, msg []byte) Scalar {
-	var pre []byte
-	if s.taproot {
-		rx, vx := xOnly(r), xOnly(vk)
-		pre = append(append(pre, rx[:]...), vx[:]...)
-	} else {
-		rb, _ := SerializePoint(r)
-		vb, _ := SerializePoint(vk)
-		pre = append(append(pre, rb[:]...), vb[:]...)
-	}
-	return s.H2(append(pre, msg...))
 }
 
 func (s *Signing) index(id uint32) (int, error) {
@@ -156,7 +95,10 @@ func (s *Signing) index(id uint32) (int, error) {
 func (s *Signing) Key() Key { return s.key }
 
 // Message is the signed message.
-func (s *Signing) Message() []byte { return s.msg }
+func (s *Signing) Message() []byte { return s.sess.Msg }
+
+// Session is the encoded session, for crypto/frost/secret.
+func (s *Signing) Session() *zf.Session { return &s.sess }
 
 // Commitment returns signer id's commitment.
 func (s *Signing) Commitment(id uint32) (Commitment, error) {
@@ -167,119 +109,63 @@ func (s *Signing) Commitment(id uint32) (Commitment, error) {
 	return s.commitments[i], nil
 }
 
-// BindingFactorInput and BindingFactor return ρ_i's preimage and value.
+// BindingFactorInput returns ρ_i's preimage.
 func (s *Signing) BindingFactorInput(id uint32) ([]byte, error) {
-	i, err := s.index(id)
-	if err != nil {
-		return nil, err
-	}
-	return s.rhoInput[i], nil
+	in, _, err := s.bindingFactor(id)
+	return in[:], err
 }
 
 // BindingFactor returns ρ_i.
 func (s *Signing) BindingFactor(id uint32) (Scalar, error) {
-	i, err := s.index(id)
+	_, rho, err := s.bindingFactor(id)
 	if err != nil {
 		return Scalar{}, err
 	}
-	return s.rho[i], nil
+	return ParseScalar(rho[:])
 }
 
-// Lambda returns signer id's Lagrange coefficient over the signing set.
-func (s *Signing) Lambda(id uint32) (Scalar, error) {
-	i, err := s.index(id)
-	if err != nil {
-		return Scalar{}, err
+func (s *Signing) bindingFactor(id uint32) (in [zf.BindingInputLen]byte, rho [32]byte, err error) {
+	if _, err = s.index(id); err != nil {
+		return
 	}
-	return s.lambda[i], nil
+	return s.sess.BindingFactor(uint16(id))
 }
-
-// Challenge is c.
-func (s *Signing) Challenge() Scalar { return s.c }
-
-// NegateNonces reports whether signers must negate (d, e): the group commitment has
-// odd y (Taproot only).
-func (s *Signing) NegateNonces() bool { return s.rOdd }
 
 // VerifyShares checks a combined share z = Σ_{i∈ids} z_i of the signers ids against
 // their raw verifying shares ys (of the group key, same order as ids):
-// z·G == Σ R_i' + c·Σ λ_i·Y_i″.
+// z·G == Σ R_i + c·Σ λ_i·Y_i″.
 func (s *Signing) VerifyShares(ids []uint32, ys []Point, z Scalar) bool {
 	if len(ids) == 0 || len(ids) != len(ys) {
 		return false
 	}
-	var rhs Point
+	short := make([]uint16, len(ids))
+	enc := make([][33]byte, len(ys))
 	for k, id := range ids {
-		i, err := s.index(id)
-		if err != nil {
+		if _, err := s.index(id); err != nil {
 			return false
 		}
-		for _, prev := range ids[:k] {
-			if prev == id {
-				return false
-			}
+		short[k] = uint16(id)
+		var err error
+		if enc[k], err = SerializePoint(ys[k]); err != nil {
+			return false
 		}
-		cl := s.c
-		cl.Mul(&s.lambda[i])
-		rhs = add(rhs, add(s.shares[i], mul(&cl, s.key.VerifyingShare(ys[k]))))
 	}
-	return equal(MulBase(&z), rhs)
+	return s.sess.VerifyShares(short, enc, z.Bytes())
 }
 
-// Signature is an aggregated signature (R, z).
-type Signature struct {
-	R Point
-	Z Scalar
-}
-
-// Aggregate sums the shares of every signer in the set: z = Σ z_i.
-func (s *Signing) Aggregate(zs []Scalar) Signature {
-	var z Scalar
+// Aggregate returns the 64-byte BIP-340 signature from shares summing to z (one per
+// signer, or one combined share per operator). It fails if the result does not verify.
+func (s *Signing) Aggregate(zs []Scalar) ([]byte, error) {
+	b := make([][32]byte, len(zs))
 	for i := range zs {
-		z.Add(&zs[i])
+		b[i] = zs[i].Bytes()
 	}
-	return Signature{R: s.r, Z: z}
+	sig, err := s.sess.Aggregate(b)
+	if err != nil {
+		return nil, err
+	}
+	return sig[:], nil
 }
 
-// Bytes serializes a signature: x(R) ‖ z (64 bytes) for Taproot, R ‖ z (65) otherwise.
-func (sig Signature) Bytes(s Suite) []byte {
-	zb := sig.Z.Bytes()
-	if s.taproot {
-		rx := xOnly(sig.R)
-		return append(rx[:], zb[:]...)
-	}
-	rb, _ := SerializePoint(sig.R)
-	return append(rb[:], zb[:]...)
-}
-
-// Verify checks a signature against the key: z·G == R + c·vk. For Taproot this is
-// BIP-340 verification for x(vk) with a message of any length.
-func Verify(key Key, msg, sig []byte) bool {
-	var r Point
-	var z Scalar
-	var err error
-	if key.suite.taproot {
-		if len(sig) != 64 {
-			return false
-		}
-		r, err = ParsePoint(append([]byte{0x02}, sig[:32]...))
-		if err != nil {
-			return false
-		}
-		if z, err = ParseScalar(sig[32:]); err != nil {
-			return false
-		}
-	} else {
-		if len(sig) != 65 {
-			return false
-		}
-		if r, err = ParsePoint(sig[:33]); err != nil {
-			return false
-		}
-		if z, err = ParseScalar(sig[33:]); err != nil {
-			return false
-		}
-	}
-	c := challenge(key.suite, r, key.vk, msg)
-	return equal(MulBase(&z), add(r, mul(&c, key.vk)))
-}
+// Verify is BIP-340 verification of sig under x(Q) for a message of any length.
+func Verify(key Key, msg, sig []byte) bool { return zf.Verify(key.vk, msg, sig) }

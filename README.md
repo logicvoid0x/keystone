@@ -17,7 +17,9 @@ Claude Code, which works through the milestones autonomously.
 
 1. `git init keystone && cd keystone`, copy this pack in, replace `OWNER` in the specs
    with your GitHub user or org, commit.
-2. Install Go 1.27.3 (or let `GOTOOLCHAIN=auto` fetch it), Docker, and `buf`.
+2. Install Go 1.27.3 (or let `GOTOOLCHAIN=auto` fetch it), Docker, `buf`, zig 0.15.2 (`mise
+   install`) and Rust with the `x86_64-pc-windows-gnu` / `x86_64-unknown-linux-gnu`
+   targets: FROST is the Zcash Foundation crate, linked with cgo (`make zf-lib`).
 3. Start Claude Code in the repo (auto mode recommended) and run `/milestone`. It
    implements every unfinished milestone in order, without approval steps, and logs
    any default assumptions in `docs/decisions.md` for you to review.
