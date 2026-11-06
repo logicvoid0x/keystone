@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -481,6 +482,9 @@ type NodeInfo struct {
 	ValidatorAddr   string `json:"validator_address"`
 	ConsAddress     string `json:"cons_address_hex"`
 	Moniker         string `json:"moniker"`
+	// EncPubkeyHex and HotKey are the custody keys for MsgRegisterCustodyKey (M4b, M7).
+	EncPubkeyHex string `json:"enc_pubkey_hex"`
+	HotKey       string `json:"hot_key"`
 }
 
 // AddNode writes DIR/node<index> with fresh keys, the given genesis and peers.
@@ -492,6 +496,10 @@ func AddNode(cdc codec.Codec, args AddNodeArgs, in *bufio.Reader) (NodeInfo, err
 	if err != nil {
 		return NodeInfo{}, err
 	}
+	op, err := nf.operator.GetAddress()
+	if err != nil {
+		return NodeInfo{}, err
+	}
 	nf.cfg.P2P.PersistentPeers = args.Peers
 	appCfg := DefaultAppConfig()
 	i := args.Index
@@ -500,6 +508,9 @@ func AddNode(cdc codec.Codec, args AddNodeArgs, in *bufio.Reader) (NodeInfo, err
 	if args.MockfeedURL != "" {
 		appCfg.Keystone.Price = price.MockConfig(args.MockfeedURL)
 	}
+	// Like init-files: the node signs custody sessions and takes part in DKGs once it
+	// is in a custody set (M7: after MsgRegisterCustodyKey).
+	appCfg.Keystone.Signer = signer.FileConfig{Enabled: true, PassphraseFile: DevPassphraseFile, Operator: op.String()}
 	if args.Docker {
 		dockerConfig(nf.cfg, appCfg, args.InitFilesArgs, i)
 	}
@@ -516,14 +527,10 @@ func AddNode(cdc codec.Codec, args AddNodeArgs, in *bufio.Reader) (NodeInfo, err
 	if err := os.WriteFile(nf.cfg.GenesisFile(), gen, 0o644); err != nil {
 		return NodeInfo{}, err
 	}
-	op, err := nf.operator.GetAddress()
-	if err != nil {
-		return NodeInfo{}, err
-	}
 	return NodeInfo{
 		Home: nf.home, NodeID: nf.nodeID, OperatorAddress: op.String(), ValidatorAddr: sdk.ValAddress(op).String(),
 		ConsensusPubkey: nf.consPub.Bytes(), ConsAddress: fmt.Sprintf("%X", nf.consPub.Address()),
-		Moniker: fmt.Sprintf("node%d", i),
+		Moniker: fmt.Sprintf("node%d", i), EncPubkeyHex: hex.EncodeToString(nf.custody.EncPubkey), HotKey: nf.custody.HotKey.String(),
 	}, nil
 }
 

@@ -9,7 +9,9 @@ import (
 	sdkmath "cosmossdk.io/math"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
+	"github.com/OWNER/keystone/app"
 	"github.com/OWNER/keystone/testutil/btcfake"
 	admintypes "github.com/OWNER/keystone/x/admin/types"
 	custodytypes "github.com/OWNER/keystone/x/custody/types"
@@ -49,6 +51,8 @@ type WorkloadStats struct {
 	Withdrawals, Signed, Confirmed int
 	// Custody epochs activated and retired, sweep batches opened (M4b/M5).
 	Epochs, Retired, Sweeps int
+	// Stake moved by users (M7): delegations and undelegations sent.
+	Delegations, Undelegations int
 }
 
 // NewWorkload seeds a workload on net.
@@ -161,6 +165,20 @@ func (w *Workload) Txs() [][]byte {
 			}
 		default:
 			send(a, &liqtypes.MsgWithdrawPool{Depositor: a.Addr.String(), Amount: sdkmath.NewInt(int64(w.rng.Intn(20_000)) * 1_000_000)})
+		}
+	}
+	// M7: users move stake, so validator power changes during the run.
+	if w.rng.Intn(4) == 0 {
+		a := actors[w.rng.Intn(len(actors))]
+		nd := net.Nodes[w.rng.Intn(len(net.Nodes))]
+		val := sdk.ValAddress(nd.Addr)
+		amt := sdk.NewCoin(app.BondDenom, sdk.DefaultPowerReduction.MulRaw(int64(1+w.rng.Intn(3))))
+		if w.rng.Intn(2) == 0 {
+			send(a, &stakingtypes.MsgDelegate{DelegatorAddress: a.Addr.String(), ValidatorAddress: val.String(), Amount: amt})
+			w.Stats.Delegations++
+		} else if d, err := net.Ref().App.StakingKeeper.GetDelegation(ctx, a.Addr, val); err == nil && d.Shares.GTE(sdkmath.LegacyNewDecFromInt(amt.Amount)) {
+			send(a, &stakingtypes.MsgUndelegate{DelegatorAddress: a.Addr.String(), ValidatorAddress: val.String(), Amount: amt})
+			w.Stats.Undelegations++
 		}
 	}
 	return txs
