@@ -4,7 +4,7 @@ BUILDDIR ?= build
 # make test builds with these tags (spec M1-T8): invariants run in EndBlock.
 TEST_TAGS ?= invariants
 
-.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go zf-lib zf-lib-linux zf-lib-all zf-test e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz localnet-signer3 localnet-monitoring e2e-M3 e2e-M4a e2e-M4b upgrade-drill release release-verify clean
+.PHONY: all build build-dev test lint proto proto-tools proto-lint check-go zf-lib zf-lib-linux zf-lib-all zf-test e2e e2e-M0 e2e-M2 determinism-long localnet-bin localnet-start localnet-stop localnet-clean localnet-byz localnet-signer3 localnet-monitoring e2e-M3 e2e-M4a e2e-M4b e2e-M5 upgrade-drill release release-verify clean
 
 all: build
 
@@ -82,8 +82,11 @@ build-dev: check-go zf-lib
 	@mkdir -p $(BUILDDIR)
 	$(GO) build -o $(BUILDDIR)/ ./cmd/keystoned ./cmd/mockfeed
 
-# e2e runs the demo of the latest finished milestone (M5: needs Docker).
+# e2e runs the demo of the latest finished milestone (M7: needs Docker).
 e2e: build-dev
+	bash scripts/demo-M7.sh
+
+e2e-M5: build-dev
 	bash scripts/demo-M5.sh
 
 e2e-M4b: build-dev
