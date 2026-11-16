@@ -1,52 +1,104 @@
-# Keystone — instructions for Claude Code
+# Keystone — notes for Claude Code
 
-Keystone is a permissioned proof-of-stake Cosmos SDK chain (from M7; proof of
-authority before). Users lock native BTC in a Taproot treasury held by the
-custody set's FROST key and mint the KUSD stablecoin
-against it. Prices, Bitcoin attestations and FROST signature shares travel in
-ABCI++ vote extensions.
+Keystone is a permissioned proof-of-stake Cosmos SDK chain. Users lock native BTC
+in a Taproot treasury held by the custody set's FROST key and mint the KUSD
+stablecoin against it. Prices, Bitcoin attestations and FROST signature shares
+travel in ABCI++ vote extensions (VEs) and are applied in the PreBlocker.
 
-## Sources of truth (read before coding)
+## Docs
 
 | File | What it is |
 | --- | --- |
-| `docs/design.md` | The full design. Section numbers (§5.4 etc.) in specs refer to it. |
-| `docs/specs/00-overview.md` | Milestone map, repo layout, conventions, definition of done. |
-| `docs/specs/M*.md` | One spec per milestone. Implement one milestone at a time, in order. |
-| `docs/verified-apis.md` | SDK / CometBFT / btcd APIs already confirmed against source. Trust these over memory. |
-| `docs/decisions.md` | Log of decisions made during implementation. Append, never rewrite. |
+| `docs/design.md` | The full design. Section references (§5.9 etc.) in code comments point here. It is the source of truth for behaviour. |
+| `docs/operators.md` | Running a node: hardware, bitcoind, price sources, keys, backups, alerts, upgrades. |
+| `docs/specs/*.md` | The original milestone specs (M0–M7a). Historical; useful for why code is shaped as it is. |
+| `docs/decisions.md`, `docs/status.md`, `docs/verified-apis.md` | Local only (in `.git/info/exclude`, not committed). Decision log, milestone status, and SDK / CometBFT / btcd APIs confirmed against source. Use them if present. |
 
-If a spec and `docs/design.md` disagree, the spec wins for scope and the design
-wins for behaviour. Record the conflict in `docs/decisions.md` and mention it in
-the milestone summary; do not stop for it.
+## Architecture
+
+```
+cmd/keystoned/        root, start, genesis ceremony, custody init/shares, testnet init-files/add-node,
+                      decode-tx0, tx admin-upgrade
+cmd/mockfeed/         mock price feed used by the demos and localnet
+app/                  app.go wiring, ante (zero gas), genesis/export, invariants (build tag
+                      `invariants`), metrics, upgrades (v2), byzantine proposer (build tag `byzantine`)
+app/protocol/         ABCI++ (state machine): VE codec, tx0 injection, VerifyVotes, Aggregate,
+                      Prepare/ProcessProposal, ExtendVote/VerifyVoteExtension, PreBlocker, VE version schedule
+app/valset/           adapts x/staking to the validator view x/oracle and x/custody read
+x/admin/              admin address (authority for every MsgUpdateParams) + validator allowlist
+x/oracle/             VE price aggregation, liquidation price, staleness
+x/vault/              BTC-collateral vaults, KUSD debt, interest drip, withdraw/close requests
+x/stablecoin/         KUSD (ukusd) mint/burn, surplus
+x/liquidation/        selection, stability pool (Liquity P/S port, flagged for audit), auctions
+x/custody/            Taproot deposit scripts, key epochs, deposits/UTXOs, withdrawal batches,
+                      FROST signing sessions, nonce pools, DKG, membership change + sweeps,
+                      RBF, consolidation, slashing of the custody set
+x/validators/         validator record shared by oracle/custody (no x/staking import)
+x/internal/bounds/    param bounds (design §17)
+crypto/frost/         FROST (RFC 9591, secp256k1-tr) public operations used on-chain, DKG checks, DLEQ
+crypto/frost/secret/  nonce generation, signing, dealer keygen — sidecar only (detlint bans it in state machine)
+crypto/frost/internal/zf/  cgo bridge + Rust shim over the Zcash Foundation frost crates
+sidecar/price/        price fetcher → OraclePayload
+sidecar/btcwatch/     bitcoind RPC + ZMQ watcher → BitcoinPayload; broadcasts signed txs
+sidecar/signer/       FROST signer → FrostPayload; bbolt nonce store (sidecar/signer/noncestore)
+sidecar/dkg/          DKG participant (signs MsgDKGCommit/Deal/Complaint with the custody hot key)
+testutil/             apptest (single-node), multinode (in-process N-node harness, determinism,
+                      byzantine, DKG, failures), btcfake, devdealer, fakebank
+tools/detlint/        determinism analyzer
+localnet/             docker-compose: 4 nodes, 4 regtest bitcoinds, mockfeed, Prometheus/Grafana, nginx example
+scripts/              demo-M*.sh, add-validator.sh, genesis-ceremony.sh, release.sh, upgrade-drill.sh
+proto/keystone/<module>/v1/   protobuf; Go generated into x/<module>/types (VE types in app/protocol/vetypes)
+```
+
+**Block flow.** ExtendVote collects the sidecars' payloads into a VE. The next
+proposer injects the previous commit's VEs as tx0 (`KSTN` magic); ProcessProposal
+rejects a block whose tx0 does not match. The PreBlocker then runs, each step in a
+cached context: Aggregate → `oracle.ApplyAggregate` → `vault.Drip` →
+`liquidation.Select` → `liquidation.Execute` → `custody.BuildOps` → `custody.ApplyOps`.
+
+**Consensus.** Stock SDK `x/staking`, `x/slashing`, `x/distribution`, `x/evidence`
+and `x/mint` (bond denom `ukey`). `x/admin` gates who may become a validator. The
+custody set is the top N validators by power.
 
 ## Versions (pinned)
 
-- Go: toolchain **go1.27.3**. The `go` directive in go.mod must be at least the
-  highest directive of any dependency (Cosmos SDK v0.55.0 needs 1.26.5; current
-  btcd modules need 1.26.10). Let `go mod tidy` set it; never lower it.
-  If a dependency fails to build on 1.27.3, switch the toolchain to go1.26.10,
-  record it in `docs/decisions.md`, and continue.
-- `github.com/cosmos/cosmos-sdk` **v0.55.0** (pulls `github.com/cometbft/cometbft` **v0.40.0**).
-- `cosmossdk.io/collections`, `cosmossdk.io/math`, `cosmossdk.io/log/v2`: versions required by SDK v0.55.0.
-- `github.com/btcsuite/btcd`, `btcd/btcec/v2`, `btcd/btcutil`, `btcd/btcutil/psbt`: latest tagged releases.
-- Do **not** use the Cosmos Enterprise PoA module (no vote-extension support).
-- From M7, consensus uses the stock SDK `x/staking`, `x/slashing`, `x/distribution`,
-  `x/evidence` and `x/mint` (bond denom `ukey`); `x/admin` (formerly `x/poa`) keeps the
-  admin address and the validator allowlist.
-- From M7a, FROST is the Zcash Foundation crates `frost-core` and `frost-secp256k1-tr`
-  **=3.0.0** (Rust, `Cargo.lock` committed), behind the C ABI shim
-  `crypto/frost/internal/zf/rust` and linked with cgo. Builds need Rust (`rustup target
-  add x86_64-pc-windows-gnu x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu`) and
-  zig **0.15.2** (`mise.toml`), which the Makefile uses as the C compiler for every target.
+- Go **1.26.10** (`.go-version`, `mise.toml`, `GOTOOLCHAIN=local`). Use a 64-bit Go;
+  `make check-go` rejects 32-bit. Let `go mod tidy` set the `go` directive; never lower it.
+- `github.com/cosmos/cosmos-sdk` **v0.55.0**, `github.com/cometbft/cometbft` **v0.40.0**.
+- btcd split modules (`btcec/v2`, `txscript/v2`, `wire/v2`, `chainhash/v2`, `chaincfg/v2`, `address/v2`).
+- FROST: Zcash Foundation `frost-core` / `frost-secp256k1-tr` **=3.0.0** (Rust, `Cargo.lock`
+  committed) in `crypto/frost/internal/zf/rust`, linked with cgo. Needs Rust with targets
+  `x86_64-pc-windows-gnu`, `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, and
+  zig **0.15.2**, which the Makefile uses as the C compiler for every target.
+- `buf` 1.75.0, `jq` (via `mise install`). Docker for the localnet.
+
+## Commands
+
+| Command | Does |
+| --- | --- |
+| `make build` | Builds the FROST library (`make zf-lib`), then `./build/keystoned` |
+| `make build-dev` | `keystoned` + `mockfeed` |
+| `make test` | `cargo test` of the shim, `go test -tags invariants ./...`, byzantine proposer test |
+| `make lint` | `go vet` (default, `invariants`, `byzantine` tags), `detlint`, `golangci-lint` if installed |
+| `make proto` / `make proto-lint` | Regenerate protobuf Go code / buf lint |
+| `make determinism-long` | 4 nodes, 10,000 heights app-hash comparison (~10 min; use `GOFLAGS=-p=2`) |
+| `make localnet-start` / `-stop` / `-clean` | Docker localnet (`DEALER=` for a dealerless DKG start) |
+| `make localnet-byz MODE=…` | Restart node3 as a byzantine proposer (`drop_tx0`, `extra_magic`, `corrupt_one_ve`, `corrupt_two_ve`) |
+| `make localnet-monitoring` | Prometheus (with alerts) + Grafana |
+| `make e2e` | Latest demo (`scripts/demo-M7.sh`); `make e2e-M0` … `e2e-M5` for earlier ones |
+| `make upgrade-drill` | v2 upgrade rehearsal on the localnet |
+| `make release` / `release-verify` | Reproducible binaries + SHA256SUMS / rebuild-and-compare |
+
+On Windows run tests through `scripts/gotest.sh` (as `make test` does); it works
+around antivirus and Smart App Control failures on test binaries.
 
 ## Hard rules: determinism (state-machine code)
 
 State-machine code is everything under `x/`, `app/protocol/` and `crypto/frost/`, except
-`crypto/frost/secret/` and anything under `sidecar/`. The public entry points of the
-Rust shim (`crypto/frost/internal/zf/rust`) are state-machine code too: they must stay
-pure functions of their inputs (no randomness, no I/O, `BTreeMap` only), catch every
-panic, and detlint cannot check them. In that code:
+`crypto/frost/secret/`. Nothing under `sidecar/` is state-machine code. The public entry
+points of the Rust shim (`crypto/frost/internal/zf/rust`) are state-machine code too: they
+must stay pure functions of their inputs (no randomness, no I/O, `BTreeMap` only), catch
+every panic, and detlint cannot check them. In state-machine code:
 
 1. No `float32` / `float64`. Amounts are `sdkmath.Int`; ratios are WAD (1e18) or
    RAY (1e27) fixed point. Rounding always favours the protocol (debt up, payouts down).
@@ -58,11 +110,12 @@ panic, and detlint cannot check them. In that code:
    checked on decode.
 6. **PreBlocker totality (§5.9):** no PreBlocker step may return an error for a tx0
    that ProcessProposal accepted. If an operation cannot apply, skip it and emit
-   an event. Only genuine bugs may panic.
-7. The `detlint` analyzer (built in M0) enforces 1–4. It must pass in CI.
+   an event (`protocol_step_failed`). Only genuine bugs may panic.
+7. `detlint` enforces 1–4 and must pass.
 
-Sidecar code (price fetcher, Bitcoin watcher, FROST signer) may do I/O and use
-randomness; its output only reaches state through vote extensions.
+Sidecars may do I/O and use randomness; their output reaches state only through
+vote extensions, where more than 2/3 of power must agree (prices, Bitcoin) or every
+share is verified (FROST).
 
 ## Never
 
@@ -71,56 +124,35 @@ randomness; its output only reaches state through vote extensions.
 - Allow `MsgRotateConsPubKey` (rotation makes VEs unverifiable; ADR-015).
 - Charge gas: the minimum gas price stays zero (ADR-019).
 - Change a wire format (proto field numbers, VE layout, tx0 layout, store prefixes)
-  without updating `docs/design.md` and `docs/decisions.md`.
+  without updating `docs/design.md`. Store prefix bytes live in `types/keys.go` and are never reused.
 - Invent an SDK, CometBFT or btcd API. If unsure, read the source in the module
-  cache (`go env GOMODCACHE`) or use `go doc`, then add what you confirmed to
-  `docs/verified-apis.md`.
-- Mark a task done with failing tests or skipped acceptance checks.
+  cache (`go env GOMODCACHE`) or use `go doc`.
+- Weaken or skip a test to make it pass.
 
-## Workflow (autonomous)
+## Conventions
 
-Work through every remaining milestone in order (see `docs/status.md`) in one
-continuous run, without waiting for approval between steps or milestones.
-
-1. For each milestone: read the spec, the design sections it cites,
-   `docs/verified-apis.md` and `docs/decisions.md`. Write a short plan mapping every
-   spec task to files and tests into `docs/status.md` (task table), then start
-   implementing. No plan-mode approval step.
-2. Implement task by task. Update `docs/status.md` before each task starts. After
-   each task: `make lint test`, then commit (`<milestone>-T<n>: <summary>`).
-3. When the milestone's acceptance checks all pass, run the demo script it names,
-   update `docs/decisions.md` and `docs/status.md`, commit, and go straight on to
-   the next milestone. Stop only after the last milestone is done.
-4. **When in doubt, decide.** If the design is ambiguous, silent or wrong, pick the
-   most conservative default consistent with the rest of the design (safety and
-   determinism first, rounding in the protocol's favour, smallest change to wire
-   formats), then:
-   - update `docs/design.md` so it describes the chosen behaviour, and
-   - append a row to `docs/decisions.md` (mark it "default assumption — review").
-   Keep going; do not stop to ask.
-5. Stop and report only if you are truly blocked: something needs the user
-   (credentials, funded signet wallets, paid services, hardware), a dependency or
-   tool cannot be installed, or tests cannot be made to pass after a genuine effort.
-   Mark the task `blocked` in `docs/status.md` with the reason first. If a later
-   milestone does not depend on the blocked work, continue with it.
-6. The hard rules, the Never list and the definition of done still apply in full.
-   Never mark a task done with failing tests or skipped acceptance checks.
-
-## Commands (create them in M0, keep them working)
-
-| Command | Does |
-| --- | --- |
-| `make build` | Builds `./build/keystoned` (first builds the FROST library: `make zf-lib`) |
-| `make test` | `cargo test` of the FROST shim, then `go test ./...` (unit + property tests) |
-| `make lint` | `go vet`, `detlint`, `golangci-lint` (if installed) |
-| `make proto` | Regenerates protobuf Go code with buf |
-| `make localnet-start` / `make localnet-stop` | 4-node localnet (M2+) |
-| `make e2e` | End-to-end demo script for the latest finished milestone |
-
-## Style
-
-- Small packages, table-driven tests, `require` from testify.
+- Proto packages `keystone.<module>.v1`. Amounts are `string` with
+  `(cosmos_proto.scalar) = "cosmos.Int"`, `(gogoproto.customtype) = "cosmossdk.io/math.Int"`,
+  `(gogoproto.nullable) = false`.
+- State in `cosmossdk.io/collections` with the prefixes in design §10.1.
+- Params: per-module `Params`; `Validate()` enforces the design §17 bounds (`x/internal/bounds`).
+  Authority for every `MsgUpdateParams` is the admin address from `x/admin`.
+- Units: KUSD in `ukusd` (1e-6), BTC in satoshis, prices in micro-USD per BTC (`uint64`
+  on the wire, `sdkmath.Int` in state), ratios in basis points.
+- Events: names and attributes as in design §11.3. Errors: registered per module in
+  `types/errors.go`, wrapped with `errorsmod.Wrapf`.
 - Keeper methods take `context.Context`; unwrap with `sdk.UnwrapSDKContext` only where needed.
-- Errors wrap with `errorsmod.Wrapf` and module-registered error codes.
-- Every exported keeper method has a test. Every invariant in design Appendix A
-  gets a property test once the code it covers exists.
+- Small packages, table-driven tests, `require` from testify. Every exported keeper
+  method has a test; every invariant in design Appendix A has a property test.
+- Code marked `FLAG FOR AUDIT` (FROST, DKG, signer, stability pool) is security-critical:
+  change it only with tests and say so in the summary.
+- If the design is ambiguous or wrong, stop and ask. Do not improvise protocol behaviour.
+- Before calling work done: `make lint test`. For changes to `app/protocol`, the PreBlocker
+  or any keeper the PreBlocker calls, also run the multinode determinism tests.
+
+## Current state
+
+M0–M5 and M7a are complete. M6 (signet) engineering is done; its live-network
+acceptance needs external operators and funding. M7 (proof of stake) is done apart
+from the 10k-height determinism run. Open: audit of the FLAG FOR AUDIT code,
+`golangci-lint` not set up.
