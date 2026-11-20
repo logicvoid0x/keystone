@@ -1,6 +1,6 @@
 # Keystone: BTC-Backed Stablecoin Chain — Design Document
 
-Nov 12, 2026 · @Rakesh
+Nov 12, 2026 · @logicvoid0x
 
 ## 1. Overview
 
