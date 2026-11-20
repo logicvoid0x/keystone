@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/OWNER/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol"
 )
 
 // decodeTx0Cmd decodes a tx0 (base64, as CometBFT RPC returns txs) and prints its

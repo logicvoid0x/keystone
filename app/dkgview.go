@@ -7,8 +7,8 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/sidecar/dkg"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/sidecar/dkg"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // DKGView is the DKG participant's read-only view of the latest committed state (spec

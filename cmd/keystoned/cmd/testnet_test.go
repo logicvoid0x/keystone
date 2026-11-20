@@ -24,16 +24,16 @@ import (
 	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/cmd/keystoned/cmd"
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/secret"
-	"github.com/OWNER/keystone/sidecar/btcwatch"
-	"github.com/OWNER/keystone/sidecar/dkg"
-	"github.com/OWNER/keystone/sidecar/price"
-	"github.com/OWNER/keystone/testutil/devdealer"
-	admintypes "github.com/OWNER/keystone/x/admin/types"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/cmd/keystoned/cmd"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
+	"github.com/logicvoid0x/keystone/sidecar/btcwatch"
+	"github.com/logicvoid0x/keystone/sidecar/dkg"
+	"github.com/logicvoid0x/keystone/sidecar/price"
+	"github.com/logicvoid0x/keystone/testutil/devdealer"
+	admintypes "github.com/logicvoid0x/keystone/x/admin/types"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 func TestAdminThreshold(t *testing.T) {

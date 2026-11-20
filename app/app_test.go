@@ -14,9 +14,9 @@ import (
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/testutil/apptest"
-	admintypes "github.com/OWNER/keystone/x/admin/types"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/testutil/apptest"
+	admintypes "github.com/logicvoid0x/keystone/x/admin/types"
 )
 
 func TestInitChainReturnsStakingValidatorSet(t *testing.T) {

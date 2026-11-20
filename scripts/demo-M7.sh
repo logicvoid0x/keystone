@@ -8,7 +8,7 @@
 #      past the entry margin (custody_membership_pending), and after the delay a new
 #      epoch forms by DKG, the old epoch's UTXOs are swept to it and it retires;
 #   5. stakers earn ukey inflation (x/mint -> x/distribution) and gas stays zero.
-# Theft slashing (§9.12) is covered by app and custody tests (docs/decisions.md).
+# Theft slashing (§9.12) is covered by app and custody tests rather than by this demo.
 # Needs: Docker, curl, jq. Leaves the localnet stopped (make localnet-clean to reset).
 set -euo pipefail
 

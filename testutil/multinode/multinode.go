@@ -35,14 +35,14 @@ import (
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/sidecar/btcwatch"
-	"github.com/OWNER/keystone/sidecar/dkg"
-	"github.com/OWNER/keystone/sidecar/signer"
-	"github.com/OWNER/keystone/testutil/apptest"
-	"github.com/OWNER/keystone/testutil/btcfake"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/sidecar/btcwatch"
+	"github.com/logicvoid0x/keystone/sidecar/dkg"
+	"github.com/logicvoid0x/keystone/sidecar/signer"
+	"github.com/logicvoid0x/keystone/testutil/apptest"
+	"github.com/logicvoid0x/keystone/testutil/btcfake"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // ChainID is the chain id of every harness network.

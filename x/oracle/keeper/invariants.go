@@ -8,7 +8,7 @@ import (
 // StepInvariant is invariant 9: for consecutive updates, |spot_new − spot_old| ≤
 // ceil(spot_old × MaxStepBps / 10,000) (spot_old = 0 is the unclamped bootstrap). The
 // ceil allows the §6.3 clamp's floored lower bound, which can move the spot down by at
-// most 1 micro-USD more than MaxStepBps (docs/decisions.md).
+// most 1 micro-USD more than MaxStepBps.
 func (k *Keeper) StepInvariant(ctx context.Context) error {
 	ps, err := k.PriceState.Get(ctx)
 	if err != nil {

@@ -3,7 +3,7 @@ package vault
 import (
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 
-	"github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // AutoCLIOptions implements autocli.HasAutoCLIConfig.

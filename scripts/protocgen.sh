@@ -12,5 +12,5 @@ fi
 buf generate --template buf.gen.gogo.yaml --path keystone
 
 cd ..
-cp -r github.com/OWNER/keystone/* ./
+cp -r github.com/logicvoid0x/keystone/* ./
 rm -rf github.com

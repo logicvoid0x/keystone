@@ -11,8 +11,8 @@ import (
 	"github.com/btcsuite/btcd/txscript/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/secret"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
 )
 
 func randInt(t *testing.T, n int) int {

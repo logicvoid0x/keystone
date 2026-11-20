@@ -8,7 +8,7 @@ const (
 	// AppName is the binary and app name.
 	AppName = "keystoned"
 
-	// Bech32 prefixes (docs/decisions.md: the design names none).
+	// Bech32 prefixes (the design names none).
 	AccountAddressPrefix   = "kstn"
 	ValidatorAddressPrefix = AccountAddressPrefix + "valoper"
 	ConsensusAddressPrefix = AccountAddressPrefix + "valcons"

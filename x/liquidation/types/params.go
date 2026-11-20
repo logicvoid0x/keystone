@@ -3,7 +3,7 @@ package types
 import (
 	errorsmod "cosmossdk.io/errors"
 
-	"github.com/OWNER/keystone/x/internal/bounds"
+	"github.com/logicvoid0x/keystone/x/internal/bounds"
 )
 
 // DefaultParams are the design §10.3 defaults.
@@ -18,8 +18,7 @@ func DefaultParams() Params {
 	}
 }
 
-// Validate enforces sanity bounds (design §17 names none for this module; recorded in
-// docs/decisions.md).
+// Validate enforces sanity bounds (design §17 names none for this module).
 func (p Params) Validate() error {
 	err := bounds.First(
 		bounds.Uint("penalty_bps", uint64(p.PenaltyBps), 0, 5000),

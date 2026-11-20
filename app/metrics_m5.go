@@ -10,9 +10,9 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app/protocol"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // FullMetrics are the rest of the design §16 metrics (spec M5-T6), read like the M2

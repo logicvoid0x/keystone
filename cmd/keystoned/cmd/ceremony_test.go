@@ -19,12 +19,12 @@ import (
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/cmd/keystoned/cmd"
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/secret"
-	admintypes "github.com/OWNER/keystone/x/admin/types"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/cmd/keystoned/cmd"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
+	admintypes "github.com/logicvoid0x/keystone/x/admin/types"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 func operatorInfos(t *testing.T, n int) []cmd.OperatorInfo {

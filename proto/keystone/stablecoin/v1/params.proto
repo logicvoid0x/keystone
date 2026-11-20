@@ -3,7 +3,7 @@ package keystone.stablecoin.v1;
 
 import "amino/amino.proto";
 
-option go_package = "github.com/OWNER/keystone/x/stablecoin/types";
+option go_package = "github.com/logicvoid0x/keystone/x/stablecoin/types";
 
 // Params are the x/stablecoin parameters (design §10.3; bounds §17).
 message Params {

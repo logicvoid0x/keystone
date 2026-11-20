@@ -1,6 +1,6 @@
 package types
 
-// Events (design §11.3) and the M3 / M4a additions (docs/decisions.md).
+// Events (design §11.3) and the M3 / M4a additions.
 const (
 	EventTypeDepositAccepted = "deposit_accepted"
 	EventTypeDepositOverCap  = "deposit_over_cap"

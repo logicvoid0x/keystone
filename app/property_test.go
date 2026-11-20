@@ -16,13 +16,13 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/testutil/apptest"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	liqkeeper "github.com/OWNER/keystone/x/liquidation/keeper"
-	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
-	stablecointypes "github.com/OWNER/keystone/x/stablecoin/types"
-	vaultkeeper "github.com/OWNER/keystone/x/vault/keeper"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/testutil/apptest"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
+	liqkeeper "github.com/logicvoid0x/keystone/x/liquidation/keeper"
+	liqtypes "github.com/logicvoid0x/keystone/x/liquidation/types"
+	stablecointypes "github.com/logicvoid0x/keystone/x/stablecoin/types"
+	vaultkeeper "github.com/logicvoid0x/keystone/x/vault/keeper"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // Acceptance check 2: 5,000 random sequences (blocks) of open / credit / mint / repay /

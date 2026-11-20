@@ -1,4 +1,4 @@
-module github.com/OWNER/keystone
+module github.com/logicvoid0x/keystone
 
 go 1.26.10
 

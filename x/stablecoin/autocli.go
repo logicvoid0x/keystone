@@ -3,7 +3,7 @@ package stablecoin
 import (
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 
-	"github.com/OWNER/keystone/x/stablecoin/types"
+	"github.com/logicvoid0x/keystone/x/stablecoin/types"
 )
 
 // AutoCLIOptions implements autocli.HasAutoCLIConfig.

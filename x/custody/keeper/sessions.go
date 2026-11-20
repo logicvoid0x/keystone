@@ -17,8 +17,8 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // operators maps the active validator set (power > 0): consensus address → operator.

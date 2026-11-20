@@ -8,7 +8,7 @@ import (
 	"cosmossdk.io/collections"
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // OutpointBytes is txid ‖ vout (4 bytes big-endian), the outpoint part of index keys.

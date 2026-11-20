@@ -1,5 +1,11 @@
 # Implementation overview
 
+> **Historical.** These specs drove the original milestone-by-milestone build and are kept
+> for context. They refer to working files (`docs/status.md`, `docs/decisions.md`,
+> `docs/verified-apis.md`) that were kept local and are not part of this repository, and
+> to the module path placeholder `github.com/OWNER/keystone`, now `github.com/logicvoid0x/keystone`.
+> `docs/design.md` is the current description of the system.
+
 Build Keystone in the milestone order below. Each milestone ends in something
 you can demo and leaves every earlier test passing. M0–M2 are the short demo;
 M3–M6 add real Bitcoin custody.

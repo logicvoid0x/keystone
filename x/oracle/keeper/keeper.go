@@ -12,7 +12,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/oracle/types"
+	"github.com/logicvoid0x/keystone/x/oracle/types"
 )
 
 // Keeper owns the committed price, the TWAP ring and the miss counters (design §6).
@@ -324,7 +324,7 @@ func (k *Keeper) InitGenesis(ctx context.Context, gs *types.GenesisState) error 
 }
 
 // ExportGenesis returns the params. Price state restarts from STALE on import (the
-// first update after import is unclamped); docs/decisions.md.
+// first update after import is unclamped).
 func (k *Keeper) ExportGenesis(ctx context.Context) (*types.GenesisState, error) {
 	p, err := k.Params.Get(ctx)
 	if err != nil {

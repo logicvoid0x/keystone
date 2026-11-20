@@ -9,7 +9,7 @@ import "google/api/annotations.proto";
 import "keystone/vault/v1/params.proto";
 import "keystone/vault/v1/vault.proto";
 
-option go_package = "github.com/OWNER/keystone/x/vault/types";
+option go_package = "github.com/logicvoid0x/keystone/x/vault/types";
 
 // Query is the x/vault query service (design §11.2).
 service Query {

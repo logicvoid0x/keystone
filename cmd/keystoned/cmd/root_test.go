@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/cmd/keystoned/cmd"
+	"github.com/logicvoid0x/keystone/cmd/keystoned/cmd"
 )
 
 // Spec M1-T9: autocli commands for every message and query in M1.

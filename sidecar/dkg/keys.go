@@ -10,8 +10,8 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/secret"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
 )
 
 // HotKeyName is the keyring name of the custody hot key that signs DKG messages.

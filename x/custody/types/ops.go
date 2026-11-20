@@ -10,7 +10,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
 )
 
 // TallyTTL is the number of blocks after which an unaccepted tally expires (§9.7).

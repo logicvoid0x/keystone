@@ -6,7 +6,7 @@ import "gogoproto/gogo.proto";
 import "keystone/custody/v1/custody.proto";
 import "keystone/custody/v1/params.proto";
 
-option go_package = "github.com/OWNER/keystone/x/custody/types";
+option go_package = "github.com/logicvoid0x/keystone/x/custody/types";
 
 // GenesisState is the x/custody genesis state. Epochs at genesis exist only on localnet
 // chain ids (`--dev-dealer`, design §9.3); otherwise the epoch-1 DKG creates them.

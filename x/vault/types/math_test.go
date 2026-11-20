@@ -8,7 +8,7 @@ import (
 
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 func mustInt(t *testing.T, s string) sdkmath.Int {

@@ -7,8 +7,8 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/sidecar/btcwatch"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/sidecar/btcwatch"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // BitcoinView is the Bitcoin watcher's read-only view of the latest committed state

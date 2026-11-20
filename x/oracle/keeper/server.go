@@ -8,7 +8,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/oracle/types"
+	"github.com/logicvoid0x/keystone/x/oracle/types"
 )
 
 type msgServer struct{ k *Keeper }

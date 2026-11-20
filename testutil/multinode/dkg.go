@@ -10,13 +10,13 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/secret"
-	"github.com/OWNER/keystone/sidecar/dkg"
-	"github.com/OWNER/keystone/sidecar/signer"
-	"github.com/OWNER/keystone/sidecar/signer/noncestore"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
+	"github.com/logicvoid0x/keystone/sidecar/dkg"
+	"github.com/logicvoid0x/keystone/sidecar/signer"
+	"github.com/logicvoid0x/keystone/sidecar/signer/noncestore"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // setupDKG gives every node custody keys in genesis (no epoch), a DKG participant with

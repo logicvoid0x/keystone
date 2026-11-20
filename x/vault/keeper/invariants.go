@@ -8,7 +8,7 @@ import (
 	"cosmossdk.io/collections"
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // Invariants from design Appendix A that x/vault can check. Each returns nil or a

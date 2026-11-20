@@ -17,10 +17,10 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	moduletestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/x/validators"
-	"github.com/OWNER/keystone/x/oracle/keeper"
-	"github.com/OWNER/keystone/x/oracle/types"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/x/oracle/keeper"
+	"github.com/logicvoid0x/keystone/x/oracle/types"
+	"github.com/logicvoid0x/keystone/x/validators"
 )
 
 const usd = 1_000_000

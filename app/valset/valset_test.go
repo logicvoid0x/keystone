@@ -12,7 +12,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	"github.com/OWNER/keystone/app/valset"
+	"github.com/logicvoid0x/keystone/app/valset"
 )
 
 // fakeStaking iterates last powers in insertion order (deliberately not sorted).

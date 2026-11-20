@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/go/analysis/analysistest"
 
-	"github.com/OWNER/keystone/tools/detlint"
+	"github.com/logicvoid0x/keystone/tools/detlint"
 )
 
 func TestAnalyzer(t *testing.T) {
@@ -27,17 +27,17 @@ func TestInScope(t *testing.T) {
 		path string
 		want bool
 	}{
-		{"github.com/OWNER/keystone/x/poa/keeper", true},
-		{"github.com/OWNER/keystone/x/poa", true},
-		{"github.com/OWNER/keystone/app/protocol", true},
-		{"github.com/OWNER/keystone/crypto/frost", true},
-		{"github.com/OWNER/keystone/crypto/frost/secret", false},
-		{"github.com/OWNER/keystone/crypto/frost/secret/store", false},
-		{"github.com/OWNER/keystone/sidecar/price", false},
-		{"github.com/OWNER/keystone/app", false},
-		{"github.com/OWNER/keystone/cmd/keystoned", false},
-		{"github.com/OWNER/keystone/app/protocolx", false},
-		{"github.com/OWNER/keystone/x/poa_test", true},
+		{"github.com/logicvoid0x/keystone/x/poa/keeper", true},
+		{"github.com/logicvoid0x/keystone/x/poa", true},
+		{"github.com/logicvoid0x/keystone/app/protocol", true},
+		{"github.com/logicvoid0x/keystone/crypto/frost", true},
+		{"github.com/logicvoid0x/keystone/crypto/frost/secret", false},
+		{"github.com/logicvoid0x/keystone/crypto/frost/secret/store", false},
+		{"github.com/logicvoid0x/keystone/sidecar/price", false},
+		{"github.com/logicvoid0x/keystone/app", false},
+		{"github.com/logicvoid0x/keystone/cmd/keystoned", false},
+		{"github.com/logicvoid0x/keystone/app/protocolx", false},
+		{"github.com/logicvoid0x/keystone/x/poa_test", true},
 	}
 	for _, tc := range cases {
 		require.Equal(t, tc.want, detlint.InScope(tc.path), tc.path)

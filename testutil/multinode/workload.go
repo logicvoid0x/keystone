@@ -11,15 +11,15 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/testutil/btcfake"
-	admintypes "github.com/OWNER/keystone/x/admin/types"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
-	oracletypes "github.com/OWNER/keystone/x/oracle/types"
-	stablecointypes "github.com/OWNER/keystone/x/stablecoin/types"
-	vaultkeeper "github.com/OWNER/keystone/x/vault/keeper"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/testutil/btcfake"
+	admintypes "github.com/logicvoid0x/keystone/x/admin/types"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
+	liqtypes "github.com/logicvoid0x/keystone/x/liquidation/types"
+	oracletypes "github.com/logicvoid0x/keystone/x/oracle/types"
+	stablecointypes "github.com/logicvoid0x/keystone/x/stablecoin/types"
+	vaultkeeper "github.com/logicvoid0x/keystone/x/vault/keeper"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // Workload is the seeded random workload of spec M2-T2: user txs (open, mint, repay,

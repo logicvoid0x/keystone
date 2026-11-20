@@ -18,10 +18,10 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	moduletestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
 
-	"github.com/OWNER/keystone/testutil/devdealer"
-	"github.com/OWNER/keystone/x/custody/keeper"
-	"github.com/OWNER/keystone/x/custody/types"
-	"github.com/OWNER/keystone/x/validators"
+	"github.com/logicvoid0x/keystone/testutil/devdealer"
+	"github.com/logicvoid0x/keystone/x/custody/keeper"
+	"github.com/logicvoid0x/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/x/validators"
 )
 
 var (

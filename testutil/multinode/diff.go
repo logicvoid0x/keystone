@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/OWNER/keystone/app"
+	"github.com/logicvoid0x/keystone/app"
 )
 
 // maxDiffs caps the keys reported per store.

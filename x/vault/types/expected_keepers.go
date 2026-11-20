@@ -7,8 +7,8 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	oracletypes "github.com/OWNER/keystone/x/oracle/types"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
+	oracletypes "github.com/logicvoid0x/keystone/x/oracle/types"
 )
 
 // AdminKeeper is the part of x/poa that authorizes admin messages.

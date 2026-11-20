@@ -6,7 +6,7 @@ package frost
 import (
 	"encoding/binary"
 
-	"github.com/OWNER/keystone/crypto/frost/internal/zf"
+	"github.com/logicvoid0x/keystone/crypto/frost/internal/zf"
 )
 
 // EvalCommitment is Σ_j id^j·C_j, the public image f(id)·G of the polynomial committed

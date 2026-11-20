@@ -47,7 +47,7 @@ zf-test:
 # The SDK does not build for 32-bit targets; catch a wrong Go on PATH early.
 check-go:
 	@arch=$$($(GO) env GOARCH); if [ "$$arch" != "amd64" ] && [ "$$arch" != "arm64" ]; then \
-		echo "error: $(GO) targets GOARCH=$$arch; use a 64-bit Go (see docs/status.md)"; exit 1; fi
+		echo "error: $(GO) targets GOARCH=$$arch; use a 64-bit Go (see mise.toml)"; exit 1; fi
 	@command -v $(ZIG) >/dev/null 2>&1 || { echo "error: zig not found (mise install, see mise.toml)"; exit 1; }
 
 build: check-go zf-lib

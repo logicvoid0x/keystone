@@ -15,8 +15,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 
-	"github.com/OWNER/keystone/x/oracle/keeper"
-	"github.com/OWNER/keystone/x/oracle/types"
+	"github.com/logicvoid0x/keystone/x/oracle/keeper"
+	"github.com/logicvoid0x/keystone/x/oracle/types"
 )
 
 const consensusVersion = 1

@@ -3,7 +3,7 @@ package price
 import (
 	"time"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
 )
 
 // ExtendVoteDeadline is how long ExtendVote waits for a snapshot (design §4.3).

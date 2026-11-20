@@ -3,7 +3,7 @@ package keystone.liquidation.v1;
 
 import "amino/amino.proto";
 
-option go_package = "github.com/OWNER/keystone/x/liquidation/types";
+option go_package = "github.com/logicvoid0x/keystone/x/liquidation/types";
 
 // Params are the x/liquidation parameters (design §10.3; bounds §17).
 message Params {

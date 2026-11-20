@@ -3,7 +3,7 @@ package keeper
 import (
 	"context"
 
-	"github.com/OWNER/keystone/x/stablecoin/types"
+	"github.com/logicvoid0x/keystone/x/stablecoin/types"
 )
 
 type msgServer struct{ k *Keeper }

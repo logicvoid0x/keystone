@@ -7,7 +7,7 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/types/module"
 
-	"github.com/OWNER/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol"
 )
 
 // UpgradeV2 is the upgrade that moves vote extensions to version 2 (the M6 upgrade
@@ -16,7 +16,7 @@ const UpgradeV2 = "v2"
 
 // VESchedule is the VE version for votes at height: version 2 once UpgradeV2 was
 // applied at a height U and height > U, else version 1. The votes of height U itself
-// are cast by binaries that stop at U, so they are still version 1 (docs/decisions.md).
+// are cast by binaries that stop at U, so they are still version 1.
 func (app *App) VESchedule(ctx context.Context, height int64) uint32 {
 	done, err := app.UpgradeKeeper.GetDoneHeight(ctx, UpgradeV2)
 	if err == nil && done > 0 && height > done {

@@ -4,7 +4,7 @@
 
 package frost
 
-import "github.com/OWNER/keystone/crypto/frost/internal/zf"
+import "github.com/logicvoid0x/keystone/crypto/frost/internal/zf"
 
 // Key is the key a session signs for: group key P (either parity) and an optional
 // BIP-341 tweak t. The verifying key is Q = even(P) + t·G (even(P) untweaked), as

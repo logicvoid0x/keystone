@@ -1595,7 +1595,7 @@ Parameters change through `MsgUpdateParams` signed by the admin multisig (for th
 
 ## 18. Implementation plan
 
-Milestone status is tracked in `docs/status.md`; one spec per milestone is in `docs/specs/`. M0–M5, M7a and M7 are implemented (M7's 10,000-height determinism run is still pending). M6's engineering is done; its acceptance needs live signet operators.
+One spec per milestone is in `docs/specs/`; the README has a status summary. M0–M5, M7a and M7 are implemented (M7's 10,000-height determinism run is still pending). M6's engineering is done; its acceptance needs live signet operators.
 
 ```mermaid
 flowchart LR

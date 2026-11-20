@@ -12,7 +12,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // bip341Vectors is the scriptPubKey part of BIP-341 wallet-test-vectors.json

@@ -17,11 +17,11 @@ import (
 
 	"cosmossdk.io/log/v2"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/secret"
-	"github.com/OWNER/keystone/sidecar/signer/noncestore"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
+	"github.com/logicvoid0x/keystone/sidecar/signer/noncestore"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // ReplenishPerBlock is how many new commitments a share offers per VE (§9.9 rule 6).

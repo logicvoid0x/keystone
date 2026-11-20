@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/sidecar/dkg"
-	"github.com/OWNER/keystone/testutil/multinode"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/sidecar/dkg"
+	"github.com/logicvoid0x/keystone/testutil/multinode"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // Spec M4b-T4: a 4-node network with no dealer runs the epoch-1 DKG through

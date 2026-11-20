@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/secret"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
 )
 
 // FileShares reads <home>/custody/epoch_<n>/shares.json (Argon2id + AES-256-GCM,

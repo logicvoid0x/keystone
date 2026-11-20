@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/x/oracle/types"
+	"github.com/logicvoid0x/keystone/x/oracle/types"
 )
 
 func TestParamsValidate(t *testing.T) {

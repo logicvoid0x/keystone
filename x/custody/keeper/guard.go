@@ -9,8 +9,8 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	admintypes "github.com/OWNER/keystone/x/admin/types"
-	"github.com/OWNER/keystone/x/custody/types"
+	admintypes "github.com/logicvoid0x/keystone/x/admin/types"
+	"github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // RemovalGuard is the x/admin removal guard (design §9.4): it rejects an allowlist

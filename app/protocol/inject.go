@@ -6,7 +6,7 @@ import (
 
 	abci "github.com/cometbft/cometbft/abci/types"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
 )
 
 // tx0 layout (design §5.6): Magic | TxTypeInjectedVotes | proto(InjectedVotes).

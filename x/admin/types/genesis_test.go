@@ -8,7 +8,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/admin/types"
+	"github.com/logicvoid0x/keystone/x/admin/types"
 )
 
 func addr(i byte) string { return sdk.AccAddress(bytes.Repeat([]byte{i}, 20)).String() }

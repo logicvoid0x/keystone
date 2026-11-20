@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
 )
 
 // Defaults (design §6.2).

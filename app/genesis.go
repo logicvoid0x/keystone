@@ -17,7 +17,7 @@ import (
 	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	admintypes "github.com/OWNER/keystone/x/admin/types"
+	admintypes "github.com/logicvoid0x/keystone/x/admin/types"
 )
 
 // GenesisState is the app genesis: module name to raw JSON.

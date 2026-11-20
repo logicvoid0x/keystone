@@ -8,8 +8,8 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/liquidation/types"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/x/liquidation/types"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // Execute runs the batch in order at price, then advances the running auctions.

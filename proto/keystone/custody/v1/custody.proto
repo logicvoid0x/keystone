@@ -4,7 +4,7 @@ package keystone.custody.v1;
 import "gogoproto/gogo.proto";
 import "keystone/ve/v1/ve.proto";
 
-option go_package = "github.com/OWNER/keystone/x/custody/types";
+option go_package = "github.com/logicvoid0x/keystone/x/custody/types";
 
 // EpochStatus is a key epoch's lifecycle (design §9.4).
 enum EpochStatus {
@@ -50,7 +50,7 @@ message Utxo {
 }
 
 // DepositRecord is how an accepted deposit was credited, kept while its UTXO exists so
-// a reorg can reverse it (design §9.7 step 6; added in M3, docs/decisions.md). The
+// a reorg can reverse it (design §9.7 step 6). The
 // three amounts sum to the UTXO amount.
 message DepositRecord {
   uint64 vault_id = 1;
@@ -159,7 +159,7 @@ message BatchTx {
 }
 
 // WithdrawalBatch is one deterministic Bitcoin transaction and its RBF versions
-// (design §9.8; fields differ from the §10.2 sketch, see docs/decisions.md).
+// (design §9.8; fields differ from the §10.2 sketch).
 message WithdrawalBatch {
   uint64 id = 1;
   uint64 epoch = 2;

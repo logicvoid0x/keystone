@@ -8,13 +8,13 @@ import (
 
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/app/protocol"
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/sidecar/price"
-	"github.com/OWNER/keystone/testutil/multinode"
-	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
-	oracletypes "github.com/OWNER/keystone/x/oracle/types"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/sidecar/price"
+	"github.com/logicvoid0x/keystone/testutil/multinode"
+	liqtypes "github.com/logicvoid0x/keystone/x/liquidation/types"
+	oracletypes "github.com/logicvoid0x/keystone/x/oracle/types"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 func spotAndStatus(t *testing.T, net *multinode.Net) (string, oracletypes.PriceStatus) {

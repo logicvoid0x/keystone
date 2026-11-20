@@ -5,9 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app/protocol"
-	"github.com/OWNER/keystone/testutil/multinode"
-	oracletypes "github.com/OWNER/keystone/x/oracle/types"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/testutil/multinode"
+	oracletypes "github.com/logicvoid0x/keystone/x/oracle/types"
 )
 
 func TestFourNodesAgree(t *testing.T) {

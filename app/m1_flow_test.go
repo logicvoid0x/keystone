@@ -8,12 +8,12 @@ import (
 
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/testutil/apptest"
-	custodykeeper "github.com/OWNER/keystone/x/custody/keeper"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
-	oracletypes "github.com/OWNER/keystone/x/oracle/types"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/testutil/apptest"
+	custodykeeper "github.com/logicvoid0x/keystone/x/custody/keeper"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
+	liqtypes "github.com/logicvoid0x/keystone/x/liquidation/types"
+	oracletypes "github.com/logicvoid0x/keystone/x/oracle/types"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 func kusdAmt(v int64) sdkmath.Int { return sdkmath.NewInt(v * 1_000_000) }

@@ -17,7 +17,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // Consolidation thresholds (design §9.8 step 8).

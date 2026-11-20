@@ -6,9 +6,9 @@ import (
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/app/protocol"
-	"github.com/OWNER/keystone/testutil/multinode"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/testutil/multinode"
 )
 
 // propose asks node 0 for a proposal at the next height and lets node 1 judge it.

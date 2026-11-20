@@ -7,7 +7,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/validators"
+	"github.com/logicvoid0x/keystone/x/validators"
 )
 
 // AdminKeeper is the part of x/admin that authorizes MsgUpdateParams.

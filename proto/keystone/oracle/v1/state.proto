@@ -5,7 +5,7 @@ import "amino/amino.proto";
 import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 
-option go_package = "github.com/OWNER/keystone/x/oracle/types";
+option go_package = "github.com/logicvoid0x/keystone/x/oracle/types";
 
 // PriceStatus is the oracle status (design §6.4).
 enum PriceStatus {

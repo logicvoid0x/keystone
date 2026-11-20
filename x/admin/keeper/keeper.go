@@ -16,7 +16,7 @@ import (
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	"github.com/OWNER/keystone/x/admin/types"
+	"github.com/logicvoid0x/keystone/x/admin/types"
 )
 
 // Keeper owns the admin address and the validator allowlist (design §4.2).

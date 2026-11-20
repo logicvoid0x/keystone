@@ -8,7 +8,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/liquidation/types"
+	"github.com/logicvoid0x/keystone/x/liquidation/types"
 )
 
 type msgServer struct{ k *Keeper }

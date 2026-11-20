@@ -9,10 +9,10 @@ import (
 
 	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/app/protocol"
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/testutil/apptest"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/testutil/apptest"
 )
 
 // The M6 upgrade drill in process (design §17): the admin schedules "v2" at height U;

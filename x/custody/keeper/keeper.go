@@ -12,14 +12,14 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // Keeper owns all satoshi accounting (design §10): key epochs, the deposit script
 // registry, Bitcoin attestation tallies, UTXOs, claimable balances, the fee reserve, the
 // custody deficit and the credited counter for the treasury cap. Credited = satoshis
-// currently credited as vault collateral (docs/decisions.md). Since M4a it also holds the
+// currently credited as vault collateral. Since M4a it also holds the
 // withdrawal queue, batches, FROST signing sessions and nonce pools.
 type Keeper struct {
 	Schema          collections.Schema

@@ -7,7 +7,7 @@ import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 import "keystone/vault/v1/params.proto";
 
-option go_package = "github.com/OWNER/keystone/x/vault/types";
+option go_package = "github.com/logicvoid0x/keystone/x/vault/types";
 
 // Msg is the x/vault Msg service (design §11.1).
 service Msg {

@@ -7,7 +7,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // AdminKeeper is the part of x/poa that authorizes MsgUpdateParams.

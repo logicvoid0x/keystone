@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/crypto/frost/secret"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
 )
 
 func TestSealOpen(t *testing.T) {

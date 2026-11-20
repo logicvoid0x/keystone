@@ -22,10 +22,10 @@ import (
 	authcmd "github.com/cosmos/cosmos-sdk/x/auth/client/cli"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/sidecar/btcwatch"
-	"github.com/OWNER/keystone/sidecar/price"
-	"github.com/OWNER/keystone/sidecar/signer"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/sidecar/btcwatch"
+	"github.com/logicvoid0x/keystone/sidecar/price"
+	"github.com/logicvoid0x/keystone/sidecar/signer"
 )
 
 func initRootCmd(rootCmd *cobra.Command, tempApp *app.App) {
@@ -52,7 +52,7 @@ func initRootCmd(rootCmd *cobra.Command, tempApp *app.App) {
 }
 
 // genesisCommand exposes only `genesis validate`. The genutil gentx/collect flow needs
-// x/staking; Keystone genesis comes from `testnet init-files` (docs/decisions.md).
+// x/staking; Keystone genesis comes from `testnet init-files`.
 func genesisCommand(tempApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                        "genesis",

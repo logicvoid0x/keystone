@@ -3,7 +3,7 @@ package liquidation
 import (
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 
-	"github.com/OWNER/keystone/x/liquidation/types"
+	"github.com/logicvoid0x/keystone/x/liquidation/types"
 )
 
 // AutoCLIOptions implements autocli.HasAutoCLIConfig.

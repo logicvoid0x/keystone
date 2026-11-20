@@ -28,10 +28,10 @@ import (
 
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/sidecar/dkg"
-	"github.com/OWNER/keystone/sidecar/signer"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/sidecar/dkg"
+	"github.com/logicvoid0x/keystone/sidecar/signer"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // OperatorInfo is what an operator sends to the genesis ceremony (spec M6-T4): its

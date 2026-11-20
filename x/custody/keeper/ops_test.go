@@ -13,10 +13,10 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/x/custody/keeper"
-	"github.com/OWNER/keystone/x/custody/types"
-	"github.com/OWNER/keystone/x/validators"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/x/custody/keeper"
+	"github.com/logicvoid0x/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/x/validators"
 )
 
 // fakeVault stands in for x/vault: CreditCollateral credits within the cap headroom

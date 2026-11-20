@@ -8,7 +8,7 @@ import (
 
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/x/internal/bounds"
+	"github.com/logicvoid0x/keystone/x/internal/bounds"
 )
 
 func TestUint(t *testing.T) {

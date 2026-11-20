@@ -12,9 +12,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/sidecar/price"
-	"github.com/OWNER/keystone/sidecar/price/mockfeed"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/sidecar/price"
+	"github.com/logicvoid0x/keystone/sidecar/price/mockfeed"
 )
 
 func TestParseUSD(t *testing.T) {

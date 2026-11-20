@@ -20,14 +20,14 @@ import (
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/sidecar/btcwatch"
-	"github.com/OWNER/keystone/sidecar/price"
-	"github.com/OWNER/keystone/sidecar/signer"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/sidecar/btcwatch"
+	"github.com/logicvoid0x/keystone/sidecar/price"
+	"github.com/logicvoid0x/keystone/sidecar/signer"
 )
 
 // TimeoutCommit targets ~3 s blocks. In CometBFT v0.40 this is config.toml
-// [consensus] timeout_commit, not a consensus param (docs/verified-apis.md).
+// [consensus] timeout_commit, not a consensus param (checked against the CometBFT source).
 const TimeoutCommit = 3 * time.Second
 
 // NewRootCmd creates the keystoned root command.

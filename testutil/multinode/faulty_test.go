@@ -6,9 +6,9 @@ import (
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app/protocol"
-	"github.com/OWNER/keystone/testutil/multinode"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/testutil/multinode"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 func rewriteVotes(t *testing.T, tx0 []byte, f func(ext *abci.ExtendedCommitInfo)) []byte {

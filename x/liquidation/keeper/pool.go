@@ -11,7 +11,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/liquidation/types"
+	"github.com/logicvoid0x/keystone/x/liquidation/types"
 )
 
 // AUDIT: this file ports Liquity v1's StabilityPool product-sum accounting
@@ -337,7 +337,7 @@ func (k *Keeper) offset(ctx context.Context, debtLoss, collSat sdkmath.Int) erro
 	}
 	if emptied {
 		// Every deposit compounds to zero in the new epoch. Any remainder of the old
-		// total is rounding dust with no owner (docs/decisions.md).
+		// total is rounding dust with no owner.
 		rest, err := k.TotalDeposits.Get(ctx)
 		if err != nil {
 			return err
@@ -355,7 +355,7 @@ func (k *Keeper) offset(ctx context.Context, debtLoss, collSat sdkmath.Int) erro
 	return nil
 }
 
-// addSlack raises the invariant-8 rounding bound (docs/decisions.md): a deposit touch
+// addSlack raises the invariant-8 rounding bound: a deposit touch
 // can strand up to 1 ukusd of compounding dust, and a liquidation offset up to 1.
 func (k *Keeper) addSlack(ctx context.Context) error {
 	s, err := k.PoolSlack.Get(ctx)

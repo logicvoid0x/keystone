@@ -25,9 +25,9 @@ const (
 	// ChangeDustSat is the smallest change output (§9.8: change ≥ 330 sat).
 	ChangeDustSat = 330
 	// RecipientDustSat is the smallest recipient output after its fee share: the
-	// P2PKH dust limit, above every accepted script's (docs/decisions.md).
+	// P2PKH dust limit, above every accepted script's.
 	RecipientDustSat = 546
-	// MaxBatchRequests caps the requests in one batch (docs/decisions.md).
+	// MaxBatchRequests caps the requests in one batch.
 	MaxBatchRequests = 64
 )
 

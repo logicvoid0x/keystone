@@ -7,7 +7,7 @@ import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 import "keystone/liquidation/v1/params.proto";
 
-option go_package = "github.com/OWNER/keystone/x/liquidation/types";
+option go_package = "github.com/logicvoid0x/keystone/x/liquidation/types";
 
 // Msg is the x/liquidation Msg service (design §11.1).
 service Msg {

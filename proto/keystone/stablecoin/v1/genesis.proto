@@ -5,7 +5,7 @@ import "amino/amino.proto";
 import "gogoproto/gogo.proto";
 import "keystone/stablecoin/v1/params.proto";
 
-option go_package = "github.com/OWNER/keystone/x/stablecoin/types";
+option go_package = "github.com/logicvoid0x/keystone/x/stablecoin/types";
 
 // GenesisState is the x/stablecoin genesis state.
 message GenesisState {

@@ -3,7 +3,7 @@ package apptest
 import (
 	"sync"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
 )
 
 // PriceFeed is a settable price sidecar for the in-process chain. Every validator

@@ -13,7 +13,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // Keeper owns vaults, the rate index and the liquidation index (design §7, §8.1).
@@ -132,7 +132,7 @@ func (k *Keeper) addTotalArt(ctx context.Context, delta sdkmath.Int) error {
 	return k.TotalArt.Set(ctx, a.Add(delta))
 }
 
-// addSlack raises the invariant-1 rounding bound (docs/decisions.md).
+// addSlack raises the invariant-1 rounding bound.
 func (k *Keeper) addSlack(ctx context.Context, n sdkmath.Int) error {
 	s, err := k.RoundingSlack.Get(ctx)
 	if err != nil {

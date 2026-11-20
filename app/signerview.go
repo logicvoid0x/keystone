@@ -3,8 +3,8 @@ package app
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/sidecar/signer"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/sidecar/signer"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // FrostView is the FROST signer's read-only view of the latest committed state (spec

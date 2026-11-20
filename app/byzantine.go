@@ -9,7 +9,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol"
 )
 
 // ByzantineEnabled: this binary can misbehave as a proposer (adversarial tests only,

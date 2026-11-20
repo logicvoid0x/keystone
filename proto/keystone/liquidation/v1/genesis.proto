@@ -5,7 +5,7 @@ import "amino/amino.proto";
 import "gogoproto/gogo.proto";
 import "keystone/liquidation/v1/params.proto";
 
-option go_package = "github.com/OWNER/keystone/x/liquidation/types";
+option go_package = "github.com/logicvoid0x/keystone/x/liquidation/types";
 
 // GenesisState is the x/liquidation genesis state.
 message GenesisState {

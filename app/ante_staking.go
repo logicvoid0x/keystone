@@ -10,7 +10,7 @@ import (
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	admintypes "github.com/OWNER/keystone/x/admin/types"
+	admintypes "github.com/logicvoid0x/keystone/x/admin/types"
 )
 
 // Errors of the staking message rules (design §4.2, §9.4, M7).

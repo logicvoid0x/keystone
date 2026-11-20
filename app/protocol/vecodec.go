@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 	MaxVEBytes = 16384
 
 	// Per-payload count caps checked by WithinCounts. MaxDeposits is from design §9.7;
-	// the others are sized from the §5.3 byte budget (docs/decisions.md).
+	// the others are sized from the §5.3 byte budget.
 	MaxDeposits    = 16
 	MaxConfirms    = 16
 	MaxReorgs      = 16

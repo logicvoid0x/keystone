@@ -16,8 +16,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 
-	"github.com/OWNER/keystone/x/admin/keeper"
-	"github.com/OWNER/keystone/x/admin/types"
+	"github.com/logicvoid0x/keystone/x/admin/keeper"
+	"github.com/logicvoid0x/keystone/x/admin/types"
 )
 
 const consensusVersion = 1

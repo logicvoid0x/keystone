@@ -13,12 +13,12 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/testutil/devdealer"
-	"github.com/OWNER/keystone/testutil/multinode"
-	custodykeeper "github.com/OWNER/keystone/x/custody/keeper"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/testutil/devdealer"
+	"github.com/logicvoid0x/keystone/testutil/multinode"
+	custodykeeper "github.com/logicvoid0x/keystone/x/custody/keeper"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 func payout(b byte) []byte { return append([]byte{0x00, 0x14}, bytes.Repeat([]byte{b}, 20)...) }

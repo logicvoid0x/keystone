@@ -7,7 +7,7 @@ import (
 
 	"cosmossdk.io/collections"
 
-	"github.com/OWNER/keystone/testutil/multinode"
+	"github.com/logicvoid0x/keystone/testutil/multinode"
 )
 
 // Design §12 "one operator's bitcoind stalls": its attestations stop and the quorum

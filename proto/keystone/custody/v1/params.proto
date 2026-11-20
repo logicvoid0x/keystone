@@ -5,7 +5,7 @@ import "amino/amino.proto";
 import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 
-option go_package = "github.com/OWNER/keystone/x/custody/types";
+option go_package = "github.com/logicvoid0x/keystone/x/custody/types";
 
 // Params are the x/custody parameters (design §9.1, §10.3; bounds §17).
 message Params {

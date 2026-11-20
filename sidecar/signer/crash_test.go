@@ -12,11 +12,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/secret"
-	"github.com/OWNER/keystone/sidecar/signer/noncestore"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
+	"github.com/logicvoid0x/keystone/sidecar/signer/noncestore"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // Spec M4a-T8 nonce-store crash test: the signer process is killed (os.Exit, no

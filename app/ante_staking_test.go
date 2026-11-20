@@ -15,8 +15,8 @@ import (
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	"github.com/OWNER/keystone/app"
-	admintypes "github.com/OWNER/keystone/x/admin/types"
+	"github.com/logicvoid0x/keystone/app"
+	admintypes "github.com/logicvoid0x/keystone/x/admin/types"
 )
 
 type fakeTx struct{ msgs []sdk.Msg }

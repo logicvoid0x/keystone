@@ -3,7 +3,7 @@ package custody
 import (
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 
-	"github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // AutoCLIOptions implements autocli.HasAutoCLIConfig.

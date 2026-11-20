@@ -4,7 +4,7 @@ package keystone.ve.v1;
 import "gogoproto/gogo.proto";
 import "tendermint/abci/types.proto";
 
-option go_package = "github.com/OWNER/keystone/app/protocol/vetypes";
+option go_package = "github.com/logicvoid0x/keystone/app/protocol/vetypes";
 
 // VoteExtension is the payload each validator signs into its precommit (design §5.2, §6.1).
 // Canonical form: repeated fields sorted as documented below, strictly (no duplicates).

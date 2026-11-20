@@ -12,7 +12,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 type msgServer struct{ k *Keeper }
@@ -32,7 +32,6 @@ func (m msgServer) ClearTheftPause(ctx context.Context, msg *types.MsgClearTheft
 	}
 	return &types.MsgClearTheftPauseResponse{}, nil
 }
-
 
 func (m msgServer) WithdrawClaim(ctx context.Context, msg *types.MsgWithdrawClaim) (*types.MsgWithdrawClaimResponse, error) {
 	id, err := m.k.WithdrawClaim(ctx, msg)

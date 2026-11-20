@@ -1,6 +1,6 @@
 package multinode_test
 
-import "github.com/OWNER/keystone/testutil/multinode"
+import "github.com/logicvoid0x/keystone/testutil/multinode"
 
 // steps runs n honest heights.
 func steps(net *multinode.Net, n int) {

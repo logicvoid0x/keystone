@@ -8,9 +8,9 @@ import (
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/app/protocol"
-	"github.com/OWNER/keystone/testutil/apptest"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/testutil/apptest"
 )
 
 func TestMetrics(t *testing.T) {

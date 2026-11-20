@@ -3,7 +3,7 @@ package oracle
 import (
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 
-	"github.com/OWNER/keystone/x/oracle/types"
+	"github.com/logicvoid0x/keystone/x/oracle/types"
 )
 
 // AutoCLIOptions implements autocli.HasAutoCLIConfig.

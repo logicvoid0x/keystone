@@ -11,8 +11,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
-	"github.com/OWNER/keystone/x/liquidation/types"
-	stablecointypes "github.com/OWNER/keystone/x/stablecoin/types"
+	"github.com/logicvoid0x/keystone/x/liquidation/types"
+	stablecointypes "github.com/logicvoid0x/keystone/x/stablecoin/types"
 )
 
 // Keeper owns the stability pool, liquidation selection/execution and the fallback

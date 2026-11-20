@@ -8,7 +8,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/x/liquidation/types"
+	"github.com/logicvoid0x/keystone/x/liquidation/types"
 )
 
 // PoolInvariant is invariant 8: the pool module's KUSD balance ≥ Σ compounded

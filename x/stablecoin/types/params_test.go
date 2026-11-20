@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/x/stablecoin/types"
+	"github.com/logicvoid0x/keystone/x/stablecoin/types"
 )
 
 func TestParamsValidate(t *testing.T) {

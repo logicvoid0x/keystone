@@ -3,7 +3,7 @@ package keystone.oracle.v1;
 
 import "amino/amino.proto";
 
-option go_package = "github.com/OWNER/keystone/x/oracle/types";
+option go_package = "github.com/logicvoid0x/keystone/x/oracle/types";
 
 // Params are the x/oracle parameters (design §10.3; bounds §17).
 message Params {

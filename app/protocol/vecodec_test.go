@@ -7,8 +7,8 @@ import (
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app/protocol"
-	"github.com/OWNER/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
 )
 
 func fullVE(height int64) vetypes.VoteExtension {

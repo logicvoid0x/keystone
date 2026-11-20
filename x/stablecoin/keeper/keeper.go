@@ -12,7 +12,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
-	"github.com/OWNER/keystone/x/stablecoin/types"
+	"github.com/logicvoid0x/keystone/x/stablecoin/types"
 )
 
 // Keeper is the KUSD mint/burn authority, the surplus buffer and bad debt (design §7.4).

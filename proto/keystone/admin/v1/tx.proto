@@ -8,7 +8,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/any.proto";
 import "keystone/admin/v1/admin.proto";
 
-option go_package = "github.com/OWNER/keystone/x/admin/types";
+option go_package = "github.com/logicvoid0x/keystone/x/admin/types";
 
 // Msg is the x/admin Msg service.
 service Msg {

@@ -10,8 +10,8 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/testutil/devdealer"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/testutil/devdealer"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 func addrs(n int) []sdk.AccAddress {

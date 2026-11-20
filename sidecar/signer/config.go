@@ -11,7 +11,7 @@ import (
 
 	"cosmossdk.io/log/v2"
 
-	"github.com/OWNER/keystone/sidecar/signer/noncestore"
+	"github.com/logicvoid0x/keystone/sidecar/signer/noncestore"
 )
 
 // app.toml keys under [keystone.signer], the start flag and the passphrase variable.

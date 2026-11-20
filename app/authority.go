@@ -20,7 +20,7 @@ import (
 // keepers are built with the x/admin module address as authority (no key can sign for
 // it), and their Msg services are wrapped: a message is accepted only if its
 // authority field is the current x/admin admin, and is then forwarded with the module
-// address substituted. docs/decisions.md records this.
+// address substituted.
 
 // AdminChecker is the x/admin check used by the wrappers.
 type AdminChecker interface {

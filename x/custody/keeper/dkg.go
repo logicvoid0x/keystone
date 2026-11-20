@@ -17,8 +17,8 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // DKGWindow is the length of each DKG phase in blocks (design §9.3).

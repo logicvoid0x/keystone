@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/testutil/multinode"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/testutil/multinode"
 )
 
 // TestDeterminism10k is spec M2-T3: 4 nodes, each with its own noisy prices, run the

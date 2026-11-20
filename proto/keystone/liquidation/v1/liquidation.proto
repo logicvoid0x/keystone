@@ -5,7 +5,7 @@ import "amino/amino.proto";
 import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 
-option go_package = "github.com/OWNER/keystone/x/liquidation/types";
+option go_package = "github.com/logicvoid0x/keystone/x/liquidation/types";
 
 // Mode is how a vault is liquidated (design §8.4).
 enum Mode {

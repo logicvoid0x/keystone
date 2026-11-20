@@ -19,16 +19,16 @@ import (
 	moduletestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
-	"github.com/OWNER/keystone/testutil/fakebank"
-	custodykeeper "github.com/OWNER/keystone/x/custody/keeper"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	"github.com/OWNER/keystone/x/liquidation/keeper"
-	"github.com/OWNER/keystone/x/liquidation/types"
-	oracletypes "github.com/OWNER/keystone/x/oracle/types"
-	stablecoinkeeper "github.com/OWNER/keystone/x/stablecoin/keeper"
-	stablecointypes "github.com/OWNER/keystone/x/stablecoin/types"
-	vaultkeeper "github.com/OWNER/keystone/x/vault/keeper"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/testutil/fakebank"
+	custodykeeper "github.com/logicvoid0x/keystone/x/custody/keeper"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/x/liquidation/keeper"
+	"github.com/logicvoid0x/keystone/x/liquidation/types"
+	oracletypes "github.com/logicvoid0x/keystone/x/oracle/types"
+	stablecoinkeeper "github.com/logicvoid0x/keystone/x/stablecoin/keeper"
+	stablecointypes "github.com/logicvoid0x/keystone/x/stablecoin/types"
+	vaultkeeper "github.com/logicvoid0x/keystone/x/vault/keeper"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 const usd = 1_000_000

@@ -10,13 +10,13 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/secret"
-	"github.com/OWNER/keystone/sidecar/dkg"
-	"github.com/OWNER/keystone/x/custody/keeper"
-	"github.com/OWNER/keystone/x/custody/types"
-	"github.com/OWNER/keystone/x/validators"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
+	"github.com/logicvoid0x/keystone/sidecar/dkg"
+	"github.com/logicvoid0x/keystone/x/custody/keeper"
+	"github.com/logicvoid0x/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/x/validators"
 )
 
 // deliver runs DKG and custody-key messages through the msg server; failures are

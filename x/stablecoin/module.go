@@ -15,8 +15,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 
-	"github.com/OWNER/keystone/x/stablecoin/keeper"
-	"github.com/OWNER/keystone/x/stablecoin/types"
+	"github.com/logicvoid0x/keystone/x/stablecoin/keeper"
+	"github.com/logicvoid0x/keystone/x/stablecoin/types"
 )
 
 const consensusVersion = 1

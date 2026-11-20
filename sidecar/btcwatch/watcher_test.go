@@ -14,10 +14,10 @@ import (
 	"github.com/btcsuite/btcd/wire/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app/protocol"
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/sidecar/btcwatch"
-	"github.com/OWNER/keystone/testutil/btcfake"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/sidecar/btcwatch"
+	"github.com/logicvoid0x/keystone/testutil/btcfake"
 )
 
 type staticView struct{ v btcwatch.View }

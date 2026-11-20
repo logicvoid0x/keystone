@@ -7,7 +7,7 @@ import (
 
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 func TestParamsValidate(t *testing.T) {

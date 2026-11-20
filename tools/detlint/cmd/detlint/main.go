@@ -4,7 +4,7 @@ package main
 import (
 	"golang.org/x/tools/go/analysis/singlechecker"
 
-	"github.com/OWNER/keystone/tools/detlint"
+	"github.com/logicvoid0x/keystone/tools/detlint"
 )
 
 func main() { singlechecker.Main(detlint.Analyzer) }

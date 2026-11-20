@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/OWNER/keystone/sidecar/price/mockfeed"
+	"github.com/logicvoid0x/keystone/sidecar/price/mockfeed"
 )
 
 func main() {

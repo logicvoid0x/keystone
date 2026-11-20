@@ -12,7 +12,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	"github.com/OWNER/keystone/x/validators"
+	"github.com/logicvoid0x/keystone/x/validators"
 )
 
 // StakingKeeper is the part of x/staking the adapter reads.

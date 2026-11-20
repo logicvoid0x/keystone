@@ -9,7 +9,7 @@ import "google/api/annotations.proto";
 import "keystone/liquidation/v1/liquidation.proto";
 import "keystone/liquidation/v1/params.proto";
 
-option go_package = "github.com/OWNER/keystone/x/liquidation/types";
+option go_package = "github.com/logicvoid0x/keystone/x/liquidation/types";
 
 // Query is the x/liquidation query service (design §11.2).
 service Query {

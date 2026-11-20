@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/sidecar/signer/noncestore"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/sidecar/signer/noncestore"
 )
 
 func share(t *testing.T) frost.Scalar {

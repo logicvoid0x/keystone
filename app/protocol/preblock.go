@@ -13,12 +13,12 @@ import (
 	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
-	oracletypes "github.com/OWNER/keystone/x/oracle/types"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
+	liqtypes "github.com/logicvoid0x/keystone/x/liquidation/types"
+	oracletypes "github.com/logicvoid0x/keystone/x/oracle/types"
 )
 
-// Events emitted by the protocol segment (docs/decisions.md; §11.3 names none for the
+// Events emitted by the protocol segment (§11.3 names none for the
 // orchestrator).
 const (
 	EventTypeProtocolSkipped    = "protocol_skipped"

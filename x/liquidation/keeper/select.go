@@ -5,8 +5,8 @@ import (
 
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/x/liquidation/types"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	"github.com/logicvoid0x/keystone/x/liquidation/types"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // Select chooses this block's liquidations at price, exactly design §8.2. It reads

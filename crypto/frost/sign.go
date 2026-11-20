@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/OWNER/keystone/crypto/frost/internal/zf"
+	"github.com/logicvoid0x/keystone/crypto/frost/internal/zf"
 )
 
 // Commitment is a signer's round-one nonce commitment pair (D_i, E_i).

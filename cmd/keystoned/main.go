@@ -9,8 +9,8 @@ import (
 
 	svrcmd "github.com/cosmos/cosmos-sdk/server/cmd"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/cmd/keystoned/cmd"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/cmd/keystoned/cmd"
 )
 
 func main() {

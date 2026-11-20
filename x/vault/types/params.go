@@ -4,7 +4,7 @@ import (
 	errorsmod "cosmossdk.io/errors"
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/x/internal/bounds"
+	"github.com/logicvoid0x/keystone/x/internal/bounds"
 )
 
 var (
@@ -36,7 +36,7 @@ func DefaultParams() Params {
 }
 
 // Validate enforces the bounds. MCR 11000..30000 and LR below MCR are from design §17;
-// the others are sanity bounds recorded in docs/decisions.md.
+// the others are sanity bounds.
 func (p Params) Validate() error {
 	err := bounds.First(
 		bounds.Uint("mcr_bps", uint64(p.McrBps), 11_000, 30_000),

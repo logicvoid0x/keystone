@@ -21,9 +21,9 @@ import (
 
 	"cosmossdk.io/log/v2"
 
-	"github.com/OWNER/keystone/app/protocol"
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // Source is the Bitcoin node the watcher follows.

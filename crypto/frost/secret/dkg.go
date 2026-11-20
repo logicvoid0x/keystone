@@ -9,8 +9,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/internal/zf"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/internal/zf"
 )
 
 func reader(r io.Reader) io.Reader {

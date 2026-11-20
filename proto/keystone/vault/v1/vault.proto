@@ -5,7 +5,7 @@ import "amino/amino.proto";
 import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 
-option go_package = "github.com/OWNER/keystone/x/vault/types";
+option go_package = "github.com/logicvoid0x/keystone/x/vault/types";
 
 // VaultStatus is a vault's lifecycle state (design §7.2).
 enum VaultStatus {

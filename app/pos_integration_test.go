@@ -11,16 +11,16 @@ import (
 	sdkmath "cosmossdk.io/math"
 
 	sdked25519 "github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
-	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/app/protocol"
-	"github.com/OWNER/keystone/app/protocol/vetypes"
-	"github.com/OWNER/keystone/testutil/apptest"
-	admintypes "github.com/OWNER/keystone/x/admin/types"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol/vetypes"
+	"github.com/logicvoid0x/keystone/testutil/apptest"
+	admintypes "github.com/logicvoid0x/keystone/x/admin/types"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // TestTx0FromBlock2 runs blocks through Prepare/Process/ExtendVote/Finalize: block 1

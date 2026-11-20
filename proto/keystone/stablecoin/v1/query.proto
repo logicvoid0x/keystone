@@ -8,7 +8,7 @@ import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
 import "keystone/stablecoin/v1/params.proto";
 
-option go_package = "github.com/OWNER/keystone/x/stablecoin/types";
+option go_package = "github.com/logicvoid0x/keystone/x/stablecoin/types";
 
 // Query is the x/stablecoin query service.
 service Query {

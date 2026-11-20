@@ -8,7 +8,7 @@ import (
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol"
 )
 
 func TestInjectRoundTrip(t *testing.T) {

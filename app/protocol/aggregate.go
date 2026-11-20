@@ -3,8 +3,8 @@ package protocol
 import (
 	"context"
 
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
-	oracletypes "github.com/OWNER/keystone/x/oracle/types"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
+	oracletypes "github.com/logicvoid0x/keystone/x/oracle/types"
 )
 
 // OracleView is what aggregation reads from x/oracle: the previous spot (for the

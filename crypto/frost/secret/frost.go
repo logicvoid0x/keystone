@@ -10,8 +10,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/internal/zf"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/internal/zf"
 )
 
 // Nonces is a signer's secret nonce pair (d, e) for one commitment.

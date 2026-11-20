@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OWNER/keystone/sidecar/price"
+	"github.com/logicvoid0x/keystone/sidecar/price"
 )
 
 // Exchanges are the fake exchange names.

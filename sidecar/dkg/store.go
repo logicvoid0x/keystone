@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/crypto/frost/secret"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/crypto/frost/secret"
 )
 
 // FileStore keeps the dealer polynomial in <home>/custody/dkg_<epoch>_<attempt>.json

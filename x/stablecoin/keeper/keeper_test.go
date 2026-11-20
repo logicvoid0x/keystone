@@ -18,9 +18,9 @@ import (
 	moduletestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
-	"github.com/OWNER/keystone/testutil/fakebank"
-	"github.com/OWNER/keystone/x/stablecoin/keeper"
-	"github.com/OWNER/keystone/x/stablecoin/types"
+	"github.com/logicvoid0x/keystone/testutil/fakebank"
+	"github.com/logicvoid0x/keystone/x/stablecoin/keeper"
+	"github.com/logicvoid0x/keystone/x/stablecoin/types"
 )
 
 var (

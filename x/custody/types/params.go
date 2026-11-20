@@ -4,7 +4,7 @@ import (
 	errorsmod "cosmossdk.io/errors"
 	sdkmath "cosmossdk.io/math"
 
-	"github.com/OWNER/keystone/x/internal/bounds"
+	"github.com/logicvoid0x/keystone/x/internal/bounds"
 )
 
 var (
@@ -44,7 +44,7 @@ func DefaultParams() Params {
 }
 
 // Validate enforces the bounds. TreasuryCapSat <= 100 BTC and MembershipDelayBlocks
-// >= 100 are from design §17; the others are sanity bounds recorded in docs/decisions.md.
+// >= 100 are from design §17; the others are sanity bounds.
 func (p Params) Validate() error {
 	err := bounds.First(
 		bounds.Int("treasury_cap_sat", p.TreasuryCapSat, sdkmath.ZeroInt(), MaxTreasuryCapSat),

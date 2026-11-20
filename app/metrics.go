@@ -12,9 +12,9 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	liqtypes "github.com/OWNER/keystone/x/liquidation/types"
-	oracletypes "github.com/OWNER/keystone/x/oracle/types"
-	vaulttypes "github.com/OWNER/keystone/x/vault/types"
+	liqtypes "github.com/logicvoid0x/keystone/x/liquidation/types"
+	oracletypes "github.com/logicvoid0x/keystone/x/oracle/types"
+	vaulttypes "github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 // Metrics are the design §16 Prometheus metrics available in M2 (namespace keystone).

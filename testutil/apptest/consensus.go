@@ -14,7 +14,7 @@ import (
 	cmttypes "github.com/cometbft/cometbft/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/OWNER/keystone/app/protocol"
+	"github.com/logicvoid0x/keystone/app/protocol"
 )
 
 // Validator is one entry of a simulated CometBFT validator set.

@@ -3,7 +3,7 @@ package types
 import (
 	errorsmod "cosmossdk.io/errors"
 
-	"github.com/OWNER/keystone/x/internal/bounds"
+	"github.com/logicvoid0x/keystone/x/internal/bounds"
 )
 
 // DefaultParams are the design §10.3 defaults.
@@ -21,7 +21,7 @@ func DefaultParams() Params {
 }
 
 // Validate enforces the bounds. MaxStepBps 100..2000 is from design §17; the others
-// are sanity bounds recorded in docs/decisions.md.
+// are sanity bounds.
 func (p Params) Validate() error {
 	err := bounds.First(
 		bounds.Uint("min_sources", uint64(p.MinSources), 1, 32),

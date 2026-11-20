@@ -11,8 +11,8 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	oracletypes "github.com/OWNER/keystone/x/oracle/types"
-	"github.com/OWNER/keystone/x/vault/types"
+	oracletypes "github.com/logicvoid0x/keystone/x/oracle/types"
+	"github.com/logicvoid0x/keystone/x/vault/types"
 )
 
 func uintStr(v uint64) string { return strconv.FormatUint(v, 10) }
@@ -263,7 +263,7 @@ func (k *Keeper) withdrawCollateral(ctx context.Context, prev, next types.Vault,
 
 // CloseVault closes a vault with no debt and withdraws all its collateral to
 // recipient_script. Collateral below MinWithdrawSat cannot be paid out on its own and
-// goes to the owner's claimable balance instead (docs/decisions.md). It returns the
+// goes to the owner's claimable balance instead. It returns the
 // request id (0 if none).
 func (k *Keeper) CloseVault(ctx context.Context, msg *types.MsgCloseVault) (uint64, error) {
 	if err := msg.ValidateBasic(); err != nil {
@@ -305,7 +305,7 @@ func (k *Keeper) CloseVault(ctx context.Context, msg *types.MsgCloseVault) (uint
 }
 
 // DepositClaim moves claimable BTC into a vault. It counts as a credit: allowed only
-// within the treasury-cap headroom (docs/decisions.md).
+// within the treasury-cap headroom.
 func (k *Keeper) DepositClaim(ctx context.Context, msg *types.MsgDepositClaim) error {
 	if err := msg.ValidateBasic(); err != nil {
 		return err

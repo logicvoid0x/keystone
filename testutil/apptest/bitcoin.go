@@ -17,12 +17,12 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/OWNER/keystone/app"
-	"github.com/OWNER/keystone/crypto/frost"
-	"github.com/OWNER/keystone/sidecar/signer"
-	"github.com/OWNER/keystone/sidecar/signer/noncestore"
-	"github.com/OWNER/keystone/testutil/devdealer"
-	custodytypes "github.com/OWNER/keystone/x/custody/types"
+	"github.com/logicvoid0x/keystone/app"
+	"github.com/logicvoid0x/keystone/crypto/frost"
+	"github.com/logicvoid0x/keystone/sidecar/signer"
+	"github.com/logicvoid0x/keystone/sidecar/signer/noncestore"
+	"github.com/logicvoid0x/keystone/testutil/devdealer"
+	custodytypes "github.com/logicvoid0x/keystone/x/custody/types"
 )
 
 // DealCustody puts a dealer epoch for operators into gs (seeded, so every test run

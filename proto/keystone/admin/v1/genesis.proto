@@ -5,7 +5,7 @@ import "amino/amino.proto";
 import "gogoproto/gogo.proto";
 import "keystone/admin/v1/admin.proto";
 
-option go_package = "github.com/OWNER/keystone/x/admin/types";
+option go_package = "github.com/logicvoid0x/keystone/x/admin/types";
 
 // GenesisState is the x/admin genesis state.
 message GenesisState {
